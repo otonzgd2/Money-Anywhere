@@ -1,0 +1,44 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:money_anywhere/money.dart';
+
+void main() {
+  group('toFactValue', () {
+    test('bool: first option is true', () {
+      final q = {'type': 'bool', 'options': ['ได้รับอยู่แล้ว', 'ยังไม่ได้รับ']};
+      expect(toFactValue(q, 'ได้รับอยู่แล้ว'), isTrue);
+      expect(toFactValue(q, 'ยังไม่ได้รับ'), isFalse);
+    });
+    test('number: digits only', () => expect(toFactValue({'type': 'number'}, '12,000 บาท'), 12000));
+    test('enum: kept as text', () => expect(toFactValue({'type': 'enum'}, '60-69'), '60-69'));
+  });
+
+  group('rankMoney', () {
+    final items = [
+      {'id': 'tax', 'status': 'check', 'kind': 'once', 'amount': {'basis': 'none'}},
+      {'id': 'old', 'status': 'likely', 'kind': 'monthly', 'amount': {'value': 600}},
+      {'id': 'gets', 'status': 'check', 'kind': 'monthly', 'alreadyReceiving': true, 'amount': {'value': 700}},
+      {'id': 'no', 'status': 'unlikely', 'kind': 'monthly', 'amount': {'basis': 'none'}},
+    ];
+    test('sourced amount first, already-receiving and unlikely left out', () {
+      expect(rankMoney(items).map((i) => i['id']).toList(), ['old', 'tax']);
+    });
+  });
+
+  test('nextQuestion skips what the person skipped', () {
+    final items = [
+      {'status': 'need', 'nextQuestion': {'fact': 'work'}},
+      {'status': 'need', 'nextQuestion': {'fact': 'taxWithheld'}},
+    ];
+    expect(nextQuestion(items, {})?['fact'], 'work');
+    expect(nextQuestion(items, {'work'})?['fact'], 'taxWithheld');
+    expect(nextQuestion(items, {'work', 'taxWithheld'}), isNull);
+  });
+
+  test('baht formats with commas', () {
+    expect(baht(7200), '฿7,200');
+    expect(baht(600), '฿600');
+  });
+
+  test('mock data is always labelled', () => expect(dataLabel('mock'), 'DEMO / MOCK'));
+}

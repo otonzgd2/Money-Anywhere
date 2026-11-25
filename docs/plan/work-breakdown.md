@@ -28,7 +28,7 @@
 | T0.4 | `.gitignore` กัน secret/build และ `.env.example` | AI | - | ไฟล์ใน repo | DONE |
 | T0.5 | ติดตั้ง Android Studio (JDK + SDK Manager) | P1 | - | Android Studio มีอยู่แล้ว, JDK ของ Studio (OpenJDK 25.0.4) ตั้งเป็น JAVA_HOME | DONE |
 | T0.6 | ติดตั้ง Android SDK และ platform-tools | P1 | T0.5 | SDK ที่ `D:\Android\Sdk`: platform-tools (adb 1.0.41), platforms;android-36, build-tools;36.0.0 | DONE |
-| T0.7 | เตรียมอุปกรณ์ทดสอบ (emulator หรือมือถือ USB debugging) | P1 | T0.6 | ยังไม่มีมือถือหรือ emulator (C: เหลือ ~12 GB แนะนำมือถือจริง USB debugging) | TODO |
+| T0.7 | เตรียมอุปกรณ์ทดสอบ (emulator หรือมือถือ USB debugging) | P1 | T0.6 | มือถือจริง Samsung SM-S948B ต่อ USB debugging, `adb reverse tcp:8080 tcp:8080` | DONE |
 | T0.8 | ตั้ง AI provider และ API key ใน `.env` (ไม่ commit) | OWNER | - | `.env` (ไม่ commit): Gemini `gemini-3.5-flash-lite` ผ่าน endpoint OpenAI-compatible เรียกจริงได้ 26 พ.ย. | DONE |
 | T0.9 | ตรวจ Kiro: agent `aidlc` และ `/aidlc --doctor` | AI | - | ผล doctor ไม่มี error | TODO |
 | T0.10 | commit และ push เฟส 0 | AI | T0.1-T0.4 | commit `a0dad62` (งานหลัง `2ef3b48` ยังไม่ commit ณ 26 พ.ย.) | DONE |
@@ -141,7 +141,7 @@
 
 | ID | งาน | เจ้าของ | ขึ้นกับ | Evidence | สถานะ |
 |---|---|---|---|---|---|
-| T4.1 | Bolt 1 Walking skeleton: ติดตั้ง APK, หน้าแรกปุ่ม AI + เช็คเงินด่วน, เรียก API 0.6 (รวมสร้าง Dart client จาก `openapi.yaml`) | P1-P3 | T0.7, T0.8, T0.13 | APK + commit hash | TODO |
+| T4.1 | Bolt 1 Walking skeleton: ติดตั้ง APK, หน้าแรกปุ่ม AI + เช็คเงินด่วน, เรียก API 0.6 (รวมสร้าง Dart client จาก `openapi.yaml`) | P1-P3 | T0.7, T0.8, T0.13 | APK debug ติดตั้งลงมือถือแล้ว (analyze ผ่าน, test 7/7) รอบ 2 แก้จากที่ Owner ลอง: แชทไม่หายเมื่อกด back, หน้าแรกเปลี่ยนตามผล, เช็คเงินเองถามเฉพาะข้อที่ยังไม่ตอบ, device id ไม่หายเมื่อปิดแอป, API 0.7 guard; ขั้นตอนสร้างใหม่ใน `docs/guide/rebuild-playbook.md`; Dart client จาก openapi ยังไม่ทำ | IN PROGRESS |
 | T4.2 | Bolt 2 Track A เงินที่ควรตรวจ/รับคืน + กฎคำนวณ deterministic | TBD | T4.1 | build+test + hash | TODO |
 | T4.3 | Bolt 3 Track B งาน | TBD | T4.1 | build+test + hash | TODO |
 | T4.4 | Bolt 4 Track C รายได้จากทักษะ | TBD | T4.1 | build+test + hash | TODO |

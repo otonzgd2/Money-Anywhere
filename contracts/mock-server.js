@@ -412,13 +412,16 @@ function createServer(opts = {}) {
 
   // AI assistant (agent)
   // Guided checklist: the next missing fact, in program order, from the money engine itself.
-  const nextStep = d => { const it = money.list(d.facts, govData(d)).items.find(i => i.status === 'need' && i.nextQuestion); return it ? { ...it.nextQuestion, moneyId: it.id } : null; };
-  const stepQuick = s => s && s.options ? s.options : undefined;
+  // Facts the person already gave (anywhere in the app) are never asked again; skipped ones wait until the end.
+  const nextStep = (d, skipped = []) => { const it = money.list(d.facts, govData(d)).items.find(i => i.status === 'need' && i.nextQuestion && !skipped.includes(i.nextQuestion.fact)); return it ? { ...it.nextQuestion, moneyId: it.id } : null; };
+  const ANSWER_START = /^(ใช่|ไม่|มี|เคย|ได้|ทำ|ยัง|เป็น|อายุ)/;
+  const DIRECT_RE = /ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง|ทำไง|ต้องทำ|ทำอะไรต่อ|ขั้นตอน|บริบท/i;
+  const stepQuick = s => s && s.options ? [...s.options, guard.skipQuickReply] : undefined;
   on('POST', '/v1/ai/conversations', ({ d, body }) => {
     const g = need(d, 'ai'); if (g) return g;
     const id = 'conv' + d.seq++, guided = !body || body.mode !== 'free';
     const step = guided ? nextStep(d) : null;
-    d.conversations[id] = { history: [], pending: {}, expect: step };
+    d.conversations[id] = { history: [], pending: {}, expect: step, skipped: [] };
     return [201, { conversationId: id, greeting: 'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย' + (step ? '\nเริ่มจากข้อนี้: ' + step.question : ''),
       quickReplies: stepQuick(step) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], step: step || undefined }];
   });
@@ -433,20 +436,43 @@ function createServer(opts = {}) {
     // A free-text reply to the current question ("อายุ 65") may still be an answer: normalise it, keep it only if valid.
     if (v.kind === 'unclear' && c.expect) {
       const r = await aiFor(d).ai.extract({ question: c.expect.question, options: c.expect.options, number: c.expect.type === 'number' }, text);
-      if ((c.expect.options && c.expect.options.includes(r.value)) || (c.expect.type === 'number' && typeof r.value === 'number')) v = { kind: 'answer', value: String(r.value) };
+      // Only text that looks like an answer counts (a number, a yes/no word, or the option itself). The model must not
+      // turn "แนะนำร้านกาแฟหน่อย" into a stored fact just because it was forced to pick an option.
+      const looksLikeAnswer = /\d/.test(text) || ANSWER_START.test(text) || (r.value !== undefined && text.includes(String(r.value)));
+      if (looksLikeAnswer && ((c.expect.options && c.expect.options.includes(r.value)) || (c.expect.type === 'number' && typeof r.value === 'number'))) v = { kind: 'answer', value: String(r.value) };
+    }
+    if (v.kind === 'skip') {
+      c.skipped = [...(c.skipped || []), c.expect.fact];
+      c.expect = nextStep(d, c.skipped);
+      return turn('ได้ค่ะ ข้ามข้อนี้ไปก่อน' + (c.expect ? '\nข้อต่อไป: ' + c.expect.question : '\nไม่มีคำถามอื่นแล้ว ถามเรื่องเงินของคุณต่อได้เลย'), 'skip');
     }
     if (v.kind === 'answer') {
       // The person picked an option the app offered: this is their own entry, not an AI write.
       const [st, res] = svc.patchFacts(d, { [c.expect.fact]: toFact(c.expect, v.value || text) });
       if (st >= 400) return turn('คำตอบนี้ใช้ไม่ได้ ลองเลือกจากตัวเลือกอีกครั้ง\n' + c.expect.question, 'answer');
-      c.expect = nextStep(d);
+      c.expect = nextStep(d, c.skipped || []);
       if (c.expect) return turn('บันทึกแล้ว\nข้อต่อไป: ' + c.expect.question, 'answer');
       const sum = await require('./adapters/agent').rulesAgent({ text: 'เงินฉันอยู่ไหน', tools });
       return turn('บันทึกแล้ว ตอบครบแล้ว\n' + sum.reply + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่นตามช่องทางในแอป', 'answer', { toolCalls: sum.toolCalls.map(t => ({ tool: t.tool })), quickReplies: ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'] });
     }
-    if (v.kind !== 'in_scope') {
+    // No keyword matched but nothing was refused either ("ขอลิงก์ติดต่อหน่อย"): with a real model, let it judge under
+    // the scope prompt (it declines off-topic text). Without a model, redirect as before.
+    let scopeByAi = v.kind === 'unclear' && agent.provider !== 'rules';
+    if (scopeByAi) {
+      // Short yes/no check first; off-topic text gets the fixed refusal, never the model's own words.
+      const k = await aiFor(d).ai.extract({ question: 'ข้อความของผู้ใช้เกี่ยวกับเรื่องเหล่านี้ไหม: ' + guard.scope, options: ['เกี่ยว', 'ไม่เกี่ยว'] }, text);
+      if (k.value !== 'เกี่ยว') { scopeByAi = false; v = { kind: 'off_topic', reply: guard.offTopicReply }; }
+    }
+    if (v.kind !== 'in_scope' && !scopeByAi) {
       // Refused or unclear: never sent to the model, never added to history or memory.
       return turn(v.reply + '\n' + (c.expect ? 'กลับมาที่คำถาม: ' + c.expect.question : guard.redirect), v.kind);
+    }
+    // "What do I do / give me the link or phone": answered from the published route data, never from the model,
+    // so it cannot list programs the person does not qualify for or invent a contact.
+    if (DIRECT_RE.test(text)) {
+      const r = await rulesAgent.respond({ text, tools });
+      const pa = r.pending.filter(x => tools[x.tool] && tools[x.tool].mode === 'confirm').map(x => { const aid = 'pa' + d.seq++; c.pending[aid] = x; return { id: aid, tool: x.tool, label: x.label }; });
+      return turn(r.reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''), 'in_scope', { toolCalls: r.toolCalls.map(t => ({ tool: t.tool })), pendingActions: pa, quickReplies: stepQuick(c.expect) || r.quickReplies });
     }
     const out = await aiFor(d).agent.respond({ text, history: c.history, memory: d.memory.map(m => m.text), profile: d.profile || {}, tools,
       systemPrompt: guard.systemPrompt(c.expect ? 'ถามข้อนี้: ' + c.expect.question : 'ช่วยต่อตามเช็คลิสต์') });
@@ -456,7 +482,7 @@ function createServer(opts = {}) {
     c.history.push({ role: 'user', content: body.text }, { role: 'assistant', content: out.reply });
     return [200, { aiStatus: out.aiStatus, aiInvocationId: 'agent-' + crypto.randomUUID().slice(0, 8), reply: out.reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''),
       toolCalls: out.toolCalls.map(t => ({ tool: t.tool })), pendingActions, memoryAdded, quickReplies: stepQuick(c.expect) || out.quickReplies,
-      guard: { kind: 'in_scope', policyVersion: guard.version }, step: c.expect || undefined }];
+      guard: { kind: scopeByAi ? 'ai_scope' : 'in_scope', policyVersion: guard.version }, step: c.expect || undefined }];
   });
   on('POST', '/v1/ai/conversations/{id}/actions/{actionId}', ({ d, device, p, body }) => {
     const g = need(d, 'ai'); if (g) return g;

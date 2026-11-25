@@ -37,6 +37,7 @@ Owner speaks Thai: reply in Thai. Code, identifiers, commit messages and API fie
 | Clickable mock | `docs/mockups/index.html` (+ `smoke-test.js`) |
 | Generated API docs (do not edit) | `docs/backend/index.html` |
 | Locked decisions | `aidlc/spaces/default/memory/project.md` (Tech Stack, Decided) |
+| Rebuild the app on Demo day (steps, prompts, known pitfalls) | `docs/guide/rebuild-playbook.md` |
 
 Decided, do not re-ask: Flutter; one app with ThaID mode hidden behind `govConnected`; 4 tabs (หน้าแรก, โอกาส, แผนของฉัน, ฉัน); menus and actions come from the backend config; ADR-001 stack.
 

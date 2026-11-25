@@ -11,6 +11,12 @@ function guardMoney(reply, toolJson) {
 
 const PREF_RE = /(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ทำได้แค่[^.?!]*|ว่างแค่[^.?!]*)/;
 
+// Nothing to claim yet: say how far the person is, without naming programs they have not qualified for.
+function notYet(m) {
+  const open = m.items.filter(i => i.status === 'need').length;
+  return open ? 'ตอนนี้ยังบอกไม่ได้ว่าควรได้เงินอะไร ต้องตอบคำถามอีกประมาณ ' + open + ' เรื่องก่อน' : 'จากคำตอบตอนนี้ ยังไม่พบเงินที่น่าจะมีสิทธิ์';
+}
+
 async function rulesAgent({ text, tools }) {
   const calls = [], pending = [], memory = [];
   const use = async (name, args = {}) => { const r = await tools[name].run(args); calls.push({ tool: name, args }); return r; };
@@ -47,10 +53,20 @@ async function rulesAgent({ text, tools }) {
       + (top.length ? '\nเริ่มที่: ' + top.map(i => i.title).join(', ') : '')
       + (need ? '\nตอบอีกข้อเพื่อเช็ค ' + need.title + ': ' + need.nextQuestion.question : '');
     quick = ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'];
-  } else if (/ยังไง|อย่างไร|ไปรับ/.test(t)) {
+  } else if (/ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง/i.test(t)) {
+    // Contacts and links come only from the program's published channels, never from the model.
+    const m = await use('get_money_overview');
+    const list = m.items.filter(i => ['likely', 'verified', 'check'].includes(i.status));
+    const lines = [];
+    for (const it of list.slice(0, 2)) {
+      const r = await use('get_money_route', { moneyId: it.id });
+      lines.push(it.title + ':\n' + r.channels.map(c => '• ' + c.title + (c.detail ? ' ' + c.detail : '') + (c.url ? ' ' + c.url : '')).join('\n'));
+    }
+    reply = lines.length ? 'ช่องทางติดต่อ (จากประกาศของหน่วยงาน)\n' + lines.join('\n') : notYet(m) + ' แล้วจะบอกช่องทางติดต่อของหน่วยงานที่ต้องไปยื่นให้';
+  } else if (/ยังไง|อย่างไร|ไปรับ|ทำไง|ต้องทำ|ทำอะไร|ขั้นตอน/.test(t)) {
     const m = await use('get_money_overview');
     const first = m.items.find(i => ['likely', 'verified', 'check'].includes(i.status));
-    if (!first) reply = 'ยังไม่มีรายการที่น่าจะมีสิทธิ์';
+    if (!first) reply = notYet(m) + ' แล้วจะบอกว่าได้เงินอะไร เท่าไหร่ เอาเอกสารอะไรไปยื่นที่ไหน';
     else { const r = await use('get_money_route', { moneyId: first.id }); reply = first.title + ': ยื่นที่ ' + r.channels[0].title + ' · ' + r.after; pending.push({ tool: 'create_task', args: { moneyId: first.id }, label: 'สร้างแผนรับ "' + first.title + '" ทีละขั้น' }); }
   } else if (pref) {
     reply = 'จำไว้แล้ว จะใช้ประกอบการแนะนำครั้งต่อไป ลบได้ที่แท็บ ฉัน';

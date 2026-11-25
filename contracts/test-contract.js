@@ -60,7 +60,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const miss = await noDevice('getProfile', { expect: 400 });
   check('missing X-Device-Id is rejected with MISSING_DEVICE', miss.data && miss.data.code === 'MISSING_DEVICE');
   const health = await call('getHealth', { expect: 200 });
-  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.6.0');
+  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.7.0');
   const cfg = await call('getAppConfig', { query: { appVersion: '0.1.0' }, expect: 200 });
   check('config carries noticeVersion and gov flag off', cfg.data.noticeVersion === NOTICE && cfg.data.featureFlags.govConnected === false);
   await call('getAppConfig', { query: { appVersion: '0.1.0' }, headers: { 'If-None-Match': cfg.headers.get('etag') }, expect: 304 });
@@ -217,11 +217,28 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('guard: loans are flagged as debt, not income', loan.data.guard.kind === 'scam' && loan.data.reply.includes('หนี้'));
   const unc = await gd('postConversationMessage', { params: { id: gid }, body: { text: 'ท้องฟ้าวันนี้สีอะไร' }, expect: 200 });
   check('guard: anything outside the scope is redirected to the current step', unc.data.guard.kind === 'unclear' && unc.data.reply.includes('ได้รับบำนาญ'));
+  const coffee = await gd('postConversationMessage', { params: { id: gid }, body: { text: 'แนะนำร้านกาแฟแถวนี้หน่อย' }, expect: 200 });
+  check('guided: an off-topic sentence is never stored as an answer', coffee.data.guard.kind !== 'answer' && (await gd('getFacts')).data.govPension === undefined && coffee.data.step.fact === 'govPension');
+  const early = await gd('postConversationMessage', { params: { id: gid }, body: { text: 'ต้องทำไง' }, expect: 200 });
+  check('guided: "what do I do" before enough answers says how many questions are left, without the model', early.data.aiStatus === 'guarded' && early.data.reply.includes('ต้องตอบคำถาม') && early.data.reply.includes('กลับมาที่คำถาม'));
   const ansPension = await gd('postConversationMessage', { params: { id: gid }, body: { text: 'ไม่ได้รับ' }, expect: 200 });
   check('guided: asks "already receiving?" before counting the allowance', ansPension.data.step.fact === 'oldAgeGets');
   for (const a of ['ยังไม่ได้รับ', 'ไม่ได้ทำงาน', 'ไม่ใช่', 'ไม่มี', 'ไม่เคย', '0']) await gd('postConversationMessage', { params: { id: gid }, body: { text: a }, expect: 200 });
   const last = (await gd('getMoneyOverview')).data;
   check('guided: after the last answer the money result is based on what was answered', last.items.find(i => i.id === 'old_age').status === 'likely' && last.items.every(i => i.status !== 'need'));
+  const link = await gd('postConversationMessage', { params: { id: gid }, body: { text: 'ขอลิงก์ติดต่อหน่อย' }, expect: 200 });
+  check('guided: asking for a contact link is in scope and answered from published channels', link.data.guard.kind === 'in_scope' && link.data.aiStatus === 'guarded' && link.data.reply.includes('ช่องทางติดต่อ') && link.data.toolCalls.some(t => t.tool === 'get_money_route'));
+  const how = await gd('postConversationMessage', { params: { id: gid }, body: { text: 'ต้องทำไงต่อ' }, expect: 200 });
+  check('guided: "what do I do next" is in scope and points to the claim route', how.data.guard.kind === 'in_scope' && how.data.reply.includes('ยื่นที่'));
+  const gconv2 = await gd('createConversation', { body: { mode: 'guided' }, expect: 201 });
+  check('guided: a new conversation does not ask again what was already answered', !gconv2.data.step);
+
+  const gsk = client(base, { 'X-Device-Id': 'device-guid-0002' });
+  await gsk('createConsent', { body: consentBody(), expect: 201 });
+  const sconv = await gsk('createConversation', { body: { mode: 'guided' }, expect: 201 });
+  check('guided: every question offers "not sure, skip"', sconv.data.quickReplies.includes('ไม่แน่ใจ ข้ามข้อนี้'));
+  const sk = await gsk('postConversationMessage', { params: { id: sconv.data.conversationId }, body: { text: 'ไม่แน่ใจ ข้ามข้อนี้' }, expect: 200 });
+  check('guided: "not sure" skips to a different question and stores nothing', sk.data.guard.kind === 'skip' && (!sk.data.step || sk.data.step.fact !== 'ageBand') && (await gsk('getFacts')).data.ageBand === undefined);
 
   // Memory
   const mem = await call('listMemory', { expect: 200 });

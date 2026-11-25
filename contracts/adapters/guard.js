@@ -5,12 +5,15 @@
 function createGuard(policy) {
   const rules = policy.rules.map(r => ({ id: r.id, res: r.patterns.map(p => new RegExp(p, 'i')), reply: r.reply }));
   const NUM = /^\s*[\d,]+(\.\d+)?\s*(บาท)?\s*$/;
+  const SKIP = new RegExp(policy.skipPattern || '^(ข้าม|ไม่แน่ใจ|ไม่รู้|ไม่ทราบ)');
   return {
     version: policy.version,
     check(text, expect) {
       const t = String(text || '').trim();
       for (const r of rules) if (r.res.some(re => re.test(t))) return { kind: r.id, reply: r.reply };
       if (expect && expect.options && expect.options.includes(t)) return { kind: 'answer' };
+      // "Not sure / skip" while a question is open: move on to the next question, ask this one later.
+      if (expect && SKIP.test(t)) return { kind: 'skip' };
       if (expect && expect.type === 'number' && NUM.test(t)) return { kind: 'answer' };
       if (policy.inScope.some(w => t.includes(w))) return { kind: 'in_scope' };
       return { kind: 'unclear', reply: 'ฉันช่วยได้เฉพาะเรื่องเงินที่ควรได้ งาน และรายได้จากทักษะ' };
@@ -22,7 +25,10 @@ function createGuard(policy) {
         .replace('{step}', step || 'ตอบคำถามของผู้ใช้ตามขอบเขต')
         .replace('{scope}', policy.scope);
     },
-    redirect: policy.redirect
+    redirect: policy.redirect,
+    skipQuickReply: policy.skipQuickReply || 'ไม่แน่ใจ ข้ามข้อนี้',
+    scope: policy.scope,
+    offTopicReply: (policy.rules.find(r => r.id === 'off_topic') || {}).reply || 'เรื่องนี้ฉันช่วยไม่ได้ค่ะ'
   };
 }
 
