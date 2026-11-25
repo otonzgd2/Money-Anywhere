@@ -35,6 +35,8 @@ function createServer(opts = {}) {
 
   // ---- shared catalogue ----
   const opps = new Map(); // id -> Opportunity
+  // Age is computed at read time so a long-running server never reports a stale age.
+  const fresh = o => ({ ...o, provenance: { ...o.provenance, ageDays: daysAgo(o.provenance.updatedAt) } });
   function upsert(provider, dataStatus, attribution, input) {
     const id = provider + '_' + input.externalId;
     const reasons = scam(input.title + ' ' + (input.conditions || []).join(' ') + ' ' + (input.suspiciousText || ''));
@@ -129,7 +131,7 @@ function createServer(opts = {}) {
   function search(d, q) {
     const c = searchPoint(d, q), r = q.has('radiusKm') ? +q.get('radiusKm') : 5, group = q.get('group') || 'all', cat = q.get('category'), text = (q.get('q') || '').trim();
     const onlyMoney = q.get('onlyMoney') === 'true', showSus = q.get('showSuspicious') === 'true', sort = q.get('sort') || 'near';
-    let xs = [...opps.values()].map(o => o.location.precision === 'exact' ? { ...o, location: { ...o.location, distanceKm: +km(c, o.location).toFixed(2) } } : o)
+    let xs = [...opps.values()].map(fresh).map(o => o.location.precision === 'exact' ? { ...o, location: { ...o.location, distanceKm: +km(c, o.location).toFixed(2) } } : o)
       .filter(o => group === 'all' || o.mapGroup === group).filter(o => !cat || o.category === cat)
       .filter(o => !text || (o.title + ' ' + (o.organization || '')).includes(text))
       .filter(o => !onlyMoney || o.money.basis !== 'none')
@@ -149,7 +151,7 @@ function createServer(opts = {}) {
     const warn = srcState.filter(s => s.state === 'failed').map(s => s.provider);
     return [200, { items: page, nextCursor: start + limit < res.xs.length ? Buffer.from(String(start + limit)).toString('base64url') : undefined, hiddenSuspicious: res.hidden, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
   });
-  on('GET', '/v1/opportunities/{id}', ({ p }) => opps.has(p.id) ? [200, opps.get(p.id)] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'), { public: true });
+  on('GET', '/v1/opportunities/{id}', ({ p }) => opps.has(p.id) ? [200, fresh(opps.get(p.id))] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'), { public: true });
   const reports = [];
   on('POST', '/v1/opportunities/{id}/reports', ({ device, p, body }) => {
     if (!opps.has(p.id)) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
