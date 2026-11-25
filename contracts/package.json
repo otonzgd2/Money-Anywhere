@@ -6,7 +6,7 @@
   "scripts": {
     "validate": "node validate-config.js && node validate-contracts.js",
     "docs": "node build-docs.js",
-    "mock": "node mock-server.js",
+    "mock": "node --env-file-if-exists=../.env mock-server.js",
     "test": "node validate-config.js && node validate-contracts.js && node test-contract.js",
     "check": "npm run test && npm run docs"
   },

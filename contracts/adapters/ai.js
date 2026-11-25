@@ -81,9 +81,21 @@ function createAi(opts = {}) {
 }
 
 // Intake helper: turn a free-text answer into one profile field. Rules match an option; AI may normalise.
+// Map a number in free text ("อายุ 65 ปีค่ะ") onto range options like "60-69", "ต่ำกว่า 60", "90 ขึ้นไป".
+function numberToRange(options, t) {
+  const m = t.replace(/,/g, '').match(/\d+(\.\d+)?/); if (!m) return undefined;
+  const n = +m[0];
+  return options.find(o => {
+    let r;
+    if ((r = o.match(/^(\d+)\s*-\s*(\d+)$/))) return n >= +r[1] && n <= +r[2];
+    if ((r = o.match(/^ต่ำกว่า\s*(\d+)$/))) return n < +r[1];
+    if ((r = o.match(/^(\d+)\s*ขึ้นไป$/))) return n >= +r[1];
+    return false;
+  });
+}
 function rulesExtract(field, text) {
   const t = String(text || '').trim();
-  if (field.options) return field.options.find(o => t.includes(o)) || t;
+  if (field.options) return field.options.find(o => t.includes(o)) || numberToRange(field.options, t) || t;
   if (field.number) { const n = +t.replace(/[^\d]/g, ''); return n || undefined; }
   return t;
 }

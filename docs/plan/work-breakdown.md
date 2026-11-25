@@ -26,15 +26,15 @@
 | T0.2 | กฎโปรเจกต์ Demo ใน `project.md` | AI | - | `project.md` | DONE |
 | T0.3 | เพิ่ม `requirements.md` และ `README.md` | AI | - | ไฟล์ใน repo | DONE |
 | T0.4 | `.gitignore` กัน secret/build และ `.env.example` | AI | - | ไฟล์ใน repo | DONE |
-| T0.5 | ติดตั้ง Android Studio (JDK + SDK Manager) | P1 | - | `java -version` ผ่าน | TODO |
-| T0.6 | ติดตั้ง Android SDK และ platform-tools | P1 | T0.5 | `adb version` ผ่าน | TODO |
-| T0.7 | เตรียมอุปกรณ์ทดสอบ (emulator หรือมือถือ USB debugging) | P1 | T0.6 | `adb devices` เห็นเครื่อง | TODO |
-| T0.8 | ตั้ง AI provider และ API key ใน `.env` (ไม่ commit) | OWNER | - | เรียก API ทดสอบได้ | TODO |
+| T0.5 | ติดตั้ง Android Studio (JDK + SDK Manager) | P1 | - | Android Studio มีอยู่แล้ว, JDK ของ Studio (OpenJDK 25.0.4) ตั้งเป็น JAVA_HOME | DONE |
+| T0.6 | ติดตั้ง Android SDK และ platform-tools | P1 | T0.5 | SDK ที่ `D:\Android\Sdk`: platform-tools (adb 1.0.41), platforms;android-36, build-tools;36.0.0 | DONE |
+| T0.7 | เตรียมอุปกรณ์ทดสอบ (emulator หรือมือถือ USB debugging) | P1 | T0.6 | ยังไม่มีมือถือหรือ emulator (C: เหลือ ~12 GB แนะนำมือถือจริง USB debugging) | TODO |
+| T0.8 | ตั้ง AI provider และ API key ใน `.env` (ไม่ commit) | OWNER | - | `.env` (ไม่ commit): Gemini `gemini-3.5-flash-lite` ผ่าน endpoint OpenAI-compatible เรียกจริงได้ 26 พ.ย. | DONE |
 | T0.9 | ตรวจ Kiro: agent `aidlc` และ `/aidlc --doctor` | AI | - | ผล doctor ไม่มี error | TODO |
 | T0.10 | commit และ push เฟส 0 | AI | T0.1-T0.4 | commit `a0dad62` (งานหลัง `2ef3b48` ยังไม่ commit ณ 26 พ.ย.) | DONE |
 | T0.11 | บันทึกการตัดสินใจใช้ Flutter ใน `project.md` | AI | - | `project.md` (Tech Stack, Decided) | DONE |
-| T0.12 | ติดตั้ง Flutter SDK และเพิ่มใน PATH | P1 | - | `flutter --version` ผ่าน (ตรวจ 26 พ.ย.: ไม่พบ flutter, java, adb ใน PATH) | TODO |
-| T0.13 | `flutter doctor` ไม่มีข้อผิดพลาดเรื่อง Android toolchain | P1 | T0.5, T0.6, T0.12 | ผล doctor | TODO |
+| T0.12 | ติดตั้ง Flutter SDK และเพิ่มใน PATH | P1 | - | Flutter 3.50.1 stable ที่ `C:\src\flutter\bin` อยู่ใน PATH ของผู้ใช้แล้ว | DONE |
+| T0.13 | `flutter doctor` ไม่มีข้อผิดพลาดเรื่อง Android toolchain | P1 | T0.5, T0.6, T0.12 | `flutter doctor`: Android toolchain ผ่าน (เตือนเฉพาะ Visual Studio ซึ่งใช้กับแอป Windows ไม่เกี่ยว) | DONE |
 
 ผ่านเฟส 0 เมื่อ: T0.5-T0.9 DONE (hello-world APK ติดตั้งได้ทำใน T4.1 หลังเลือก framework)
 
@@ -91,7 +91,7 @@
 | TB.10 | ตรวจทาน API v0.2: แก้ 15 จุด, รวมเส้นที่ซ้ำ, แยกเส้นที่หน้าที่ต่างกัน | AI | TB.9 | `docs/design/api-review.md` | DONE |
 | TB.11 | Port เชื่อมต่อภายนอก: AI, แหล่งโอกาส (ดึง/ส่งเข้า), หาพิกัด, แจ้งเตือน | AI | TB.10 | `contracts/integrations.json`, `contracts/adapters/` | DONE |
 | TB.12 | ยืนยันว่า "TM standard" คือมาตรฐานไหน แล้วปรับสัญญาตาม | OWNER+AI | TB.10 | ตารางเทียบใน api-review ข้อ 3 | TODO |
-| TB.13 | ทดสอบ AI adapter กับผู้ให้บริการจริง | AI | TB.6 | ผลเรียกจริง | TODO |
+| TB.13 | ทดสอบ AI adapter กับผู้ให้บริการจริง | AI | TB.6 | เรียก Gemini จริงผ่าน server: เครื่องมือ get_money_overview ทำงาน, ตอบ 1-3 วิ, injection ถูกกันก่อนถึง AI; `gemini-flash-latest` ตอบ 503 และช้าหลายนาที จึงเปลี่ยนรุ่น | DONE |
 | TB.14 | Gap analysis หลังบ้านเทียบ requirements | AI | TB.10 | `docs/design/backend-gaps.md` | DONE |
 | TB.15 | P0 ที่ทำใน mock ได้: health+commit (A6), ช่องทางทางการ (A7), กฎตรวจสิทธิ์ (A1), คำนวณแผน (A3), ไอเดียทักษะ+AI โปรไฟล์ (A2, A4) | AI | TB.14 | API 0.3 `npm test` 87/87 (ดู TF.3) | DONE |
 | TB.16 | P0 ที่รอ TB.6: DB ถาวร (B1), host สำหรับมือถือ (B2), AI จริง (A5) | AI+OWNER | TB.6 | B1 ทำแล้ว (file store, test restart) · B2 server พิมพ์ IP Wi-Fi ยังไม่ลองมือถือจริง · A5 รอ key | DOING |
