@@ -1,0 +1,75 @@
+{
+  "taxonomies": {
+    "categories": [
+      { "id": "welfare", "name": "สวัสดิการรัฐ", "mapGroup": "money" },
+      { "id": "refund", "name": "เงินคืน (ภาษี มัดจำ จ่ายเกิน)", "mapGroup": "money" },
+      { "id": "owed", "name": "เงินค้างรับ (ค่าจ้าง ชดเชย)", "mapGroup": "money" },
+      { "id": "job_full", "name": "งานประจำ", "mapGroup": "job" },
+      { "id": "job_part", "name": "งานพาร์ตไทม์ รายวัน ชั่วคราว", "mapGroup": "job" },
+      { "id": "freelance", "name": "ฟรีแลนซ์และสัญญาจ้าง", "mapGroup": "job" },
+      { "id": "sell", "name": "ขายสินค้า ของมือสอง ทรัพย์สิน", "mapGroup": "sell" },
+      { "id": "assets", "name": "รายได้จากสินทรัพย์เดิม", "mapGroup": "money" },
+      { "id": "grant", "name": "ทุนและความช่วยเหลือที่ไม่ต้องคืน", "mapGroup": "money" },
+      { "id": "skill", "name": "รายได้จากทักษะ และการฝึกทักษะ", "mapGroup": "skill" }
+    ],
+    "mapGroups": [
+      { "id": "job", "name": "งาน", "icon": "💼", "color": "#2563eb" },
+      { "id": "skill", "name": "ทักษะ", "icon": "🛠️", "color": "#d97706" },
+      { "id": "sell", "name": "ขายของ", "icon": "🏪", "color": "#7c3aed" },
+      { "id": "money", "name": "เงิน/สิทธิ์", "icon": "💰", "color": "#0e9f6e" }
+    ],
+    "skillGroups": [
+      { "name": "ขับขี่และขนส่ง", "skills": ["ขับรถยนต์", "ขับมอเตอร์ไซค์", "ส่งของ/ส่งอาหาร", "ขับรถบรรทุก"] },
+      { "name": "อาหารและเครื่องดื่ม", "skills": ["ทำอาหาร", "ทำขนม/เบเกอรี่", "ชงกาแฟ/เครื่องดื่ม", "ช่วยงานครัว"] },
+      { "name": "งานบ้านและบริการ", "skills": ["ทำความสะอาด", "ซักรีด", "ดูแลสวน", "ดูแลสัตว์เลี้ยง"] },
+      { "name": "ดูแลคน", "skills": ["ดูแลผู้สูงอายุ", "เลี้ยงเด็ก", "ปฐมพยาบาลเบื้องต้น"] },
+      { "name": "ช่างและซ่อมแซม", "skills": ["ช่างไฟฟ้า", "ช่างประปา", "ซ่อมรถ/มอเตอร์ไซค์", "ช่างไม้", "ตัดเย็บเสื้อผ้า"] },
+      { "name": "คอมพิวเตอร์และออฟฟิศ", "skills": ["พิมพ์เอกสาร", "Excel/ตาราง", "กรอกข้อมูล", "ใช้โซเชียลมีเดีย"] },
+      { "name": "ขายและบริการลูกค้า", "skills": ["ขายหน้าร้าน", "ขายออนไลน์", "แอดมินเพจ/ตอบแชท"] },
+      { "name": "สอนและภาษา", "skills": ["สอนพิเศษ", "ภาษาอังกฤษ", "ภาษาจีน", "แปลเอกสาร"] },
+      { "name": "ศิลปะและสื่อ", "skills": ["ถ่ายภาพ", "ตัดต่อวิดีโอ", "ออกแบบกราฟิก", "งานฝีมือ/ประดิษฐ์"] },
+      { "name": "เกษตร", "skills": ["ปลูกผัก", "เลี้ยงสัตว์"] }
+    ]
+  },
+  "checklists": {
+    "welfare": ["เตรียมบัตรประชาชน", "ตรวจสิทธิ์ผ่านช่องทางทางการ", "ลงทะเบียนกับหน่วยงาน", "รอผลจากหน่วยงาน"],
+    "refund": ["เตรียมหลักฐานการหักภาษี", "เข้าตรวจสิทธิ์ผ่านเว็บไซต์ทางการ", "ยื่นคำขอ", "รอผลจากหน่วยงาน"],
+    "owed": ["รวบรวมหลักฐานการจ้าง", "ติดต่อหน่วยงานแรงงาน", "ยื่นเรื่อง", "ติดตามผล"],
+    "job_full": ["เตรียมเอกสาร", "ติดต่อผู้ประกาศ", "ไปสัมภาษณ์", "เริ่มงาน"],
+    "job_part": ["เตรียมเอกสาร", "ติดต่อผู้ประกาศ", "ไปสัมภาษณ์", "เริ่มงาน"],
+    "freelance": ["อ่านรายละเอียดงาน", "ติดต่อผู้จ้าง", "ตกลงขอบเขตและค่าจ้าง", "ส่งงานและรับเงิน"],
+    "sell": ["คัดของที่จะขาย", "สอบถามราคาร้านรับซื้อ", "ตัดสินใจขาย"],
+    "assets": ["ตรวจสอบสินทรัพย์ที่มี", "หาข้อมูลช่องทางที่ถูกกฎหมาย", "ตัดสินใจ"],
+    "grant": ["อ่านคุณสมบัติผู้สมัคร", "เตรียมเอกสาร", "ยื่นสมัครตามรอบ", "รอผลการคัดเลือก"],
+    "skill": ["ตรวจรอบเปิดรับ", "โทรสอบถามเงื่อนไข", "ยื่นใบสมัคร", "เริ่มเรียน"]
+  },
+  "plans": [
+    { "id": "pl1", "opportunityId": "mock_j1", "title": "งานแพ็คของ รายวัน", "track": "B", "grossPerMonth": [6400, 7200], "costPerMonth": [400, 600], "payDays": 7, "effort": 2, "risk": "งานอาจไม่มีทุกวัน", "numberSource": "listing", "assumptions": ["4 วัน/สัปดาห์ × 400-450 บาท", "ค่าเดินทางเป็นค่าสมมติ"] },
+    { "id": "pl2", "opportunityId": "mock_j4", "title": "ขับรถส่งของ รายวัน", "track": "B", "grossPerMonth": [6000, 8400], "costPerMonth": [1500, 2200], "payDays": 7, "effort": 3, "risk": "ค่าน้ำมันขึ้นลง", "numberSource": "listing", "assumptions": ["3 วัน/สัปดาห์", "ค่าน้ำมันเป็นค่าสมมติ"] },
+    { "id": "pl3", "title": "รับทำอาหารกล่อง", "track": "C", "grossPerMonth": [7000, 10000], "costPerMonth": [3000, 4000], "payDays": 14, "effort": 2, "risk": "ยอดสั่งไม่แน่นอน", "numberSource": "estimate", "assumptions": ["20 กล่อง/สัปดาห์", "ราคาวัตถุดิบเป็นค่าสมมติ"] },
+    { "id": "pl4", "opportunityId": "mock_w5", "title": "พิมพ์เอกสาร ฟรีแลนซ์", "track": "C", "grossPerMonth": [2400, 4000], "costPerMonth": [0, 300], "payDays": 10, "effort": 1, "risk": "งานไม่สม่ำเสมอ", "numberSource": "listing", "assumptions": ["8 งาน/เดือน"] },
+    { "id": "pl5", "opportunityId": "mock_w1", "title": "เบี้ยยังชีพผู้สูงอายุ", "track": "A", "grossPerMonth": [600, 1000], "costPerMonth": [0, 0], "payDays": 30, "effort": 1, "risk": "ต้องลงทะเบียนตามรอบ", "numberSource": "official", "assumptions": ["ค่าตัวอย่างสมมติ ตรวจกับหน่วยงาน"] },
+    { "id": "pl6", "opportunityId": "mock_m2", "title": "ขายของมือสอง", "track": "C", "unknownReason": "ราคาขึ้นกับของและร้านรับซื้อ", "payDays": 1, "effort": 1, "risk": "ราคาต่อรองได้", "numberSource": "none" },
+    { "id": "pl7", "opportunityId": "mock_w2", "title": "ตรวจสิทธิ์ภาษีคืน", "track": "A", "unknownReason": "จำนวนขึ้นกับข้อมูลภาษีของคุณ แอปไม่ทราบ", "payDays": 60, "effort": 1, "risk": "อาจไม่มีสิทธิ์", "numberSource": "none" }
+  ],
+  "intake": [
+    { "key": "goals", "question": "วันนี้อยากให้ช่วยเรื่องอะไรมากที่สุดคะ", "quickReplies": ["ตรวจเงินที่ควรได้", "หางาน", "หารายได้จากทักษะ", "ยังไม่แน่ใจ"] },
+    { "key": "district", "question": "อยู่แถวไหนในกรุงเทพฯ คะ", "quickReplies": ["ปทุมวัน", "บางกะปิ", "ลาดพร้าว", "บางนา"] },
+    { "key": "skills", "question": "ถนัดหรือทำอะไรได้บ้างคะ", "quickReplies": ["ขับรถยนต์", "ทำอาหาร", "พิมพ์เอกสาร", "ยังไม่มีทักษะเฉพาะ"] },
+    { "key": "hoursPerWeek", "question": "ว่างทำงานสัปดาห์ละกี่ชั่วโมงคะ", "quickReplies": ["ไม่เกิน 10", "10-20", "20-40", "เต็มเวลา"] },
+    { "key": "incomeGoalPerMonth", "question": "อยากได้รายได้เพิ่มเดือนละเท่าไหร่คะ", "quickReplies": ["3000", "5000", "10000"] }
+  ],
+  "scamRules": [
+    { "id": "advance_fee", "pattern": "โอน|มัดจำ|ค่าสมัคร", "reason": "ขอให้โอนเงินก่อน" },
+    { "id": "too_good", "pattern": "วันละ\\s?[3-9],?\\d{3}|รายได้สูง", "reason": "สัญญาผลตอบแทนสูงผิดปกติ" },
+    { "id": "credentials", "pattern": "OTP|รหัสผ่าน|เลขบัญชี", "reason": "ขอข้อมูลลับ" }
+  ],
+  "sources": [
+    { "provider": "greenhouse", "name": "Greenhouse Job Board API", "kind": "API สาธารณะ ไม่ต้องใช้ key", "attribution": "ลิงก์กลับไปที่ประกาศต้นทาง", "url": "https://boards-api.greenhouse.io/v1/boards/agoda/jobs" },
+    { "provider": "lever", "name": "Lever Postings API", "kind": "API สาธารณะ ไม่ต้องใช้ key", "attribution": "ลิงก์กลับไปที่ประกาศต้นทาง", "url": "https://api.lever.co/v0/postings/Coda?mode=json" },
+    { "provider": "bma_open", "name": "data.go.th โรงเรียนฝึกอาชีพ กทม.", "kind": "Open data", "attribution": "ระบุที่มาตามสัญญาอนุญาต" },
+    { "provider": "osm", "name": "OpenStreetMap", "kind": "Open data", "attribution": "© OpenStreetMap contributors" },
+    { "provider": "curated", "name": "ทีมคัดเอง (Curated)", "kind": "ไฟล์ข้อมูล", "attribution": "ระบุ URL ต้นทางทุกรายการ" },
+    { "provider": "mock", "name": "Mock", "kind": "ข้อมูลจำลอง", "attribution": "DEMO / MOCK" }
+  ]
+}

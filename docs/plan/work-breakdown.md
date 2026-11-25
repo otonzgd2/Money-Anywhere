@@ -85,9 +85,11 @@
 | TB.2 | OpenAPI ร่าง 25 operations ตาม resource | AI | TB.1 | `contracts/openapi.yaml` | DONE |
 | TB.3 | JSON Schema ของ app-config + ตัวอย่างที่ตรงกับ mock (4 แท็บ, 16 routes, 25 actions, 5 filters) | AI | TB.1 | `contracts/app-config.*.json` | DONE |
 | TB.4 | Validator ตรวจการอ้างอิงของ config กับ OpenAPI | AI | TB.2, TB.3 | `node contracts/validate-config.js` PASS, config ที่ย้ายปุ่ม PASS, config ที่ผิดจับได้ 2 จุด | DONE |
-| TB.5 | ตรวจ OpenAPI และ schema ด้วยเครื่องมือมาตรฐาน | AI | TB.2, TB.3 | ผลตรวจ | TODO |
+| TB.5 | ตรวจ OpenAPI และ schema ด้วยเครื่องมือมาตรฐาน | AI | TB.2, TB.3 | `npm run validate`: OpenAPI 3.0.3 valid, config ตรง schema | DONE |
+| TB.8 | เอกสาร HTML หลังบ้าน/API แยกตามหน้า สร้างจากสัญญา | AI | TB.2, TB.3 | `docs/backend/index.html` (`npm run docs`) | DONE |
+| TB.9 | Contract test เรียกทุก API ตรวจ schema และกติกา | AI | TB.7 | `npm test`: 100/100 PASS, 25/25 operations | DONE |
 | TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | ADR (รวมกับ T2.7, TM.13) | TODO |
-| TB.7 | Mock server จาก OpenAPI ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.6 | server รันได้ | TODO |
+| TB.7 | Mock server ครบทุก operation ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.2 | `npm run mock`; LIVE=1 ดึง Greenhouse 220 และ Lever 6 ตำแหน่งในกรุงเทพฯ (ทดสอบจริงแล้ว) | DONE |
 
 ## เฟส 2: Inception
 

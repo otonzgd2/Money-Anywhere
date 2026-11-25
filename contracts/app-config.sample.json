@@ -16,8 +16,8 @@
       "title": "เงินฉันอยู่ไหน?", "showTabs": false,
       "sections": [
         { "type": "info_card", "id": "hero", "label": "หาเงินที่คุณอาจมีสิทธิ์ และโอกาสหารายได้" },
-        { "type": "nav_row", "label": "คุยกับ AI", "sub": "ตอบคำถามสั้นๆ ให้ AI ช่วยหา", "icon": "robot", "flag": "aiChat", "onTap": { "route": "intake.chat" } },
-        { "type": "nav_row", "label": "เลือกเอง", "sub": "เลือกหมวดและกรอกข้อมูลเอง", "icon": "compass", "onTap": { "route": "intake.manual" } }
+        { "type": "nav_row", "label": "คุยกับ AI", "sub": "ตอบคำถามสั้นๆ ให้ AI ช่วยหา", "icon": "robot", "flag": "aiChat", "onTap": { "action": "consent.accept", "params": { "version": "1", "accepted": true }, "then": { "route": "intake.chat" } } },
+        { "type": "nav_row", "label": "เลือกเอง", "sub": "เลือกหมวดและกรอกข้อมูลเอง", "icon": "compass", "onTap": { "action": "consent.accept", "params": { "version": "1", "accepted": true }, "then": { "route": "intake.manual" } } }
       ]
     },
     "home": {
@@ -61,6 +61,7 @@
       "title": "รายละเอียด", "params": ["id"],
       "sections": [
         { "type": "info_card", "data": "opportunity.get" },
+        { "type": "info_card", "label": "ทำไมตรงกับคุณ (AI)", "data": "match.rank", "flag": "aiChat" },
         { "type": "link", "label": "ดูประกาศต้นทาง", "onTap": { "route": "external", "params": { "url": "$ctx.item.provenance.sourceUrl" } } },
         { "type": "link", "label": "บันทึกไว้ในแผนของฉัน", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.id" }, "then": { "toast": "บันทึกแล้ว" } } },
         { "type": "link", "label": "รายงานประกาศนี้", "when": "item.suspicious", "onTap": { "action": "opportunity.report", "params": { "id": "$ctx.item.id", "reason": "suspicious" }, "then": { "toast": "ขอบคุณ ส่งรายงานแล้ว" } } }
@@ -74,7 +75,8 @@
         { "type": "checklist", "data": "task.get",
           "actions": [
             { "label": "ทำขั้นนี้เสร็จแล้ว", "style": "primary", "action": "task.step.complete", "params": { "id": "$ctx.task.id" }, "then": { "toast": "บันทึกแล้ว" } },
-            { "label": "ติดปัญหา / ไม่เข้าใจ", "style": "secondary", "action": "task.help", "params": { "id": "$ctx.task.id" } },
+            { "label": "ติดปัญหา / ไม่เข้าใจ", "style": "secondary", "action": "task.block", "params": { "id": "$ctx.task.id", "reason": "not_understood" }, "then": { "openSheet": "task.help" } },
+            { "label": "ให้ AI อธิบายขั้นนี้", "style": "secondary", "action": "task.help", "params": { "id": "$ctx.task.id" } },
             { "label": "ไว้ทีหลัง", "style": "secondary", "action": "task.snooze", "params": { "id": "$ctx.task.id", "until": "tomorrow" } }
           ] }
       ]
@@ -83,7 +85,7 @@
       "title": "ฉัน",
       "sections": [
         { "type": "profile_card", "data": "profile.get", "onTap": { "route": "intake.manual" } },
-        { "type": "settings_group", "label": "การใช้งาน", "items": [
+        { "type": "settings_group", "label": "การใช้งาน", "data": "settings.get", "items": [
           { "type": "toggle_row", "label": "ตัวอักษรใหญ่", "setting": "largeText", "onTap": { "action": "settings.update" } },
           { "type": "toggle_row", "label": "เตือนงานค้าง", "setting": "reminders", "onTap": { "action": "settings.update" } }
         ] },

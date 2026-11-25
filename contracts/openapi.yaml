@@ -15,42 +15,51 @@ paths:
   /v1/app-config:
     get:
       operationId: getAppConfig
-      summary: Navigation, screens, widgets, actions, filters and feature flags
+      tags: ["Config"]
+      summary: "โหลดโครงเมนู หน้าจอ ปุ่ม ตัวกรอง และ feature flag"
       parameters:
         - { name: appVersion, in: query, required: true, schema: { type: string } }
         - { name: If-None-Match, in: header, required: false, schema: { type: string } }
       responses:
-        '200': { description: Current config, content: { application/json: { schema: { $ref: 'app-config.schema.json' } } } }
+        '200': { description: Current config, content: { application/json: { schema: { $ref: '#/components/schemas/AppConfig' } } } }
         '304': { description: Unchanged; keep cached config }
 
   /v1/taxonomies:
     get:
       operationId: getTaxonomies
-      summary: Categories, map groups, skill groups, radius and sort options
+      tags: ["Config"]
+      summary: "รายการหมวด กลุ่มแผนที่ และกลุ่มทักษะ"
       responses:
         '200': { description: Taxonomies, content: { application/json: { schema: { $ref: '#/components/schemas/Taxonomies' } } } }
 
   /v1/me/profile:
     get:
       operationId: getProfile
+      tags: ["Profile"]
+      summary: "ดูโปรไฟล์ของฉัน"
       responses:
         '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
         '404': { $ref: '#/components/responses/Error' }
     put:
       operationId: putProfile
+      tags: ["Profile"]
+      summary: "บันทึกโปรไฟล์ (พื้นที่ ทักษะ เวลาว่าง เป้ารายได้)"
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
         '422': { $ref: '#/components/responses/Error' }
     delete:
       operationId: deleteMyData
-      summary: Delete profile, tasks and settings for this device
+      tags: ["Profile"]
+      summary: "ลบโปรไฟล์ งาน และการตั้งค่าทั้งหมดของเครื่องนี้"
       responses:
         '204': { description: Deleted }
 
   /v1/me/consent:
     post:
       operationId: acceptConsent
+      tags: ["Profile"]
+      summary: "บันทึกการยอมรับเรื่องข้อมูลส่วนตัว"
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
       responses:
         '204': { description: Recorded }
@@ -58,10 +67,14 @@ paths:
   /v1/me/settings:
     get:
       operationId: getSettings
+      tags: ["Profile"]
+      summary: "ดูการตั้งค่า (ตัวอักษรใหญ่ การเตือน จุดค้นหา)"
       responses:
         '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
     patch:
       operationId: patchSettings
+      tags: ["Profile"]
+      summary: "แก้การตั้งค่า"
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
@@ -69,22 +82,27 @@ paths:
   /v1/me/data:
     get:
       operationId: getMyData
-      summary: Everything the app stores about this device, for the "ข้อมูลของฉัน" screen
+      tags: ["Profile"]
+      summary: "สรุปข้อมูลทั้งหมดที่แอปเก็บ"
       responses:
         '200': { description: Data summary, content: { application/json: { schema: { $ref: '#/components/schemas/MyData' } } } }
 
   /v1/intake/chat:
     post:
       operationId: chatTurn
-      summary: One AI intake turn. Returns the next question, quick replies, and the profile draft so far.
+      tags: ["Intake (AI)"]
+      summary: "คุยกับ AI หนึ่งรอบ ได้คำถามถัดไปและโปรไฟล์ร่าง"
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ChatTurnRequest' } } } }
       responses:
+        '422': { $ref: '#/components/responses/Error' }
         '200': { description: Next turn, content: { application/json: { schema: { $ref: '#/components/schemas/ChatTurnResponse' } } } }
         '503': { $ref: '#/components/responses/Error' }
 
   /v1/opportunities:
     get:
       operationId: searchOpportunities
+      tags: ["Opportunity"]
+      summary: "ค้นหาโอกาสตามหมวด คำค้น ระยะทาง และการเรียง"
       parameters:
         - { name: q, in: query, schema: { type: string } }
         - { name: group, in: query, schema: { type: string, description: map group id or "all" } }
@@ -102,6 +120,8 @@ paths:
   /v1/opportunities/{id}:
     get:
       operationId: getOpportunity
+      tags: ["Opportunity"]
+      summary: "ดูรายละเอียดโอกาสหนึ่งรายการ"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       responses:
         '200': { description: Opportunity, content: { application/json: { schema: { $ref: '#/components/schemas/Opportunity' } } } }
@@ -110,15 +130,19 @@ paths:
   /v1/opportunities/{id}/reports:
     post:
       operationId: reportOpportunity
+      tags: ["Opportunity"]
+      summary: "รายงานประกาศน่าสงสัย"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '204': { description: Recorded }
 
   /v1/matches:
     post:
       operationId: rankMatches
-      summary: Live AI ranking and reasons over a server-provided candidate list (AC-02)
+      tags: ["Matching (AI)"]
+      summary: "ให้ AI จัดอันดับและบอกเหตุผล จากรายการที่ server ส่งให้เท่านั้น"
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MatchRequest' } } } }
       responses:
         '200': { description: Ranked, content: { application/json: { schema: { $ref: '#/components/schemas/MatchResponse' } } } }
@@ -126,7 +150,8 @@ paths:
   /v1/plans/options:
     get:
       operationId: getPlanOptions
-      summary: Income planner options with deterministic net calculation
+      tags: ["Planner"]
+      summary: "ทางเลือกรายได้พร้อมเงินเหลือต่อเดือน (คำนวณตรง ไม่ใช้ AI)"
       parameters:
         - { name: opportunityIds, in: query, schema: { type: array, items: { type: string } }, style: form, explode: false }
       responses:
@@ -135,72 +160,108 @@ paths:
   /v1/tasks:
     get:
       operationId: listTasks
+      tags: ["Tasks"]
+      summary: "รายการงานในแผนของฉัน"
       responses:
         '200': { description: Tasks, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Task' } } } } }
     post:
       operationId: createTask
-      summary: Save an opportunity into "แผนของฉัน"
+      tags: ["Tasks"]
+      summary: "บันทึกโอกาสเข้าแผนของฉัน"
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [opportunityId], properties: { opportunityId: { type: string }, startAtStep: { type: integer, default: 0 } } } } } }
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
   /v1/tasks/{id}:
     get:
       operationId: getTask
+      tags: ["Tasks"]
+      summary: "ดูงานหนึ่งรายการและขั้นตอน"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '200': { description: Task, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
   /v1/tasks/{id}/steps/complete:
     post:
       operationId: completeStep
+      tags: ["Tasks"]
+      summary: "ทำขั้นปัจจุบันเสร็จ (ผู้ใช้แจ้ง)"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
   /v1/tasks/{id}/undo:
     post:
       operationId: undoTaskEvent
+      tags: ["Tasks"]
+      summary: "เลิกทำการกดล่าสุด"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '200': { description: Reverted, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
   /v1/tasks/{id}/block:
     post:
       operationId: blockTask
+      tags: ["Tasks"]
+      summary: "แจ้งว่าติดปัญหา"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, enum: [not_understood, missing_documents, site_broken, other] } } } } } }
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
   /v1/tasks/{id}/snooze:
     post:
       operationId: snoozeTask
+      tags: ["Tasks"]
+      summary: "เลื่อนไว้ทีหลังและตั้งเตือน"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [until], properties: { until: { type: string, enum: [tomorrow, in_3_days, next_week, never] } } } } } }
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '204': { description: Snoozed }
 
   /v1/tasks/{id}/help:
     post:
       operationId: taskHelp
-      summary: AI explanation for the current step. Never applies on the user's behalf.
+      tags: ["Tasks"]
+      summary: "ให้ AI อธิบายขั้นปัจจุบัน ไม่ทำแทนผู้ใช้"
       parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '200': { description: Help text, content: { application/json: { schema: { type: object, required: [text, aiStatus], properties: { text: { type: string }, aiStatus: { $ref: '#/components/schemas/AiStatus' } } } } } }
 
   /v1/sources:
     get:
       operationId: listSources
+      tags: ["Sources"]
+      summary: "สถานะของแหล่งข้อมูลแต่ละเจ้า"
       responses:
         '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Source' } } } } }
 
   /v1/sources/{provider}/refresh:
     post:
       operationId: refreshSource
+      tags: ["Sources"]
+      summary: "สั่งดึงข้อมูลใหม่จากแหล่ง"
       parameters: [ { name: provider, in: path, required: true, schema: { type: string } } ]
       responses:
+        '404': { $ref: '#/components/responses/Error' }
         '202': { description: Refresh started }
+
+tags:
+  - { name: Config, description: "โครงแอปและรายการตัวเลือก" }
+  - { name: Profile, description: "โปรไฟล์ ความยินยอม การตั้งค่า ข้อมูลของฉัน" }
+  - { name: "Intake (AI)", description: "คุยกับ AI เพื่อสร้างโปรไฟล์" }
+  - { name: Opportunity, description: "ค้นหาและรายละเอียดโอกาส" }
+  - { name: "Matching (AI)", description: "AI จัดอันดับและให้เหตุผล" }
+  - { name: Planner, description: "แผนรายได้แบบคำนวณตรง" }
+  - { name: Tasks, description: "แผนของฉันและความคืบหน้า" }
+  - { name: Sources, description: "แหล่งข้อมูลและการดึงข้อมูล" }
 
 components:
   responses:
@@ -209,6 +270,21 @@ components:
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   schemas:
+    AppConfig:
+      type: object
+      description: Full structure in contracts/app-config.schema.json (JSON Schema 2020-12)
+      required: [schemaVersion, configVersion, minAppVersion, tabs, routes, actions, filters]
+      additionalProperties: true
+      properties:
+        schemaVersion: { type: integer }
+        configVersion: { type: string }
+        minAppVersion: { type: string }
+        featureFlags: { type: object, additionalProperties: { type: boolean } }
+        tabs: { type: array, items: { type: object } }
+        routes: { type: object }
+        actions: { type: object }
+        filters: { type: array, items: { type: object } }
+
     Error:
       type: object
       required: [code, message, retryable]
@@ -318,7 +394,7 @@ components:
         track: { type: string, enum: [A, B, C] }
         grossPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
         costPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
-        netPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: Deterministic, gross minus cost }
+        netPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: "Deterministic: gross minus cost" }
         unknownReason: { type: string }
         payDays: { type: integer }
         effort: { type: integer, minimum: 1, maximum: 3 }

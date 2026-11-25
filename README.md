@@ -11,6 +11,9 @@
 | [docs/product/requirements.md](docs/product/requirements.md) | ข้อกำหนดธุรกิจที่ Owner อนุมัติ (input ของ AI-DLC) |
 | [docs/plan/delivery-plan.md](docs/plan/delivery-plan.md) | แผนส่งมอบเป็นเฟสพร้อม checklist |
 | [docs/plan/work-breakdown.md](docs/plan/work-breakdown.md) | รายการงานย่อย (ID, ผู้ทำ, ขึ้นกับ, หลักฐาน, สถานะ) ตัวติดตามความคืบหน้าหลัก |
+| [docs/mockups/index.html](docs/mockups/index.html) | Mock หน้าจอคลิกได้ |
+| [docs/backend/index.html](docs/backend/index.html) | หลังบ้านและ API แยกตามหน้า (สร้างจาก `contracts/`) |
+| [contracts/](contracts/README.md) | สัญญากลาง API + config + mock server |
 | [docs/guide/aidlc-commands.md](docs/guide/aidlc-commands.md) | คู่มือคำสั่ง AI-DLC ตามลำดับขั้น |
 | [aidlc/spaces/default/memory/project.md](aidlc/spaces/default/memory/project.md) | กฎของโปรเจกต์ที่ agent อ่าน |
 | `aidlc/` | บันทึกที่ AI-DLC สร้างเอง (ห้ามแก้มือ) |

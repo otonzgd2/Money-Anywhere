@@ -141,8 +141,13 @@
 
 แต่ละ unit ทำงานกับ mock server ที่สร้างจาก `openapi.yaml` ได้ก่อนที่อีก unit จะเสร็จ
 
-## 10. สิ่งที่ยังไม่ได้ทำ
-- ยังไม่มีโค้ด backend หรือแอป Flutter ที่รันได้
-- ยังไม่ได้ตรวจ `openapi.yaml` ด้วยเครื่องมือ OpenAPI โดยตรง validator อ่านแค่ส่วน `paths`
-- ยังไม่ได้ตรวจ sample config กับ JSON Schema ด้วยตัวตรวจมาตรฐาน
-- ยังไม่ได้ตัดสิน stack, AI provider และที่เก็บข้อมูล
+## 10. สิ่งที่มีแล้ว
+- เอกสารภาพรวมแบบ HTML แยกตามหน้า: `docs/backend/index.html` (สร้างจากสัญญาด้วย `npm run docs`)
+- Mock API ครบ 25 operations: `contracts/mock-server.js` รวม adapter จริงของ Greenhouse และ Lever
+- ตรวจด้วยเครื่องมือมาตรฐาน: OpenAPI ผ่าน swagger-parser, config ผ่าน Ajv (JSON Schema 2020-12)
+- Contract test 100 ข้อ: ทุก operation ตอบตรง schema และกติกาข้อ 5 ถูกบังคับจริง
+
+## 11. สิ่งที่ยังไม่ได้ทำ
+- ยังไม่มี backend จริง (mock เก็บข้อมูลในหน่วยความจำ ปิดแล้วหาย) และยังไม่มีแอป Flutter
+- AI ยังไม่ได้ต่อ provider จริง mock ใช้การจัดอันดับตามกฎและตอบ `aiStatus: fallback_rules` ตรงๆ
+- ยังไม่ได้ตัดสิน stack, AI provider และที่เก็บข้อมูล (TB.6)
