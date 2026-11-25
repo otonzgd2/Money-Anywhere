@@ -241,6 +241,20 @@
   .sheet::-webkit-scrollbar { width:0; }
   .grab { width:40px; height:4px; background:#cfd8d3; border-radius:3px; margin:0 auto 10px; }
   .amtbox { border-radius:16px; padding:12px 14px; margin:10px 0; }
+  .mode.intent { border-color:var(--p); }
+  .aihero { background:linear-gradient(145deg,#065f46,#0e9f6e 60%,#34d399); color:#fff; border-radius:22px; padding:20px 18px 14px; margin:0 0 14px; cursor:pointer; box-shadow:0 10px 26px rgba(6,95,70,.35); text-align:center; }
+  .aihero .aiic { font-size:46px; line-height:1; margin-bottom:6px; }
+  .aihero b { display:block; font-size:22px; }
+  .aihero .aisub { font-size:13.5px; opacity:.95; margin-top:6px; }
+  .aihero .aibtn { display:inline-block; margin-top:12px; background:#fff; color:#065f46; font-weight:800; font-size:17px; padding:12px 30px; border-radius:30px; min-height:48px; box-sizing:border-box; }
+  .aihero .aifine { font-size:10.5px; opacity:.85; margin-top:10px; }
+  .gtag { font-size:10.5px; background:#fef3c7; color:#92400e; padding:1px 7px; border-radius:8px; margin-left:4px; }
+  .mode.intent2 { flex:1; flex-direction:column; align-items:flex-start; gap:8px; padding:14px; }
+  .qopts .btn { margin:0 0 8px; text-align:left; }
+  .nowhero { border:2px solid var(--p); }
+  .nowbig { font-size:32px; font-weight:800; line-height:1.1; }
+  .nowrow { font-size:13.5px; margin-top:7px; }
+  .nowalt { border-style:dashed; }
   .amtbox .lab { font-size:10.5px; font-weight:800; letter-spacing:.02em; }
   .amtbox .val { font-size:26px; font-weight:800; margin:2px 0; }
   .aiest { border:1.5px dashed #93c5fd; background:#eff6ff; color:#1e40af; border-radius:12px; padding:9px 11px; font-size:12px; margin-top:8px; }
@@ -294,19 +308,38 @@
       <div class="hero">
         <div class="logo">💸</div>
         <h2>เงินฉันอยู่ไหน?</h2>
-        <p>หาเงินที่คุณอาจมีสิทธิ์ และโอกาสหารายได้ ที่เหมาะกับชีวิตคุณ</p>
+        <p>ตอบไม่กี่ข้อ รู้เลยว่ามีเงินก้อนไหนที่ควรได้ ได้เท่าไหร่ และต้องไปเอาที่ไหน</p>
       </div>
-      <h3 style="margin-top:4px">อยากเริ่มแบบไหน</h3>
-      <div class="mode ai" onclick="withConsent(startChat)">
-        <div class="ic">🤖</div>
-        <div><b>คุยกับ AI</b><span class="rec">แนะนำ</span><div class="mut">ตอบคำถามสั้นๆ ให้ AI ช่วยหาให้</div></div>
+      <div class="aihero" id="aiOneClick" onclick="aiOneClick()">
+        <div class="aiic">🤖</div>
+        <b>ให้ AI หาเงินให้ฉัน</b>
+        <div class="aisub">กดครั้งเดียว AI ถามทีละข้อ แล้วพาไปจนรู้ว่าต้องไปรับเงินที่ไหน เอาอะไรไป</div>
+        <div class="aibtn">เริ่มคุยเลย ›</div>
+        <div class="aifine">กด = ยืนยันว่าอายุ 20 ปีขึ้นไป และยินยอมให้ส่งคำตอบ (ไม่มีชื่อ ไม่มีเลขบัตร) ให้ AI ช่วยวิเคราะห์ ถอนได้ทุกเมื่อ · <u onclick="event.stopPropagation();showNotice()">อ่านประกาศ</u></div>
       </div>
-      <div class="mode man" onclick="withConsent(() => go('manual'))">
-        <div class="ic">🧭</div>
-        <div><b>เลือกเอง</b><div class="mut">เลือกหมวดและกรอกข้อมูลเอง</div></div>
+      <div class="mode man intent" onclick="startQuick('money')">
+        <div class="ic">💰</div>
+        <div><b>เช็คเงินที่ควรได้ เอง</b><div class="mut">ไม่ใช้ AI · เบี้ยผู้สูงอายุ เงินว่างงาน เงินเลี้ยงดูเด็ก เบี้ยความพิการ คืนภาษี ค่าจ้างค้าง</div></div>
       </div>
-      <div class="note">แอปไม่รับประกันว่าจะได้เงินหรือได้งาน ผลทั้งหมดต้องตรวจสอบกับหน่วยงานทางการ</div>
+      <div class="row" style="gap:10px;align-items:stretch">
+        <div class="mode man intent2" onclick="startQuick('job')"><div class="ic">🔎</div><div><b>หางาน</b><div class="mut">ใกล้บ้าน รายวัน พาร์ตไทม์</div></div></div>
+        <div class="mode man intent2" onclick="startQuick('skill')"><div class="ic">🍳</div><div><b>รายได้จากทักษะ</b><div class="mut">เริ่มจากสิ่งที่ทำเป็น</div></div></div>
+      </div>
+      <p class="mut" style="text-align:center;margin:2px 0 10px">หรือ <a class="link" onclick="withConsent(() => go('manual'))">🧭 กรอกโปรไฟล์เอง</a></p>
+      <div class="note">แอปไม่รับประกันว่าจะได้เงินหรือได้งาน ผลเป็นการตรวจเบื้องต้นจากเกณฑ์ที่ประกาศ ต้องยืนยันกับหน่วยงานทางการ</div>
     </div>
+  </div>
+
+  <!-- 1a Quick money check: one question at a time, only facts that change the result -->
+  <div class="view" id="v-quick">
+    <div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">เช็คเงินที่ควรได้</div></div>
+    <div class="body" id="quickBody"></div>
+  </div>
+
+  <!-- 1c First meaningful action: one next step per lane, lanes are not ranked against each other -->
+  <div class="view" id="v-now">
+    <div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">สิ่งแรกที่ควรทำ</div></div>
+    <div class="body" id="nowBody"></div>
   </div>
 
   <!-- 1b Home for returning users -->
@@ -539,7 +572,7 @@
 
 <script>
 const screens = [
-  ['g','เริ่มต้น'],['welcome','1 เลือกวิธี (ผู้ใช้ใหม่)'],['home','1b หน้าแรก (ผู้ใช้เดิม)'],['chat','2a คุยกับ AI'],['manual','2b เลือกเอง'],['loading','3 กำลังวิเคราะห์'],
+  ['g','เริ่มต้น'],['welcome','1 เลือกเป้าหมาย (ผู้ใช้ใหม่)'],['quick','1a เช็คเงินด่วน'],['now','1c สิ่งแรกที่ควรทำ'],['home','1b หน้าแรก (ผู้ใช้เดิม)'],['chat','2a คุยกับ AI'],['manual','2b เลือกเอง'],['loading','3 กำลังวิเคราะห์'],
   ['g','ผลและการลงมือ'],['results','4 โอกาส: รายการ'],['map','4b โอกาส: แผนที่'],['detail','5 รายละเอียด (แบบเดิม)'],['planner','6 แผนรายได้'],
   ['checklist','7 เช็คลิสต์ลงมือทำ'],['tracker','8 แผนของฉัน'],['scam','9 สัญญาณหลอกลวง'],['me','10 ฉัน (โปรไฟล์/ตั้งค่า)'],
   ['g','เงินอยู่ไหน'],['money','11 เงินของฉัน'],['route','12 เส้นทางรับเงิน'],['assistant','13 ถาม AI (ผู้ช่วย)'],
@@ -551,13 +584,15 @@ screens.forEach(([id,label]) => {
   const b = document.createElement('button'); b.textContent = label; b.id = 'nav-'+id;
   b.onclick = () => id === 'chat' ? startChat() : go(id); nav.appendChild(b);
 });
-const noTabs = ['chat','loading','scam','assistant'];
+const noTabs = ['chat','loading','scam','assistant','quick'];
 function go(id) {
   closeModal();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
   document.getElementById('v-'+id).classList.add('on');
   if (id === 'map') { renderMap(); if (loc.state === 'ask') askLoc(); }
   if (id === 'home') renderHome();
+  if (id === 'quick') renderQuick();
+  if (id === 'now') renderNow();
   if (id === 'planner') renderPlanner();
   if (id === 'results') renderResults();
   if (id === 'me') renderMe();
@@ -570,7 +605,7 @@ function go(id) {
   const nb = document.getElementById('nav-'+id); if (nb) nb.classList.add('on');
   document.getElementById('tabs').classList.toggle('hidden', noTabs.includes(id));
   document.querySelectorAll('.tabs div').forEach(t => t.classList.remove('on'));
-  const t = {welcome:'tab-home',home:'tab-home',results:'tab-res',map:'tab-res',planner:'tab-res',tracker:'tab-trk',checklist:'tab-trk',me:'tab-me',money:'tab-home',route:'tab-home'}[id]; if (t) document.getElementById(t).classList.add('on');
+  const t = {welcome:'tab-home',home:'tab-home',now:'tab-home',results:'tab-res',map:'tab-res',planner:'tab-res',tracker:'tab-trk',checklist:'tab-trk',me:'tab-me',money:'tab-home',route:'tab-home'}[id]; if (t) document.getElementById(t).classList.add('on');
 }
 
 /* Scripted AI chat (mock): every reply is canned, no real AI is called. */
@@ -753,7 +788,13 @@ function renderHome() {
     h += '<div class="next"><div class="lab">ขั้นต่อไปของคุณ</div><h2>'+esc(n.title)+'</h2><div style="font-size:14px;opacity:.95">ขั้นที่ '+(n.done+1)+' จาก '+n.steps.length+': '+esc(n.steps[n.done])+'</div>'
       + (n.due ? '<div style="font-size:12px;opacity:.85;margin-top:4px">⏰ '+esc(n.due)+'</div>' : '')
       + '<button class="btn" onclick="openUpd(\''+n.id+'\')">ทำต่อ</button><button class="btn ghost" onclick="snooze(\''+n.id+'\')">ไว้ทีหลัง</button></div>';
-  } else h += '<div class="card"><b>🎉 ไม่มีงานค้าง</b><p class="mut" style="margin:6px 0 0">ครบทุกขั้นตามที่คุณแจ้งแล้ว ลองหาโอกาสใหม่ด้านล่าง</p></div>';
+  } else {
+    // No pending step: offer the first action from the money lane instead of an empty "nothing to do".
+    const top = rankMoney()[0];
+    h += top && TIER_A(top.e) <= 3
+      ? '<div class="card click nowhero" onclick="lane=\'money\';go(\'now\')"><div class="lab" style="margin:0">สิ่งแรกที่ควรทำ</div><b>'+top.m.ic+' '+top.m.t+'</b><div class="mut">'+(top.e.a.v ? baht(top.e.a.v)+' '+(top.e.a.unit || '')+' · ' : '')+MST[top.e.st][0]+' · ไปที่ '+top.m.channels[0].t+'</div></div>'
+      : '<div class="card"><b>🎉 ไม่มีงานค้าง</b><p class="mut" style="margin:6px 0 0">ครบทุกขั้นตามที่คุณแจ้งแล้ว ลองหาโอกาสใหม่ด้านล่าง</p></div>';
+  }
   const others = active.filter(t => !n || t.id !== n.id).length;
   if (others) h += '<div class="card click" onclick="go(\'tracker\')"><div class="row"><b>งานอื่นที่ทำอยู่ '+others+' รายการ</b><span class="mut" style="font-size:18px">›</span></div></div>';
   h += '<div class="card click" onclick="go(\'results\')"><div class="row"><div><b>✨ โอกาสใหม่ใกล้คุณ '+nearCount()+' แห่ง</b><div class="mut">ดูเป็นรายการหรือแผนที่</div></div><span class="mut" style="font-size:18px">›</span></div></div>';
@@ -796,8 +837,11 @@ function snooze(id) {
 }
 function sourceOpen(id) {
   const it = ITEMS.find(i => i.id === id);
-  if (it.url) window.open(it.url, '_blank', 'noopener'); else toast('จำลอง: รายการนี้ไม่มีลิงก์จริง');
-  setTimeout(() => promptReturn(id), 1500);
+  if (!it.url) { toast('จำลอง: รายการนี้ไม่มีลิงก์จริง'); return; }
+  window.open(it.url, '_blank', 'noopener');
+  // Ask only when the person actually comes back (app resume in Flutter). Opening a link proves nothing.
+  const back = () => { window.removeEventListener('focus', back); promptReturn(id); };
+  window.addEventListener('focus', back);
 }
 function promptReturn(id) {
   const it = ITEMS.find(i => i.id === id);
@@ -1060,7 +1104,7 @@ function renderPlanner() {
   const known = PLANS.filter(p => p.gross), unknown = PLANS.filter(p => !p.gross);
   const key = {net:p => -mid(netOf(p)), fast:p => p.pay, easy:p => p.eff*100 - mid(netOf(p))/1000}[planUI.sort];
   known.sort((a,b) => key(a) - key(b));
-  let h = '<p class="mut" style="margin-top:0">ทุกทางเลือกที่ตรงกับคุณ '+PLANS.length+' รายการ ตัวเลขต่อเดือนเป็นประมาณการ คำนวณจาก (รายได้ - ต้นทุน) <span class="tag t-est" style="margin:0">ประมาณการ</span></p>';
+  let h = '<p class="mut" style="margin-top:0">ทางเลือกตัวอย่าง '+PLANS.length+' รายการ (ในแอปจริงคิดจากเวลาว่างในโปรไฟล์ของคุณ) ตัวเลขต่อเดือนเป็นประมาณการ คำนวณจาก (รายได้ - ต้นทุน) <span class="tag t-est" style="margin:0">ประมาณการ</span></p>';
   h += '<div class="seg" style="margin-bottom:12px">'+[['net','💵 เงินเหลือมาก'],['fast','⚡ ได้เงินเร็ว'],['easy','🙂 ใช้แรงน้อย']].map(([k,l]) => '<div class="'+(planUI.sort===k?'on':'')+'" onclick="planUI.sort=\''+k+'\';renderPlanner()">'+l+'</div>').join('')+'</div>';
   h += known.map(p => { const n = netOf(p), cov = Math.min(100, Math.round(mid(n)/planUI.goal*100)), on = planUI.cmp.has(p.id), op = planUI.open === p.id;
     return '<div class="card plan'+(on?' sel':'')+'"><div class="row" onclick="planUI.open='+(op?'null':'\''+p.id+'\'')+';renderPlanner()" style="cursor:pointer"><div class="row" style="gap:10px;justify-content:flex-start"><div class="badge b'+p.tr+'">'+p.tr+'</div><b>'+p.t+'</b></div><span class="mut">'+(op?'▲':'▼')+'</span></div>'
@@ -1211,50 +1255,91 @@ function startChat() {
 const gov = { flag:false, connected:false };
 const AGE_BANDS = ['ต่ำกว่า 60', '60-69', '70-79', '80-89', '90 ขึ้นไป'];
 const PERSONA_FACTS = {
-  p1:{ ageBand:'60-69', govPension:false, work:'ไม่ได้ทำงาน', taxWithheld:false },
-  p2:{ ageBand:'ต่ำกว่า 60', govPension:false, work:'เพิ่งตกงาน', ss33:true, wage:12000, unpaidDays:5, dailyWage:400 },
+  p1:{ ageBand:'60-69', govPension:false, oldAgeGets:false, work:'ไม่ได้ทำงาน', taxWithheld:false },
+  p2:{ ageBand:'ต่ำกว่า 60', govPension:false, work:'ถูกเลิกจ้าง', ss33:true, wage:12000, unpaidDays:5, dailyWage:400 },
   p3:{ ageBand:'ต่ำกว่า 60', govPension:false, work:'ทำงานอิสระ', ss33:false, taxWithheld:true }
 };
 let facts = { ...PERSONA_FACTS.p1 };
 const ASK = {
   ageBand:{ q:'คุณอายุเท่าไหร่', opts:AGE_BANDS },
-  govPension:{ q:'ได้รับบำนาญจากรัฐอยู่ไหม', opts:['ไม่ได้รับ','ได้รับ'], map:v => v === 'ได้รับ' },
-  work:{ q:'ตอนนี้ทำงานอยู่ไหม', opts:['ทำงานประจำ','เพิ่งตกงาน','ทำงานอิสระ','ไม่ได้ทำงาน'] },
-  ss33:{ q:'งานล่าสุดหักเงินประกันสังคมไหม', opts:['หัก','ไม่หัก'], map:v => v === 'หัก' },
+  govPension:{ q:'ได้รับบำนาญ เงินเดือน หรือสวัสดิการอื่นจากรัฐเป็นประจำไหม', opts:['ไม่ได้รับ','ได้รับ'], map:v => v === 'ได้รับ' },
+  work:{ q:'ตอนนี้ทำงานอยู่ไหม', opts:['ทำงานประจำ','ถูกเลิกจ้าง','ลาออกหรือหมดสัญญา','ทำงานอิสระ','ไม่ได้ทำงาน'] },
+  ss33:{ q:'ใน 15 เดือนก่อนออกจากงาน ส่งประกันสังคม (มาตรา 33) ครบ 6 เดือนไหม', opts:['ครบ','ไม่ครบ'], map:v => v === 'ครบ' },
   taxWithheld:{ q:'ปีนี้เคยถูกหักภาษี ณ ที่จ่ายไหม', opts:['เคย','ไม่เคย'], map:v => v === 'เคย' },
   unpaidDays:{ q:'มีวันทำงานที่ยังไม่ได้ค่าจ้างกี่วัน', num:true },
   dailyWage:{ q:'ค่าจ้างต่อวันเท่าไหร่ (บาท)', num:true },
-  wage:{ q:'เงินเดือนล่าสุดเท่าไหร่ (บาท)', num:true }
+  wage:{ q:'เงินเดือนล่าสุดเท่าไหร่ (บาท)', num:true },
+  oldAgeGets:{ q:'ตอนนี้ได้รับเบี้ยผู้สูงอายุอยู่แล้วไหม', opts:['ยังไม่ได้รับ','ได้รับอยู่แล้ว'], map:v => v === 'ได้รับอยู่แล้ว' },
+  kidUnder6:{ q:'เลี้ยงดูเด็กอายุไม่เกิน 6 ปีอยู่ไหม', opts:['ใช่','ไม่ใช่'], map:v => v === 'ใช่' },
+  lowIncome:{ q:'รายได้ครอบครัวเฉลี่ยไม่เกิน 100,000 บาทต่อคนต่อปีไหม (ราว 8,300 บาทต่อคนต่อเดือน)', opts:['ไม่เกิน','เกิน'], map:v => v === 'ไม่เกิน' },
+  disabilityCard:{ q:'มีบัตรประจำตัวคนพิการไหม', opts:['มี','ไม่มี'], map:v => v === 'มี' },
+  welfareCard:{ q:'มีบัตรสวัสดิการแห่งรัฐไหม', opts:['มี','ไม่มี'], map:v => v === 'มี' }
 };
+const OLD_RATE = { '60-69':600, '70-79':700, '80-89':800, '90 ขึ้นไป':1000 };
+const OLD_NEXT = { '60-69':'อายุครบ 70 ปี อัตราขั้นบันไดเป็น 700 บาท', '70-79':'อายุครบ 80 ปี อัตราขั้นบันไดเป็น 800 บาท', '80-89':'อายุครบ 90 ปี อัตราขั้นบันไดเป็น 1,000 บาท' };
+const RULES_CHECKED = '26 พ.ย. 2569';
+const UNEMP_PCT = { 'ถูกเลิกจ้าง':[0.6, '60% สูงสุด 180 วัน/ปี'], 'ลาออกหรือหมดสัญญา':[0.3, '30% สูงสุด 90 วัน/ปี'] };
 const MONEY = [
-  { id:'old', ic:'👵', t:'เบี้ยยังชีพผู้สูงอายุ', kind:'monthly', payer:'สำนักงานเขต (กรุงเทพฯ)', payHow:'โอนเข้าบัญชีหรือพร้อมเพย์ที่แจ้งไว้ ทุกเดือน',
+  { id:'old', ic:'👵', t:'เบี้ยยังชีพผู้สูงอายุ', kind:'monthly', payer:'ท้องถิ่นตามทะเบียนบ้าน (กรุงเทพฯ: สำนักงานเขต)', payHow:'โอนเข้าบัญชีหรือพร้อมเพย์ที่แจ้งไว้ ประมาณวันที่ 10 ทุกเดือน',
     check:f => { if (!f.ageBand) return { st:'need', ask:'ageBand', r:[] }; const ok1 = f.ageBand !== 'ต่ำกว่า 60', r = [[ok1, 'อายุ 60 ปีขึ้นไป']];
-      if (f.govPension === undefined) return { st:'need', ask:'govPension', r }; r.push([!f.govPension, 'ไม่ได้รับบำนาญจากรัฐ']); return { st: ok1 && !f.govPension ? 'likely' : 'unlikely', r }; },
-    amount:f => { const v = { '60-69':600, '70-79':700, '80-89':800, '90 ขึ้นไป':1000 }[f.ageBand]; return v ? { basis:'rate', v, unit:'บาท/เดือน', note:'อัตราตัวอย่างตามช่วงอายุ ต้องตรวจกับประกาศล่าสุด' } : { basis:'none', note:'ขึ้นกับช่วงอายุ' }; },
-    docs:['บัตรประชาชน', 'ทะเบียนบ้าน', 'สมุดบัญชีธนาคาร หรือพร้อมเพย์ผูกเลขบัตร'],
-    channels:[{ ic:'🏢', t:'ลงทะเบียนที่สำนักงานเขต', s:'สำนักงานเขตตัวอย่าง · ห่าง 2.1 กม. · จ.-ศ. 08:30-16:30 (ตัวอย่าง)', map:true }, { ic:'📞', t:'โทรถามก่อนไป', s:'เบอร์สำนักงานเขต (ตัวอย่าง)' }],
-    after:'เงินเริ่มจ่ายตามรอบของหน่วยงานหลังลงทะเบียน (ตัวอย่าง)', ifNo:'ถามเหตุผลที่สำนักงานเขต แล้วยื่นใหม่เมื่อคุณสมบัติครบ',
+      if (f.govPension === undefined) return { st:'need', ask:'govPension', r }; r.push([!f.govPension, 'ไม่ได้รับบำนาญ เงินเดือน หรือสวัสดิการอื่นจากรัฐเป็นประจำ']);
+      if (!(ok1 && !f.govPension)) return { st:'unlikely', r };
+      // Already receiving: not new money. Keep it visible as "check the amount is right", never as the first action.
+      if (f.oldAgeGets === undefined) return { st:'need', ask:'oldAgeGets', r };
+      if (f.oldAgeGets === true) return { st:'check', have:true, r:[...r, [true, 'ได้รับอยู่แล้ว'], [null, 'ตรวจว่ายอดที่โอนตรงกับช่วงอายุ ถ้าไม่ตรงให้ถามท้องถิ่น']] };
+      r.push([null, 'ต้องมีสัญชาติไทย และมีชื่อในทะเบียนบ้านในพื้นที่ที่ยื่น'], [null, 'ต้องลงทะเบียนกับท้องถิ่นก่อน จึงจะเริ่มจ่าย']); return { st:'likely', r }; },
+    amount:f => { const v = OLD_RATE[f.ageBand]; return v ? { basis:'rate', v, unit:'บาท/เดือน', note:'อัตราขั้นบันไดตามอายุ 600/700/800/1,000 บาท' } : { basis:'none', note:'ขึ้นกับช่วงอายุ' }; },
+    docs:['บัตรประชาชน (ตัวจริงหรือสำเนา)', 'สำเนาทะเบียนบ้าน', 'สำเนาสมุดบัญชีหน้าแรก หรือพร้อมเพย์ผูกเลขบัตร', 'ถ้าให้คนอื่นยื่นแทน: หนังสือมอบอำนาจ และบัตรของผู้รับมอบ'],
+    channels:[{ ic:'🏢', t:'ลงทะเบียนที่เทศบาลหรือ อบต. ตามทะเบียนบ้าน (กรุงเทพฯ: สำนักงานเขต)', s:'เวลาราชการ ลงทะเบียนครั้งเดียว ถามรอบรับลงทะเบียนก่อนไป · ระยะทางในแผนที่เป็นตัวอย่าง', map:true }, { ic:'📞', t:'โทรถามท้องถิ่นหรือสำนักงานเขตก่อนไป', s:'ถามรอบลงทะเบียน เอกสาร และเดือนที่เริ่มจ่าย' }],
+    after:'เริ่มจ่ายตามรอบที่ท้องถิ่นแจ้ง ดูยอดได้จากแอปธนาคาร ATM หรือแอปทางรัฐ', ifNo:'ถามเหตุผลที่ท้องถิ่นหรือสำนักงานเขต แล้วยื่นใหม่เมื่อคุณสมบัติครบ',
+    src:[['thailand.go.th: เกณฑ์ เอกสาร ช่องทาง', 'https://www.thailand.go.th/issue-focus-detail/001_01_232'], ['Thairath: อัตรา 600-1,000 บาทยังใช้ (มิ.ย. 2569)', 'https://en.thairath.co.th/news/politic/2938660']],
     govData:{ v:600, text:'ลงทะเบียนแล้ว จ่ายทุกเดือน' } },
-  { id:'unemp', ic:'🧾', t:'เงินทดแทนกรณีว่างงาน (ประกันสังคม)', kind:'monthly', payer:'สำนักงานประกันสังคม', payHow:'โอนเข้าบัญชีที่แจ้งไว้ หลังรายงานตัวแต่ละเดือน',
-    check:f => { if (!f.work) return { st:'need', ask:'work', r:[] }; const un = f.work === 'เพิ่งตกงาน', r = [[un, 'เพิ่งออกจากงาน']];
-      if (!un) return { st:'unlikely', r }; if (f.ss33 === undefined) return { st:'need', ask:'ss33', r }; r.push([f.ss33, 'งานเดิมหักประกันสังคม']); return { st: f.ss33 ? 'likely' : 'unlikely', r }; },
-    amount:f => f.wage ? { basis:'calc', v:Math.round(Math.min(f.wage, 15000) * 0.5), unit:'บาท/เดือน', note:'เงินเดือน '+f.wage.toLocaleString('th-TH')+' × 50% (สัดส่วนตัวอย่าง ต้องตรวจกับประกาศ)' } : { basis:'none', note:'ใส่เงินเดือนล่าสุดเพื่อคำนวณ', ask:'wage' },
-    docs:['บัตรประชาชน', 'หนังสือรับรองการออกจากงาน (ถ้ามี)', 'สมุดบัญชีธนาคาร'],
-    channels:[{ ic:'💻', t:'ขึ้นทะเบียนว่างงานออนไลน์', s:'เว็บไซต์ทางการ (ตัวอย่าง) ทำภายในกำหนดหลังออกจากงาน', link:true }, { ic:'🏢', t:'ไปสำนักงานประกันสังคม', s:'สาขาใกล้บ้าน (ตัวอย่าง)', map:true }],
-    after:'รายงานตัวตามนัดทุกเดือน เงินโอนหลังรายงานตัว (ตัวอย่าง)', ifNo:'ขอทราบเหตุผล และยื่นอุทธรณ์ตามขั้นตอนของหน่วยงาน' },
-  { id:'tax', ic:'🧮', t:'เงินคืนภาษี', kind:'once', payer:'กรมสรรพากร', payHow:'โอนเข้าพร้อมเพย์ที่ผูกเลขบัตรประชาชน',
-    check:f => { if (f.taxWithheld === undefined) return { st:'need', ask:'taxWithheld', r:[] }; return { st: f.taxWithheld ? 'check' : 'unlikely', r:[[f.taxWithheld, 'เคยถูกหักภาษี ณ ที่จ่าย'], [null, 'ยอดคืนจริงขึ้นกับรายได้และค่าลดหย่อนทั้งปี']] }; },
+  { id:'unemp', ic:'🧾', t:'เงินทดแทนกรณีว่างงาน (ประกันสังคม มาตรา 33)', kind:'monthly', payer:'สำนักงานประกันสังคม', payHow:'โอนเข้าบัญชีที่แจ้งไว้ หลังรายงานตัวแต่ละเดือน',
+    check:f => { if (!f.work) return { st:'need', ask:'work', r:[] }; const un = !!UNEMP_PCT[f.work], r = [[un, 'ออกจากงานแล้ว (ว่างงานอย่างน้อย 8 วัน)']];
+      if (!un) return { st:'unlikely', r }; if (f.ss33 === undefined) return { st:'need', ask:'ss33', r }; r.push([f.ss33, 'ส่งประกันสังคมครบ 6 เดือนใน 15 เดือนก่อนออกจากงาน']);
+      if (!f.ss33) return { st:'unlikely', r };
+      r.push([null, 'ไม่ได้ถูกเลิกจ้างเพราะทุจริตหรือทำผิดร้ายแรง'], [null, 'ต้องขึ้นทะเบียนภายใน 30 วันหลังออกจากงาน และรายงานตัวทุกเดือน']); return { st:'likely', r }; },
+    amount:f => { const p = UNEMP_PCT[f.work]; if (!p) return { basis:'none', note:'อัตราขึ้นกับสาเหตุที่ออกจากงาน' };
+      return f.wage ? { basis:'calc', v:Math.round(Math.min(f.wage, 15000) * p[0]), unit:'บาท/เดือน', note:'ค่าจ้าง '+f.wage.toLocaleString('th-TH')+' × '+p[1]+' (เพดานค่าจ้าง 15,000)' } : { basis:'none', note:'ใส่เงินเดือนล่าสุดเพื่อคำนวณ · '+p[1], ask:'wage' }; },
+    docs:['บัตรประชาชน', 'หนังสือรับรองการออกจากงาน (สปส. 6-09) หรือหนังสือเลิกจ้าง (ถ้ามี)', 'สำเนาสมุดบัญชีหน้าแรก (แนบกับแบบ สปส. 2-01/7)'],
+    channels:[{ ic:'💻', t:'ขึ้นทะเบียนว่างงานออนไลน์ (กรมการจัดหางาน)', s:'empui.doe.go.th · ภายใน 30 วันหลังออกจากงาน แล้วรายงานตัวออนไลน์ทุกเดือน', link:true }, { ic:'🏢', t:'สำนักงานประกันสังคมหรือสำนักงานจัดหางานใกล้บ้าน', s:'เตรียมรูปถ่าย 1 นิ้วถ้ายื่นที่สำนักงาน · ระยะทางเป็นตัวอย่าง', map:true }, { ic:'📞', t:'สายด่วนประกันสังคม 1506 กด 1', s:'หรือแอป SSO Connect' }],
+    after:'หลังอนุมัติ เงินโอนเข้าบัญชีประมาณ 7-14 วันทำการ', ifNo:'ถามเหตุผลที่ 1506 และยื่นอุทธรณ์ตามกำหนดที่เขียนในหนังสือแจ้งผล',
+    src:[['Legal 500: 60% 180 วัน กรณีถูกเลิกจ้าง มีผล 28 มิ.ย. 2568', 'https://www.legal500.com/intelligence/thailand/employment-and-hr/thailand-increases-unemployment-benefits'], ['Thairath: เกณฑ์ เอกสาร และกรณีลาออก 30% 90 วัน', 'https://en.thairath.co.th/lifestyle/life/2789172']] },
+  { id:'tax', ic:'🧮', t:'เงินคืนภาษี', kind:'once', payer:'กรมสรรพากร', payHow:'โอนเข้าพร้อมเพย์ที่ผูกเลขบัตรประชาชน 13 หลัก',
+    check:f => { if (f.taxWithheld === undefined) return { st:'need', ask:'taxWithheld', r:[] }; return { st: f.taxWithheld ? 'check' : 'unlikely', r:[[f.taxWithheld, 'เคยถูกหักภาษี ณ ที่จ่าย'], [null, 'ยอดคืนจริงขึ้นกับรายได้และค่าลดหย่อนทั้งปี รู้ได้หลังยื่นแบบเท่านั้น']] }; },
     amount:() => ({ basis:'none', note:'ดูยอดที่ถูกหักในหนังสือรับรองการหักภาษี (50 ทวิ) แล้วยื่นแบบเพื่อรู้ยอดคืนจริง' }),
-    docs:['หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)', 'หลักฐานค่าลดหย่อน', 'พร้อมเพย์ผูกเลขบัตรประชาชน'],
-    channels:[{ ic:'💻', t:'ยื่นแบบภาษีออนไลน์', s:'เว็บไซต์ทางการ (ตัวอย่าง)', link:true }],
-    after:'ติดตามสถานะคืนเงินที่เว็บไซต์ทางการ', ifNo:'ถ้าถูกขอเอกสารเพิ่ม ส่งตามที่แจ้งภายในกำหนด',
+    docs:['หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)', 'หลักฐานค่าลดหย่อน (ประกัน กองทุน บริจาค ฯลฯ)', 'พร้อมเพย์ผูกเลขบัตรประชาชน'],
+    channels:[{ ic:'💻', t:'ยื่น ภ.ง.ด.90/91 ออนไลน์', s:'efiling.rd.go.th · ยื่นภายใน 31 มี.ค. ออนไลน์ได้เพิ่ม 8 วันตามประกาศที่ใช้ถึง ม.ค. 2570 ตรวจกำหนดปีนี้ก่อน', link:true }, { ic:'📞', t:'สายด่วนกรมสรรพากร 1161', s:'ถามสถานะคืนภาษี' }],
+    after:'ติดตามสถานะคืนภาษีที่ efiling.rd.go.th', ifNo:'ถ้าถูกขอเอกสารเพิ่ม ส่งตามที่แจ้งภายในกำหนด',
+    src:[['กรมสรรพากร: ระบบยื่นแบบออนไลน์', 'https://efiling.rd.go.th/'], ['กรมสรรพากร: คืนภาษีผ่านพร้อมเพย์', 'https://www.rd.go.th/']],
     govData:{ v:1850, text:'มียอดคืนภาษีรอโอน' } },
-  { id:'owed', ic:'💼', t:'ค่าจ้างค้างจ่าย', kind:'once', payer:'นายจ้างเดิม', payHow:'นายจ้างจ่ายตรง หรือตามคำสั่งเจ้าหน้าที่',
-    check:f => { if (f.unpaidDays === undefined) return { st:'need', ask:'unpaidDays', r:[] }; return { st: f.unpaidDays > 0 ? 'likely' : 'unlikely', r:[[f.unpaidDays > 0, 'มีวันทำงานที่ยังไม่ได้ค่าจ้าง']] }; },
+  { id:'owed', ic:'💼', t:'ค่าจ้างค้างจ่าย', kind:'once', payer:'นายจ้างเดิม', payHow:'นายจ้างจ่ายตรง หรือจ่ายตามคำสั่งพนักงานตรวจแรงงาน',
+    check:f => { if (f.unpaidDays === undefined) return { st:'need', ask:'unpaidDays', r:[] }; const ok = f.unpaidDays > 0;
+      return { st: ok ? 'likely' : 'unlikely', r: ok ? [[true, 'มีวันทำงานที่ยังไม่ได้ค่าจ้าง'], [null, 'ยื่นได้ภายใน 2 ปีนับจากวันที่ควรได้รับ'], [null, 'นายจ้างที่จ่ายช้าอาจต้องจ่ายดอกเบี้ย 15% ต่อปี (ไม่รวมในยอดนี้)']] : [[false, 'มีวันทำงานที่ยังไม่ได้ค่าจ้าง']] }; },
     amount:f => f.unpaidDays > 0 && f.dailyWage ? { basis:'calc', v:f.unpaidDays * f.dailyWage, unit:'บาท', note:f.unpaidDays+' วัน × '+f.dailyWage+' บาท ตามที่คุณแจ้ง' } : { basis:'none', note:'ใส่ค่าจ้างต่อวันเพื่อคำนวณ', ask:'dailyWage' },
-    docs:['หลักฐานการทำงาน (สัญญา ข้อความ รูปถ่าย)', 'สลิปหรือหลักฐานการโอนครั้งก่อน', 'บัตรประชาชน'],
-    channels:[{ ic:'💬', t:'ทวงกับนายจ้างก่อน', s:'ใช้ข้อความตัวอย่างที่แอปเตรียมให้', letter:true }, { ic:'🏢', t:'ยื่นคำร้องที่หน่วยงานคุ้มครองแรงงาน', s:'สำนักงานพื้นที่ใกล้บ้าน (ตัวอย่าง)', map:true }],
-    after:'เจ้าหน้าที่นัดคุยหรือออกคำสั่งให้นายจ้างจ่าย (ตัวอย่าง)', ifNo:'ปรึกษาหน่วยงานเรื่องขั้นตอนถัดไป' }
+    docs:['บัตรประชาชน', 'หลักฐานการทำงาน (สัญญา ข้อความ รูปถ่าย บันทึกเวลา)', 'สลิปเงินเดือนหรือหลักฐานการโอนครั้งก่อน', 'ชื่อ ที่อยู่ และเบอร์ติดต่อนายจ้าง'],
+    channels:[{ ic:'💬', t:'ทวงกับนายจ้างก่อน', s:'ใช้ข้อความตัวอย่างที่แอปเตรียมให้', letter:true }, { ic:'🏢', t:'ยื่นคำร้อง คร.7 กับพนักงานตรวจแรงงาน', s:'สำนักงานสวัสดิการและคุ้มครองแรงงานพื้นที่ ฟรี ไม่ต้องมีสัญญาจ้าง · ระยะทางเป็นตัวอย่าง', map:true }, { ic:'📞', t:'สายด่วน 1546 หรือ 1506 กด 3', s:'กรมสวัสดิการและคุ้มครองแรงงาน' }],
+    after:'พนักงานตรวจแรงงานออกคำสั่งภายใน 60 วัน (ขยายได้ไม่เกิน 30 วัน) นายจ้างต้องจ่ายภายใน 15 วันหลังได้รับคำสั่ง', ifNo:'ถ้าไม่พอใจคำสั่ง ฟ้องศาลแรงงานได้ภายใน 30 วันนับจากวันที่ได้รับคำสั่ง (มาตรา 125)',
+    src:[['Thairath: ขั้นตอน คร.7 เอกสาร ดอกเบี้ย อายุความ', 'https://en.thairath.co.th/money/personal_finance/wealth_management/2937366'], ['กรมสวัสดิการและคุ้มครองแรงงาน', 'https://www.labour.go.th/']] },
+  { id:'child', ic:'👶', t:'เงินอุดหนุนเพื่อการเลี้ยงดูเด็ก', kind:'monthly', payer:'กระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์', payHow:'โอนเข้าบัญชีที่แจ้ง ทุกเดือน จนเด็กอายุครบ 6 ปี',
+    check:f => { if (f.kidUnder6 === undefined) return { st:'need', ask:'kidUnder6', r:[] }; const r = [[f.kidUnder6, 'เลี้ยงดูเด็กอายุไม่เกิน 6 ปี']];
+      if (!f.kidUnder6) return { st:'unlikely', r }; if (f.lowIncome === undefined) return { st:'need', ask:'lowIncome', r };
+      r.push([f.lowIncome, 'รายได้ครอบครัวเฉลี่ยไม่เกิน 100,000 บาทต่อคนต่อปี']); if (!f.lowIncome) return { st:'unlikely', r };
+      r.push([null, 'หน่วยงานต้องรับรองรายได้และอนุมัติก่อน จึงจะเริ่มจ่าย']); return { st:'likely', r }; },
+    amount:() => ({ basis:'rate', v:600, unit:'บาท/เดือน ต่อเด็ก 1 คน', note:'อัตราตามที่ประกาศ เด็กแรกเกิดถึง 6 ปี' }),
+    docs:['บัตรประชาชนผู้เลี้ยงดูเด็ก', 'สูติบัตรเด็ก', 'สมุดบัญชีหรือพร้อมเพย์', 'แบบรับรองรายได้ (ขอที่หน่วยงานรับลงทะเบียน)'],
+    channels:[{ ic:'📱', t:'ลงทะเบียนผ่านแอป "เงินเด็ก" (ยืนยันตัวตนด้วยแอป ThaiD ก่อน)', s:'หรือไปที่เทศบาล อบต. หรือสำนักงานเขต ผ่านเกณฑ์แล้วจ่ายตั้งแต่เดือนที่ลงทะเบียน', link:true }, { ic:'🏢', t:'ลงทะเบียนที่เทศบาลหรือ อบต. ตามทะเบียนบ้าน (กรุงเทพฯ: สำนักงานเขต)', s:'ถามเอกสารและแบบรับรองรายได้ก่อนไป · ระยะทางเป็นตัวอย่าง', map:true }],
+    after:'หน่วยงานตรวจรายได้และอนุมัติก่อน ผ่านแล้วจ่ายตั้งแต่เดือนที่ลงทะเบียน', ifNo:'ถามเหตุผลที่หน่วยงาน · มีมติเสนอให้เด็กทุกคนได้ตั้งแต่ปีงบ 2570 แต่ยังรอ ครม. อนุมัติ ณ วันที่ตรวจ',
+    src:[['Thairath: 600 บาท เด็กแรกเกิดถึง 6 ปี รายได้ไม่เกิน 100,000 บาท/คน/ปี (มิ.ย. 2569)', 'https://en.thairath.co.th/news/politic/2938660'], ['UNICEF Thailand: เกณฑ์รายได้ของเงินอุดหนุนเด็ก', 'https://www.unicef.org/thailand/reports/1st-three'], ['Thairath: ลงทะเบียนผ่านแอปเงินเด็ก ยืนยันตัวตนด้วย ThaiD (ก.ค. 2569)', 'https://en.thairath.co.th/news/society/2944961']] },
+  { id:'disab', ic:'♿', t:'เบี้ยความพิการ', kind:'monthly', payer:'ท้องถิ่นตามทะเบียนบ้าน (กรุงเทพฯ: สำนักงานเขต)', payHow:'โอนเข้าบัญชีที่แจ้ง ทุกเดือน',
+    check:f => { if (f.disabilityCard === undefined) return { st:'need', ask:'disabilityCard', r:[] }; const r = [[f.disabilityCard, 'มีบัตรประจำตัวคนพิการ']];
+      if (!f.disabilityCard) return { st:'unlikely', r }; r.push([null, 'ต้องลงทะเบียนรับเบี้ยกับท้องถิ่น ถ้ายังไม่ได้ลงทะเบียน']); return { st:'likely', r }; },
+    amount:f => ({ basis:'rate', v:800 + (f.welfareCard ? 200 : 0), unit:'บาท/เดือน', ask: f.welfareCard === undefined ? 'welfareCard' : undefined,
+      note:'อายุ 18 ปีขึ้นไป 800 บาท'+(f.welfareCard ? ' + 200 บาทจากบัตรสวัสดิการแห่งรัฐ' : '')+' · ต่ำกว่า 18 ปีได้ 1,000 บาท' }),
+    docs:['บัตรประจำตัวคนพิการ', 'บัตรประชาชน', 'ทะเบียนบ้าน', 'สมุดบัญชีหรือพร้อมเพย์'],
+    channels:[{ ic:'🏢', t:'ลงทะเบียนที่เทศบาลหรือ อบต. ตามทะเบียนบ้าน (กรุงเทพฯ: สำนักงานเขต)', s:'ให้ญาติยื่นแทนได้ ถามเอกสารมอบอำนาจก่อนไป · ระยะทางเป็นตัวอย่าง', map:true }, { ic:'📞', t:'โทรถามท้องถิ่นหรือสำนักงานเขตก่อนไป', s:'ถามรอบลงทะเบียนและเดือนที่เริ่มจ่าย' }],
+    after:'เริ่มจ่ายตามรอบที่ท้องถิ่นแจ้ง', ifNo:'ถามเหตุผลที่ท้องถิ่น · มีมติเสนอขึ้นเป็น 1,000 บาททุกคน แต่ยังรอ ครม. อนุมัติ ณ วันที่ตรวจ',
+    src:[['Thairath: เบี้ยความพิการ 800 / 1,000 บาท (มิ.ย. 2569)', 'https://en.thairath.co.th/news/politic/2938660'], ['Thairath: +200 บาทสำหรับผู้ถือบัตรสวัสดิการแห่งรัฐ (ก.ค. 2569)', 'https://en.thairath.co.th/news/society/2942737']] }
 ];
 const MST = {
   verified:['✅ ยืนยันจากหน่วยงาน', '#14532d', '#bbf7d0'], likely:['🟢 น่าจะมีสิทธิ์', '#166534', '#dcfce7'],
@@ -1281,7 +1366,7 @@ function moneyCard() {
 function renderMoney() {
   const t = moneyTotals();
   let h = '<div class="card mhero"><div class="lab" style="color:#d1fae5;margin:0">เงินที่คุณอาจได้</div><div style="font-size:30px;font-weight:800">'+(t.month ? baht(t.month)+'<small style="font-size:14px">/เดือน</small>' : '฿0')+'</div>'
-    + (t.once ? '<div>+ '+baht(t.once)+' ครั้งเดียว</div>' : '') + '<div style="font-size:12px;opacity:.9;margin-top:4px">'+(t.verified ? 'ยืนยันจากหน่วยงาน (DEMO / MOCK)' : 'ประมาณจากเกณฑ์และอัตราตัวอย่าง ยังไม่ใช่การยืนยันสิทธิ์')+'</div></div>';
+    + (t.once ? '<div>+ '+baht(t.once)+' ครั้งเดียว</div>' : '') + '<div style="font-size:12px;opacity:.9;margin-top:4px">'+(t.verified ? 'ยืนยันจากหน่วยงาน (DEMO / MOCK)' : 'ประมาณจากเกณฑ์และอัตราที่ประกาศ ยังไม่ใช่การยืนยันสิทธิ์')+'</div></div>';
   if (gov.flag && !gov.connected) h += '<div class="card click" onclick="connectThaid()" style="border:1.5px dashed #94a3b8"><div class="row"><div><b>🏛️ ดูยอดจริงจากหน่วยงาน</b><div class="mut">เชื่อม ThaID (ไม่บังคับ) ไม่เชื่อมก็ใช้แอปได้ครบ</div></div><span class="mut" style="font-size:18px">›</span></div></div>';
   const order = ['verified', 'likely', 'check', 'need', 'unlikely'];
   order.forEach(st => {
@@ -1292,7 +1377,7 @@ function renderMoney() {
         + '<b style="white-space:nowrap;color:'+MST[st][1]+'">'+(e.a.v ? baht(e.a.v) : 'ไม่ทราบยอด')+'</b></div>'
         + '<div class="row" style="margin-top:8px"><span class="mpill" style="background:'+MST[st][2]+';color:'+MST[st][1]+'">'+(st === 'need' ? ASK[e.ask].q : MST[st][0])+'</span><span class="link">'+(st === 'unlikely' ? 'ดูเหตุผล' : 'ไปรับเงิน ›')+'</span></div></div>'; }).join('');
   });
-  h += '<p class="mut">รายการ เกณฑ์ อัตรา และช่องทางทั้งหมดเป็นตัวอย่าง (DEMO / MOCK) ต้องตรวจกับหน่วยงานก่อนใช้จริง แอปไม่รับประกันว่าจะได้เงิน</p>';
+  h += '<p class="mut">เกณฑ์และอัตรารวบรวมจากแหล่งสาธารณะ ตรวจล่าสุด '+RULES_CHECKED+' (แหล่งอยู่ในแต่ละรายการ) คำตอบของคุณยังไม่ได้ตรวจกับหน่วยงาน แอปไม่รับประกันว่าจะได้เงิน</p>';
   document.getElementById('moneyBody').innerHTML = h;
 }
 function openRoute(id) { routeId = id; go('route'); }
@@ -1310,7 +1395,7 @@ function renderRoute() {
   const m = MONEY.find(x => x.id === routeId), e = mEval(m), st = MST[e.st];
   const have = docHave[m.id] || (docHave[m.id] = new Set());
   const stepN = (n, t, body, done) => '<div class="rstep'+(done ? ' done' : '')+'"><div class="rnum">'+(done ? '✓' : n)+'</div><div class="rbody"><b>'+t+'</b>'+body+'</div></div>';
-  let h = '<div class="row" style="gap:12px;justify-content:flex-start;margin-bottom:6px"><span style="font-size:34px">'+m.ic+'</span><div><h2 style="margin:0;font-size:20px">'+m.t+'</h2><span class="mpill" style="background:'+st[2]+';color:'+st[1]+'">'+st[0]+'</span> <span class="tag t-mock">DEMO / MOCK</span></div></div>';
+  let h = '<div class="row" style="gap:12px;justify-content:flex-start;margin-bottom:6px"><span style="font-size:34px">'+m.ic+'</span><div><h2 style="margin:0;font-size:20px">'+m.t+'</h2><span class="mpill" style="background:'+st[2]+';color:'+st[1]+'">'+st[0]+'</span> '+(e.st === 'verified' ? '<span class="tag t-mock">DEMO / MOCK</span>' : '<span class="tag t-src">ตามแหล่งสาธารณะ · ตรวจ '+RULES_CHECKED+'</span>')+'</div></div>';
   const amt = e.a.v
     ? '<div class="amtbox" style="background:'+(e.st === 'verified' ? '#dcfce7' : '#dbeafe')+';color:'+(e.st === 'verified' ? '#14532d' : '#1e40af')+'"><div class="lab">'+({ verified:'ยืนยันจากหน่วยงาน', rate:'อัตราตามประกาศ (ยังไม่ยืนยันสิทธิ์)', calc:'คำนวณจากข้อมูลที่คุณแจ้ง' }[e.a.basis])+'</div><div class="val">'+baht(e.a.v)+'</div><div style="font-size:12px">'+(e.a.unit || '')+' · '+e.a.note+'</div></div>'
     : '<div class="amtbox" style="background:#e2e8f0;color:#334155"><div class="lab">ยังไม่ทราบยอด</div><div style="font-size:13px;margin-top:3px">'+e.a.note+'</div></div>' + (e.a.ask && facts[e.a.ask] === undefined ? askBox(e.a.ask) : '');
@@ -1326,10 +1411,11 @@ function renderRoute() {
     h += '<button class="btn" onclick="startClaim(\''+m.id+'\')">เริ่มรับเงิน: บันทึกเป็นแผนทีละขั้น</button>';
   }
   h += '<div class="link" style="text-align:center;margin-top:12px" onclick="startAssistant(\'ไปรับ'+m.t+'ยังไง\')">🤖 ถาม AI เรื่องเงินก้อนนี้</div>';
-  h += '<p class="mut" style="margin-top:12px">ขั้นตอน เกณฑ์ อัตรา และสถานที่เป็นตัวอย่าง ต้องตรวจกับหน่วยงานก่อนใช้จริง แอปไม่ยื่นแทนคุณและไม่รับประกันว่าจะได้เงิน</p>';
+  h += '<div class="card" style="margin-top:12px"><div class="lab" style="margin:0">📚 แหล่งข้อมูล (ตรวจล่าสุด '+RULES_CHECKED+')</div>'+m.src.map(([t, u]) => '<div class="mut">• <a href="'+u+'" target="_blank" rel="noopener">'+t+'</a></div>').join('')+'</div>';
+  h += '<p class="mut" style="margin-top:12px">ตรวจกับหน่วยงานก่อนยื่นทุกครั้ง เกณฑ์อาจเปลี่ยน สถานที่และระยะทางในแผนที่เป็นตัวอย่าง แอปไม่ยื่นแทนคุณและไม่รับประกันว่าจะได้เงิน</p>';
   document.getElementById('routeBody').innerHTML = h;
 }
-function resetFacts(id) { const m = MONEY.find(x => x.id === id); ({ old:['ageBand', 'govPension'], unemp:['work', 'ss33', 'wage'], tax:['taxWithheld'], owed:['unpaidDays', 'dailyWage'] })[id].forEach(k => delete facts[k]); renderRoute(); }
+function resetFacts(id) { const m = MONEY.find(x => x.id === id); ({ old:['ageBand', 'govPension', 'oldAgeGets'], unemp:['work', 'ss33', 'wage'], tax:['taxWithheld'], owed:['unpaidDays', 'dailyWage'], child:['kidUnder6', 'lowIncome'], disab:['disabilityCard', 'welfareCard'] })[id].forEach(k => delete facts[k]); renderRoute(); }
 function toggleDoc(id, i) { const s = docHave[id]; s.has(i) ? s.delete(i) : s.add(i); renderRoute(); }
 function useChannel(id, i) {
   const m = MONEY.find(x => x.id === id), c = m.channels[i];
@@ -1366,9 +1452,47 @@ function disconnectThaid() {
   toast('ยกเลิกการเชื่อมและลบข้อมูลจากหน่วยงานแล้ว'); renderMe();
 }
 /* ---------- AI assistant (mock of the rules agent; real one: POST /v1/ai/conversations) ---------- */
-let aMemory = [], aPending = {}, aSeq = 1;
+let aMemory = [], aPending = {}, aSeq = 1, aGuided = false, aResultShown = false;
 const aChat = () => document.getElementById('achat');
+/* Assistant policy: generated from contracts/fixtures/assistant-policy.json by docs/mockups/sync-policy.js (smoke test checks they match). */
+/*POLICY:BEGIN*/const POLICY = {"version":"2026-11-26.1","rules":[{"id":"injection","patterns":["ลืม(คำสั่ง|กฎ|ทุกอย่าง)","ไม่ต้องสนใจ(คำสั่ง|กฎ)","เปลี่ยนบทบาท","แกล้งทำเป็น","สมมติว่าคุณ(เป็น|ไม่มีกฎ)","system ?prompt","ignore (all |the )?(previous|above|prior)","act as","jailbreak","developer mode","\\bDAN\\b","คำสั่งลับ","ปิด(ระบบ)?ความปลอดภัย"],"reply":"ขอโทษค่ะ เปลี่ยนกฎการทำงานไม่ได้ ฉันช่วยได้เฉพาะเรื่องเงินที่ควรได้ งาน และรายได้จากทักษะ"},{"id":"sensitive","patterns":["\\b\\d{13}\\b","\\b\\d-?\\d{4}-?\\d{5}-?\\d{2}-?\\d\\b","\\bOTP\\b","รหัส ?OTP","รหัสผ่าน","PIN","เลขบัญชี ?\\d","\\b\\d{3}-?\\d-?\\d{5}-?\\d\\b"],"reply":"อย่าส่งเลขบัตรประชาชน เลขบัญชี รหัสผ่าน หรือ OTP ในแชทนะคะ ฉันไม่ต้องใช้ และไม่ได้เก็บข้อความนี้ หน่วยงานจริงจะขอข้อมูลนี้ที่ช่องทางทางการเท่านั้น"},{"id":"guarantee","patterns":["ได้แน่(นอน)?(ไหม|มั้ย|ป่าว|หรือเปล่า)?","แน่นอน(ไหม|มั้ย|ป่ะ|ป่าว|หรือเปล่า)","แน่(ไหม|มั้ย|ป่ะ|ป่าว)","รับประกัน","การันตี","ชัวร์(ไหม|มั้ย)?","ยืนยันสิทธิ์ให้"],"reply":"ฉันรับประกันไม่ได้ว่าจะได้เงินหรือได้งาน ผลในแอปเป็นการตรวจเบื้องต้นจากเกณฑ์ที่ประกาศและคำตอบของคุณ หน่วยงานเป็นผู้ยืนยันสิทธิ์จริง"},{"id":"scam","patterns":["โอน(เงิน)?(ก่อน|ค่ามัดจำ|ค่าธรรมเนียม|ค่าดำเนินการ)","ค่ามัดจำ","เงินกู้","กู้เงิน","ยืมเงิน","สินเชื่อ","ปลดหนี้"],"reply":"ระวังนะคะ งานหรือสิทธิ์ที่ให้โอนเงินก่อนมักเป็นมิจฉาชีพ และเงินกู้คือหนี้ ไม่ใช่รายได้ แอปนี้ไม่แนะนำเงินกู้ ถ้าสงสัย โทรสายด่วนตำรวจไซเบอร์ 1441"},{"id":"off_topic","patterns":["หวย","เลขเด็ด","ล็อตเตอรี่","พนัน","บาคาร่า","คริปโต","หุ้น","การเมือง","นายก","เลือกตั้ง","เขียนโค้ด","ทำการบ้าน","แต่งกลอน","แต่งเพลง","ดูดวง","รักษาโรค","กินยา"],"reply":"เรื่องนี้ฉันช่วยไม่ได้ค่ะ ฉันช่วยได้เฉพาะเรื่องเงินที่ควรได้ งาน และรายได้จากทักษะ"}],"inScope":["เงิน","สิทธิ์","เบี้ย","บำนาญ","ว่างงาน","ตกงาน","ประกันสังคม","ภาษี","ค่าจ้าง","เด็ก","พิการ","บัตรสวัสดิการ","เอกสาร","ยื่น","ลงทะเบียน","ไปรับ","ที่ไหน","เมื่อไหร่","ยังไง","อย่างไร","งาน","สมัคร","ทักษะ","ขาย","รายได้","แผน","เตือน","มิจฉาชีพ","หลอก","ได้เท่าไหร่","เริ่ม","ต่อ","ช่วย","ไม่สะดวก","ไม่อยาก","ชอบ","ไม่มีรถ","ขาไม่ดี","ว่างแค่","ทำได้แค่","เดินทาง","สวัสดี","ขอบคุณ"],"redirect":"ลองถามเรื่องเงินของคุณ เช่น เงินฉันอยู่ไหน เอกสารที่ยังขาด หรือหางานใกล้บ้าน"};/*POLICY:END*/
+const POLICY_RULES = POLICY.rules.map(r => ({ id:r.id, res:r.patterns.map(p => new RegExp(p, 'i')), reply:r.reply }));
+const GUARD_LABEL = { injection:'ขอเปลี่ยนกฎ', sensitive:'ข้อมูลส่วนตัว', guarantee:'ขอการรับประกัน', scam:'เสี่ยงมิจฉาชีพ/เงินกู้', off_topic:'นอกเรื่อง', unclear:'นอกขอบเขต' };
+// Same order as contracts/adapters/guard.js: refusals first, then an answer to the current question, then in-scope topics.
+function guardCheck(t, k) {
+  for (const r of POLICY_RULES) if (r.res.some(re => re.test(t))) return { kind:r.id, reply:r.reply };
+  if (k && ASK[k].opts && ASK[k].opts.includes(t)) return { kind:'answer' };
+  if (k && ASK[k].num && /^\s*[\d,]+\s*(บาท)?\s*$/.test(t)) return { kind:'answer' };
+  if (POLICY.inScope.some(w => t.includes(w))) return { kind:'in_scope' };
+  return { kind:'unclear', reply:'ฉันช่วยได้เฉพาะเรื่องเงินที่ควรได้ งาน และรายได้จากทักษะ' };
+}
+// One click: the button text states the consent (age 20+, core + AI), so pressing it records that consent and starts the guided chat.
+function aiOneClick() {
+  if (!(consent.accepted && consent.p.core && consent.p.ai)) {
+    Object.assign(consent, { accepted:true, version:NOTICE_VERSION, at:new Date(), adult:true, p:{ ...consent.p, core:true, ai:true } });
+    consent.history.push({ at:new Date(), version:NOTICE_VERSION, p:{ ...consent.p }, how:'ปุ่มให้ AI หาเงินให้ฉัน' });
+  }
+  facts = {}; quickSkipped = new Set(); aGuided = true; aResultShown = false; aChat().innerHTML = '';
+  go('assistant');
+}
+const aStepQuick = k => k ? (ASK[k].opts || []).concat(['ไม่แน่ใจ ข้าม']) : null;
+function aAsk(prefix) {
+  const k = quickNext();
+  if (!k) return aResult(prefix.replace('ข้อต่อไป: ', '') + 'ตอบครบทุกข้อแล้ว');
+  return { reply: prefix + ASK[k].q + (ASK[k].num ? '\n(พิมพ์เป็นตัวเลข)' : ''), quick: aStepQuick(k), tools:[], pending:[], memory:[] };
+}
+function aResult(prefix) {
+  aResultShown = true;
+  const r = rankMoney().filter(x => !x.e.have && TIER_A(x.e) <= 3), have = rankMoney().filter(x => x.e.have);
+  if (!r.length) return { reply: prefix + '\nจากคำตอบนี้ ยังไม่พบเงิน' + (have.length ? 'ก้อนใหม่ (ที่ได้อยู่แล้ว: ' + have.map(x => x.m.t).join(', ') + ')' : 'ที่น่าจะมีสิทธิ์') + '\nลองดูทางหางานหรือหารายได้จากทักษะได้ค่ะ',
+    quick:['หางานใกล้บ้าน', 'หารายได้จากทักษะ'], tools:['ดูข้อมูลเงินของคุณ'], pending:[], memory:[] };
+  const { m, e } = r[0];
+  return { reply: prefix + '\n✅ เจอแล้ว: ' + m.t + (e.a.v ? ' ' + baht(e.a.v) + ' ' + (e.a.unit || '') : '') + ' · ' + MST[e.st][0] + ' (ยังไม่ยืนยันกับหน่วยงาน)'
+      + (r[1] ? '\nอีกทางที่ควรเช็ค: ' + r[1].m.t : '') + '\nแหล่ง: ' + m.src[0][0] + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่น กดถามได้เลย',
+    quick:['เอกสารที่ต้องใช้', 'ไปยื่นที่ไหน', 'บันทึกเป็นแผน'].concat(quickNext() ? ['เช็คเงินก้อนอื่นต่อ'] : []), tools:['ดูข้อมูลเงินของคุณ'], pending:[], memory:[], link:{ t:'ดูการ์ดสิ่งแรกที่ควรทำ ›', on:"lane='money';go('now')" } };
+}
 function startAssistant(firstText) {
+  aGuided = false;
   if (!consent.accepted) { withConsent(() => startAssistant(firstText)); return; }
   if (!consent.p.ai) {
     modal('<b style="font-size:17px">ต้องยินยอมให้ใช้ AI ก่อน</b><p>ผู้ช่วยต้องอ่านข้อมูลของคุณในแอป (ไม่ส่งชื่อ) และอาจจำสิ่งที่คุณบอกไว้ ดูและลบได้ที่แท็บ ฉัน</p>'
@@ -1380,9 +1504,12 @@ function startAssistant(firstText) {
 }
 function aBubble(cls, html) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html; aChat().appendChild(d); aChat().scrollTop = aChat().scrollHeight; return d; }
 function aQuick(list) { const q = document.getElementById('aquick'); q.innerHTML = ''; (list || []).forEach(t => { const s = document.createElement('span'); s.textContent = t; s.onclick = () => aSend(t); q.appendChild(s); }); }
-function aGreet() { aBot({ reply:'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย ฉันเห็นเฉพาะข้อมูลของคุณในแอปนี้ จะเปลี่ยนอะไรให้ จะถามคุณก่อนเสมอ', quick:['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน', 'เตือนฉันพรุ่งนี้'] }); }
+function aGreet() {
+  if (aGuided) { aBot(aAsk('สวัสดีค่ะ ฉันจะช่วยหาเงินที่คุณควรได้ ถามทีละข้อ กดตอบได้เลย\nข้อแรก: ')); return; }
+  aBot({ reply:'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย ฉันเห็นเฉพาะข้อมูลของคุณในแอปนี้ จะเปลี่ยนอะไรให้ จะถามคุณก่อนเสมอ', quick:['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน', 'เตือนฉันพรุ่งนี้'] });
+}
 function aBot(r) {
-  const w = document.createElement('div'); w.className = 'who'; w.textContent = 'AI (จำลอง)' + (r.tools && r.tools.length ? ' · 🔧 ' + r.tools.join(', ') : ''); aChat().appendChild(w);
+  const w = document.createElement('div'); w.className = 'who'; w.innerHTML = 'AI (จำลอง)' + (r.tools && r.tools.length ? ' · 🔧 ' + esc(r.tools.join(', ')) : '') + (r.guard ? '<span class="gtag">🛡️ กฎ: ' + GUARD_LABEL[r.guard] + '</span>' : ''); aChat().appendChild(w);
   let h = esc(r.reply).replace(/\n/g, '<br>');
   (r.pending || []).forEach(pa => { const id = 'ap' + aSeq++; aPending[id] = pa;
     h += '<div class="pact" id="'+id+'"><div>⚡ '+esc(pa.label)+'</div><div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" style="margin:0" onclick="aDecide(\''+id+'\',true)">ยืนยัน</button><button class="btn sec sm" style="margin:0" onclick="aDecide(\''+id+'\',false)">ไม่ใช่</button></div></div>'; });
@@ -1392,11 +1519,39 @@ function aBot(r) {
 }
 function aSend(text) {
   const i = document.getElementById('aIn'); const t = (text !== undefined ? text : i.value).trim(); i.value = ''; if (!t) return;
-  aBubble('me', esc(t)); aQuick([]);
+  // Personal numbers are not even shown back on screen.
+  aBubble('me', guardCheck(t).kind === 'sensitive' ? '•••• (ซ่อนข้อมูลส่วนตัว)' : esc(t)); aQuick([]);
   const typing = document.createElement('div'); typing.className = 'typing'; typing.innerHTML = '<i></i><i></i><i></i>'; aChat().appendChild(typing);
   setTimeout(() => { typing.remove(); aBot(aRespond(t)); }, 500);
 }
 function aRespond(t) {
+  // Guided checklist: the current question is the next missing fact (same order as the quick check).
+  const k = aGuided && (!aResultShown || /เช็ค.*ต่อ/.test(t) || aResumed) ? quickNext() : null;
+  if (k && t === 'ไม่แน่ใจ ข้าม') { quickSkipped.add(k); return aGuidedNext('ข้ามแล้ว\n'); }
+  const v = guardCheck(t, k);
+  if (v.kind !== 'answer' && v.kind !== 'in_scope') {
+    // Refused or unclear: answered by the policy, the AI is not called and nothing is remembered.
+    return { reply: v.reply + '\n' + (k ? 'กลับมาที่คำถาม: ' + ASK[k].q : POLICY.redirect), quick: aStepQuick(k) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], guard: v.kind, tools:[], pending:[], memory:[] };
+  }
+  if (v.kind === 'answer') { facts[k] = factOf(k, t); return aGuidedNext('บันทึกแล้ว\n'); }
+  if (k && /เช็ค.*ต่อ/.test(t)) { aResumed = true; return aAsk('ได้เลยค่ะ\n'); }
+  if (/บันทึก.*แผน/.test(t)) {
+    const top = rankMoney().find(x => !x.e.have && TIER_A(x.e) <= 3);
+    if (!top) return { reply:'ยังไม่มีรายการที่น่าจะมีสิทธิ์ให้บันทึก', tools:[], pending:[], memory:[], quick:['หางานใกล้บ้าน'] };
+    return { reply:'จะบันทึก "' + top.m.t + '" เป็นแผนทีละขั้น: เตรียมเอกสาร → ' + top.m.channels[0].t + ' → ติดตามผล ยืนยันไหมคะ', tools:['ดูข้อมูลเงินของคุณ'], memory:[],
+      pending:[{ label:'สร้างแผนรับ "' + top.m.t + '" ทีละขั้น', run:() => startClaimQuiet(top.m.id) }], quick:['เอกสารที่ต้องใช้', 'ไปยื่นที่ไหน'] };
+  }
+  return aRespondFree(t);
+}
+let aResumed = false;
+function aGuidedNext(prefix) {
+  const top = rankMoney()[0];
+  // Stop at the first sourced amount (like the quick check); the person can ask to keep checking.
+  if (!aResultShown && top && TIER_A(top.e) <= 1) return aResult(prefix);
+  if (aResultShown && aResumed && !quickNext()) { aResumed = false; return aResult(prefix + 'เช็คครบแล้ว'); }
+  return aAsk(prefix + 'ข้อต่อไป: ');
+}
+function aRespondFree(t) {
   const r = { tools:[], pending:[], memory:[], quick:['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'] };
   const pref = t.match(/(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ว่างแค่[^.?!]*)/);
   if (pref) { const m = { id:'mem' + aSeq++, text:pref[1].trim(), source:'ai' }; aMemory.push(m); r.memory.push(m); }
@@ -1416,7 +1571,12 @@ function aRespond(t) {
     const a = tasks.find(x => !finished(x));
     if (a) { r.reply = 'จะตั้งเตือนเรื่อง "' + a.title + '" พรุ่งนี้ ยืนยันไหมคะ'; r.pending.push({ label:'เตือน "' + a.title + '" พรุ่งนี้', run:() => { a.due = 'เตือนพรุ่งนี้ (จำลอง)'; refresh(); } }); }
     else r.reply = 'ยังไม่มีงานที่กำลังทำอยู่';
-  } else if (/ยังไง|อย่างไร|ไปรับ/.test(t)) {
+  } else if (/ทักษะ|ขายของ/.test(t)) {
+    r.tools.push('ดูไอเดียรายได้');
+    const p = PLANS.filter(x => x.tr === 'C' && x.gross).sort((a, b) => (SKILL_OF[b.id] && SKILL_OF[b.id].test(persona.chip) ? 1 : 0) - (SKILL_OF[a.id] && SKILL_OF[a.id].test(persona.chip) ? 1 : 0))[0];
+    r.reply = 'ลองเริ่มจาก: ' + p.t + ' (ทดลองก่อน ยังไม่มีผู้ซื้อยืนยัน ตัวเลขเป็นประมาณการ)\nขั้นแรก: ส่งข้อความรับออเดอร์ให้คนรู้จัก 5-10 คน แล้วดูว่ามีคนสั่งจริงกี่คน';
+    r.link = { t:'ร่างข้อความรับออเดอร์ ›', on:"offerDraft('" + p.id + "')" };
+  } else if (/ยังไง|อย่างไร|ไปรับ|ยื่นที่ไหน|ที่ไหน/.test(t)) {
     r.tools.push('ดูเส้นทางรับเงิน');
     const m = MONEY.find(x => t.includes(x.t)) || live[0];
     if (!m) r.reply = 'ยังไม่มีรายการที่น่าจะมีสิทธิ์ ลองตอบคำถามในหน้าเงินของฉันก่อน';
@@ -1445,6 +1605,140 @@ function showMemory() {
 }
 function toggleConsentQuiet(id) { consent.p[id] = !consent.p[id]; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } }); }
 function startChatNow() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }
+
+/* ---------- Money first: quick check -> one first action per lane ----------
+   Lanes (money / job / skill) are never ranked against each other: a sourced allowance, an unconfirmed
+   listing and a side-income experiment have no shared scale. Inside a lane the order is how certain the
+   action is (sourced amount > likely > needs a check > needs an answer), never a "chance to earn". */
+let lane = 'money', quickSkipped = new Set();
+function quickOrder() {
+  const o = ['ageBand'];
+  if (facts.ageBand && facts.ageBand !== 'ต่ำกว่า 60') { o.push('govPension'); if (facts.govPension === false) o.push('oldAgeGets'); }
+  o.push('work');
+  if (UNEMP_PCT[facts.work]) { o.push('ss33'); if (facts.ss33) o.push('wage'); }
+  o.push('kidUnder6'); if (facts.kidUnder6) o.push('lowIncome');
+  o.push('disabilityCard');
+  o.push('taxWithheld');
+  return o;
+}
+const quickNext = () => quickOrder().find(k => facts[k] === undefined && !quickSkipped.has(k));
+// "have" = money the person already receives: shown as "check the amount", never as new money or the first action.
+const TIER_A = e => e.have ? 8 : e.st === 'verified' ? 0 : e.st === 'likely' && e.a.v ? 1 : e.st === 'likely' ? 2 : e.st === 'check' ? 3 : e.st === 'need' ? 4 : 9;
+function rankMoney() {
+  return MONEY.map(m => ({ m, e: mEval(m) })).filter(x => TIER_A(x.e) < 9)
+    .sort((x, y) => TIER_A(x.e) - TIER_A(y.e) || (y.m.kind === 'monthly') - (x.m.kind === 'monthly') || (y.e.a.v || 0) - (x.e.a.v || 0));
+}
+function startQuick(l) {
+  lane = l || 'money';
+  if (lane !== 'money') { go('now'); return; }
+  facts = {}; quickSkipped = new Set(); go('quick');
+}
+function renderQuick() {
+  const k = quickNext(), top = rankMoney()[0];
+  // Stop as soon as there is a sourced amount to show; the remaining questions move to the result page.
+  if (!k || (top && TIER_A(top.e) <= 1)) { lane = 'money'; go('now'); return; }
+  const order = quickOrder(), a = ASK[k];
+  let h = '<div class="mut">ข้อ '+(order.indexOf(k) + 1)+' จาก '+order.length+' · ตอบเท่าที่รู้ ข้ามได้</div><h2 style="margin:6px 0 14px">'+a.q+'</h2>';
+  h += a.num
+    ? '<div class="row" style="gap:8px"><input id="qnum" type="number" min="0" inputmode="numeric" placeholder="เช่น 12000" style="flex:1"><button class="btn sm" style="margin:0;width:auto;padding:10px 16px" onclick="quickAnswer(\''+k+'\',document.getElementById(\'qnum\').value)">ตกลง</button></div>'
+    : '<div class="qopts">'+a.opts.map(o => '<button class="btn sec" onclick="quickAnswer(\''+k+'\',\''+o+'\')">'+o+'</button>').join('')+'</div>';
+  h += '<button class="btn sec sm" onclick="quickSkip(\''+k+'\')">ไม่แน่ใจ ข้ามข้อนี้</button>';
+  h += '<p class="mut">🔒 ยังไม่บันทึกอะไร คำตอบอยู่ในเครื่องนี้เท่านั้น จนกว่าคุณจะกด "บันทึกเป็นแผน" ไม่ถามชื่อ เลขบัตร หรือเลขบัญชี</p>';
+  document.getElementById('quickBody').innerHTML = h;
+}
+const factOf = (k, raw) => { const a = ASK[k]; return a.num ? Math.max(0, +raw || 0) : a.map ? a.map(raw) : raw; };
+function quickAnswer(k, raw) { facts[k] = factOf(k, raw); renderQuick(); }
+function quickSkip(k) { quickSkipped.add(k); renderQuick(); }
+function nowAnswer(k, raw) { facts[k] = factOf(k, raw); renderNow(); toast('คิดใหม่จากคำตอบของคุณแล้ว'); }
+function nowAsk(k, title) {
+  const a = ASK[k];
+  return '<div class="askbox"><b>'+title+'</b><div class="mut">'+a.q+'</div>'+(a.num
+    ? '<div class="row" style="margin-top:8px;gap:8px"><input id="now-'+k+'" type="number" min="0" inputmode="numeric" style="flex:1"><button class="btn sm" style="margin:0;width:auto;padding:10px 16px" onclick="nowAnswer(\''+k+'\',document.getElementById(\'now-'+k+'\').value)">ตกลง</button></div>'
+    : '<div class="chips" style="margin-top:8px">'+a.opts.map(o => '<span onclick="nowAnswer(\''+k+'\',\''+o+'\')">'+o+'</span>').join('')+'</div>')+'</div>';
+}
+function laneTabs() {
+  return '<div class="seg" style="margin:0 0 12px">'+[['money','💰 เงินที่ควรได้'],['job','🔎 หางาน'],['skill','🍳 จากทักษะ']]
+    .map(([k, l]) => '<div class="'+(lane === k ? 'on' : '')+'" onclick="lane=\''+k+'\';renderNow()">'+l+'</div>').join('')+'</div>';
+}
+function haveCards(list) {
+  return list.map(({ m, e }) => '<div class="card click" onclick="openRoute(\''+m.id+'\')" style="background:#f8fafc"><div class="lab" style="margin:0">💡 ได้อยู่แล้ว: ตรวจยอดให้ครบ</div><b>'+m.ic+' '+m.t+'</b>'
+    + '<div class="mut">ตามช่วงอายุควรได้ '+(e.a.v ? baht(e.a.v)+' '+e.a.unit : '-')+' ถ้ายอดที่โอนไม่ตรง ให้ถามท้องถิ่น'+(OLD_NEXT[facts.ageBand] && m.id === 'old' ? ' · '+OLD_NEXT[facts.ageBand] : '')+'</div></div>').join('');
+}
+function nowMoney() {
+  const all = rankMoney(), have = all.filter(x => x.e.have), r = all.filter(x => !x.e.have), top = r[0], more = quickNext();
+  if (!top || TIER_A(top.e) === 4 && !r.some(x => TIER_A(x.e) <= 3)) {
+    let h = '<div class="card"><b>'+(have.length ? 'จากคำตอบนี้ ยังไม่พบเงินก้อนใหม่' : 'จากคำตอบนี้ ยังไม่พบเงินที่น่าจะมีสิทธิ์')+'</b><p class="mut" style="margin:6px 0 0">ไม่ได้แปลว่าไม่มีสิทธิ์แน่นอน เกณฑ์ในแอปครอบคลุม '+MONEY.length+' รายการ ลองตอบข้อที่ข้ามไว้ หรือดูทางหารายได้อื่น</p></div>';
+    h += haveCards(have);
+    if (more) h += nowAsk(more, 'ตอบอีกข้อเพื่อเช็คต่อ');
+    return h + '<button class="btn sec" onclick="lane=\'job\';renderNow()">🔎 ดูทางหางาน</button><button class="btn sec" onclick="lane=\'skill\';renderNow()">🍳 ดูทางหารายได้จากทักษะ</button>';
+  }
+  const { m, e } = top, st = MST[e.st];
+  let h = '<div class="card nowhero"><div class="lab" style="margin:0">สิ่งแรกที่ควรทำ</div>'
+    + '<div class="row" style="justify-content:flex-start;gap:10px;margin-top:4px"><span style="font-size:28px">'+m.ic+'</span><b style="font-size:17px">'+m.t+'</b></div>'
+    + (e.a.v ? '<div class="nowbig" style="margin-top:8px">'+baht(e.a.v)+'<small style="font-size:14px;font-weight:600"> '+(e.a.unit || '')+'</small></div><div class="mut">'+e.a.note+'</div>'
+             : '<div style="margin-top:8px"><b>ยังไม่ทราบยอด</b><div class="mut">'+e.a.note+'</div></div>')
+    + '<span class="mpill" style="background:'+st[2]+';color:'+st[1]+';display:inline-block;margin-top:8px">'+st[0]+'</span>'
+    + '<div class="nowrow">📍 <b>ไปที่:</b> '+m.channels[0].t+'</div>'
+    + '<div class="nowrow">📄 <b>เอาไป:</b> '+m.docs.slice(0, 3).join(' · ')+(m.docs.length > 3 ? ' และอีก '+(m.docs.length - 3)+' อย่าง' : '')+'</div>'
+    + '<div class="nowrow">💸 <b>ได้เงิน:</b> '+m.payHow+'</div>'
+    + '<div class="nowrow mut">📚 แหล่ง: '+m.src[0][0]+' · ตรวจ '+RULES_CHECKED+'</div>'
+    + (e.a.ask && facts[e.a.ask] === undefined ? nowAsk(e.a.ask, 'ใส่ข้อมูลเพื่อคำนวณยอด') : '')
+    // Consent is asked only here, when something is about to be saved (PDPA: nothing stored before this).
+    + '<button class="btn" onclick="withConsent(() => startClaim(\''+m.id+'\'))">เริ่มเลย: บันทึกเป็นแผนทีละขั้น</button>'
+    + '<button class="btn sec sm" onclick="openRoute(\''+m.id+'\')">ดูเส้นทางรับเงินเต็ม</button></div>';
+  const alt = r[1];
+  if (alt) h += '<div class="card click nowalt" onclick="openRoute(\''+alt.m.id+'\')"><div class="lab" style="margin:0">ถ้าทางแรกไม่ได้ ลองเช็คทางนี้</div><div class="row"><b>'+alt.m.ic+' '+alt.m.t+'</b><span class="mut">'+(alt.e.a.v ? baht(alt.e.a.v) : MST[alt.e.st][0])+' ›</span></div></div>';
+  h += haveCards(have);
+  if (more) h += nowAsk(more, 'เช็คเพิ่ม: อาจมีเงินก้อนอื่นอีก');
+  if (r.length > 2) h += '<div class="link" style="text-align:center;margin:8px 0" onclick="go(\'money\')">ดูเงินทั้งหมด '+r.length+' รายการ ›</div>';
+  return h;
+}
+function nowJob() {
+  const jobs = ITEMS.filter(i => i.g === 'job' && !i.scam && !EXP[i.id]).map(it => ({ it, d: dFrom(it), real: !!it.url && it.st !== 'mock' }))
+    .sort((a, b) => (b.real - a.real) || ((a.d ?? 1e9) - (b.d ?? 1e9)));
+  const real = jobs.filter(j => j.real).length;
+  let h = real ? '' : '<div class="note" style="background:#ffe4e6;color:#9f1239">ยังไม่มีประกาศงานจริงที่ทีมตรวจแล้วในพื้นที่นี้ รายการด้านล่างเป็นตัวอย่าง (DEMO / MOCK) ไม่มีงานจริง</div>';
+  const card = (j, first) => { const it = j.it, s = STATUS[it.st];
+    return '<div class="card '+(first ? 'nowhero' : 'click nowalt')+'"'+(first ? '' : ' onclick="openItem(\''+it.id+'\')"')+'><div class="lab" style="margin:0">'+(first ? 'สิ่งแรกที่ควรทำ' : 'ถ้าทางแรกไม่ได้ ลองทางนี้')+'</div>'
+      + '<div class="row"><b>'+esc(it.t)+'</b><span class="tag '+s[1]+'" style="margin:0">'+s[0]+'</span></div>'
+      + '<div class="mut">'+(it.tier < 3 ? it.short+' '+(it.unit || '') : 'ไม่ระบุค่าจ้าง ต้องถามผู้ประกาศ')+(j.d === null ? '' : ' · 📍 '+j.d.toFixed(1)+' กม.')+'</div>'
+      + (first ? '<div class="nowrow">📄 <b>เงื่อนไข:</b> '+(it.cond || ['ดูที่ประกาศต้นทาง']).slice(0, 2).join(' · ')+'</div>'
+        + (j.real ? '<button class="btn" onclick="sourceOpen(\''+it.id+'\')">เปิดประกาศต้นทาง แล้วติดต่อผู้ประกาศ</button>' : '<button class="btn" onclick="openItem(\''+it.id+'\')">ดูรายละเอียด (ตัวอย่าง)</button>') : '')
+      + '</div>'; };
+  if (jobs[0]) h += card(jobs[0], true);
+  if (jobs[1]) h += card(jobs[1], false);
+  if (!jobs.length) h += '<div class="card"><b>ยังไม่พบงานที่ตรงเงื่อนไข</b><p class="mut" style="margin:6px 0 0">ลองขยายระยะทางในแท็บ โอกาส</p></div>';
+  h += '<div class="card"><b>🏢 สำนักงานจัดหางานใกล้บ้าน</b><div class="mut">หน่วยงานรัฐที่ช่วยหางานโดยไม่เก็บค่าใช้จ่าย ใช้ได้เสมอแม้แอปยังไม่มีประกาศที่ตรงกับคุณ</div></div>';
+  const un = MONEY.find(x => x.id === 'unemp'), ue = mEval(un);
+  if (['likely', 'verified'].includes(ue.st)) h += '<div class="card click" onclick="lane=\'money\';renderNow()" style="background:#f0fdf4"><b>💡 ระหว่างหางาน</b><div class="mut">'+un.t+' '+(ue.a.v ? baht(ue.a.v)+' '+ue.a.unit : '')+' · '+MST[ue.st][0]+' ›</div></div>';
+  return h + '<div class="link" style="text-align:center;margin:8px 0" onclick="go(\'results\')">ดูงานทั้งหมดเป็นรายการหรือแผนที่ ›</div>';
+}
+const SKILL_OF = { pl3: /ทำอาหาร/, pl4: /พิมพ์|คอมพิวเตอร์/ };
+function nowSkill() {
+  const fit = p => SKILL_OF[p.id] && SKILL_OF[p.id].test(persona.chip) ? 1 : 0;
+  const ideas = PLANS.filter(p => p.tr === 'C' && p.gross).sort((a, b) => fit(b) - fit(a) || a.eff - b.eff);
+  const p = ideas[0]; if (!p) return '<div class="card"><b>ยังไม่มีไอเดียที่ตรงกับทักษะของคุณ</b></div>';
+  const n = netOf(p);
+  let h = '<div class="card nowhero"><div class="lab" style="margin:0">สิ่งแรกที่ควรทำ: ทดลองหารายได้</div><b style="font-size:17px">'+p.t+'</b>'
+    + '<div style="margin-top:6px"><span class="tag t-est" style="margin:0">ประมาณการ</span> <span class="tag t-mock" style="margin:0">ยังไม่มีผู้ซื้อยืนยัน</span></div>'
+    + '<div class="nowrow">💵 ถ้าขายได้ตามสมมติฐาน เหลือราว ฿'+fmt(n[0])+' - '+fmt(n[1])+' ต่อเดือน</div>'
+    + '<div class="nowrow mut">สมมติฐาน: '+p.ass.join(' · ')+'</div>'
+    + '<div class="nowrow">🧪 <b>ทดลองก่อน:</b> ส่งข้อความรับออเดอร์ให้คนรู้จัก 5-10 คน แล้วดูว่ามีคนสั่งจริงกี่คน</div>'
+    + '<button class="btn" onclick="offerDraft(\''+p.id+'\')">ร่างข้อความรับออเดอร์แรก</button>'
+    + '<button class="btn sec sm" onclick="go(\'planner\')">เทียบตัวเลขกับทางอื่น</button></div>';
+  if (ideas[1]) h += '<div class="card click nowalt" onclick="go(\'planner\')"><div class="lab" style="margin:0">ถ้าทางแรกไม่เหมาะ ลองทางนี้</div><b>'+ideas[1].t+'</b><div class="mut">ประมาณการ ฿'+fmt(netOf(ideas[1])[0])+' - '+fmt(netOf(ideas[1])[1])+' ต่อเดือน</div></div>';
+  return h;
+}
+function offerDraft(id) {
+  const p = PLANS.find(x => x.id === id);
+  modal('<b style="font-size:17px">ข้อความรับออเดอร์ (แก้ก่อนส่ง)</b><div class="stepbox" style="white-space:pre-line">สวัสดีค่ะ ตอนนี้รับ'+p.t+'\nราคา ... บาท (ตั้งราคาเองจากต้นทุนจริง)\nสั่งล่วงหน้า 1 วัน ส่งในพื้นที่ ...\nสนใจทักกลับได้เลยค่ะ</div>'
+    + '<p class="mut">แอปไม่รู้ราคาตลาดจริงและไม่รับประกันว่าจะมีคนสั่ง บันทึกจำนวนคนที่สั่งจริงไว้เพื่อตัดสินใจรอบต่อไป</p><button class="btn" onclick="closeModal();toast(\'คัดลอกข้อความแล้ว (จำลอง)\')">คัดลอกข้อความ</button>');
+}
+function renderNow() {
+  let h = laneTabs() + (lane === 'money' ? nowMoney() : lane === 'job' ? nowJob() : nowSkill());
+  h += '<p class="mut" style="margin-top:12px">ผลนี้เป็นการตรวจเบื้องต้นจากเกณฑ์ที่ประกาศและคำตอบของคุณ ยังไม่ได้ยืนยันกับหน่วยงาน แอปไม่ยื่นแทนคุณและไม่รับประกันว่าจะได้เงิน</p>';
+  document.getElementById('nowBody').innerHTML = h;
+}
 go('welcome');
 </script>
 </body>

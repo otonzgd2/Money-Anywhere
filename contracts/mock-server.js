@@ -1,8 +1,11 @@
-// Mock server that implements every operation in openapi.yaml with in-memory state.
-// For app development and contract tests only. Not the production backend (stack not chosen yet).
-// Run: node mock-server.js   PORT=8080 by default.
-//   LIVE=1            pull Greenhouse/Lever on start
+// Demo server that implements every operation in openapi.yaml (ADR-001: this grows into the Demo backend).
+// Run: node mock-server.js   PORT=8080 by default. All variables are listed in ../.env.example.
+//   LIVE=1            pull Greenhouse/Lever on start and every SOURCE_REFRESH_HOURS
 //   AI_BASE_URL, AI_API_KEY, AI_MODEL   OpenAI-compatible provider (otherwise rules)
+//   AI_DAILY_LIMIT    AI calls per device per day before falling back to rules (0 = no limit)
+//   AI_LOG_FILE       JSON lines log of AI calls (no prompt text)
+//   DATA_FILE         JSON file that keeps device data across restarts (contract tests use memory)
+//   RETENTION_DAYS    delete devices not seen for this many days (0 = off, Owner decides B10)
 //   GOV_CONNECTED=1   show the hidden government (ThaID) mode, mock adapter only
 //   DEMO_MODE=0       disable /v1/demo endpoints
 //   INTEGRATION_KEY   key for /v1/integrations (defaults to "dev-only-key" locally)
@@ -20,6 +23,9 @@ const { createGeocoder } = require('./adapters/geocoder');
 const { createNotifier } = require('./adapters/notifier');
 const { createMoney } = require('./adapters/money');
 const { createGovMock } = require('./adapters/gov');
+const { createStore } = require('./adapters/store');
+const { createJobs } = require('./adapters/jobs');
+const { createGuard, toFact } = require('./adapters/guard');
 
 const DIR = __dirname;
 const readJson = f => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
@@ -44,10 +50,19 @@ function createServer(opts = {}) {
   const ai = opts.ai || createAi(opts.aiOptions || {});
   const agent = opts.agent || createAgent(opts.aiOptions || {});
   const geo = createGeocoder(ref.taxonomies.districts);
-  const notifier = createNotifier();
+  const notifier = createNotifier({ debug: opts.debug });
   const money = createMoney(ref);
   const govAdapter = createGovMock(ref.govMock);
   const integrationKey = opts.integrationKey || process.env.INTEGRATION_KEY || 'dev-only-key';
+  const store = opts.store || createStore({ file: opts.dataFile });
+  const envNum = (v, dflt) => v !== undefined ? +v : dflt;
+  const aiDailyLimit = opts.aiDailyLimit !== undefined ? opts.aiDailyLimit : envNum(process.env.AI_DAILY_LIMIT, 50);
+  const aiLogFile = opts.aiLogFile !== undefined ? opts.aiLogFile : process.env.AI_LOG_FILE;
+  const retentionDays = opts.retentionDays !== undefined ? opts.retentionDays : envNum(process.env.RETENTION_DAYS, 0);
+  const refreshHours = envNum(process.env.SOURCE_REFRESH_HOURS, 6);
+  const reportHide = opts.reportHideThreshold || 3;
+  const rulesAi = createAi({ baseUrl: '', apiKey: '' }), rulesAgent = createAgent({ baseUrl: '', apiKey: '' });
+  const guard = createGuard(readJson('fixtures/assistant-policy.json'));
   const startedAt = nowIso();
   const scam = text => ref.scamRules.filter(s => new RegExp(s.pattern).test(text)).map(s => s.reason);
   const purposeIds = NOTICE.purposes.filter(p => !p.feature || (p.feature === 'govConnected' && govOn)).map(p => p.id);
@@ -55,16 +70,24 @@ function createServer(opts = {}) {
   // ---- shared catalogue ----
   const opps = new Map();
   const fresh = o => ({ ...o, provenance: { ...o.provenance, ageDays: daysAgo(o.provenance.updatedAt) } });
+  const reports = [], hiddenByReports = new Set();
+  // A10: the same listing from two sources is kept once (first source wins). Key = title + organisation, ignoring
+  // spacing, punctuation and bracketed notes.
+  const norm = s => String(s || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
+  const dupKey = o => norm(o.title) + '|' + norm(o.organization);
   function upsert(provider, dataStatus, attribution, input) {
-    const id = provider + '_' + input.externalId;
+    const id = provider + '_' + input.externalId, key = dupKey(input);
+    const dup = [...opps.values()].find(o => o.provenance.provider !== provider && o.id !== id && dupKey(o) === key);
+    if (dup) return { id: dup.id, merged: true };
     const reasons = scam(input.title + ' ' + (input.conditions || []).join(' ') + ' ' + (input.suspiciousText || ''));
+    if (hiddenByReports.has(id)) reasons.push('ผู้ใช้หลายคนแจ้งว่าน่าสงสัย ซ่อนไว้รอทีมตรวจ');
     opps.set(id, {
       id, title: input.title, organization: input.organization, category: input.category, mapGroup: input.mapGroup,
       location: input.location || { precision: 'none' }, money: input.money, conditions: input.conditions || [],
       provenance: { provider, dataStatus, sourceUrl: input.sourceUrl, updatedAt: input.updatedAt, expiresAt: input.expiresAt, fetchedAt: nowIso(), ageDays: daysAgo(input.updatedAt), attribution },
       suspicious: reasons.length > 0, suspiciousReasons: reasons, checklistTemplateId: input.category
     });
-    return id;
+    return { id, merged: false };
   }
   fx.items.forEach(r => upsert('mock', 'mock', 'DEMO / MOCK', {
     externalId: r.id.replace(/^mock_/, ''), title: r.title, organization: r.organization, category: r.category, mapGroup: r.mapGroup,
@@ -90,9 +113,41 @@ function createServer(opts = {}) {
   // ---- per-device state ----
   const devices = new Map();
   const dev = id => {
-    if (!devices.has(id)) devices.set(id, { profile: null, facts: {}, settings: { largeText: false }, consents: [], tasks: [], events: [], sessions: {}, idem: new Map(), memory: [], conversations: {}, gov: { status: 'not_connected' }, docsReady: {}, seq: 1 });
+    if (!devices.has(id)) devices.set(id, { profile: null, facts: {}, settings: { largeText: false }, consents: [], tasks: [], events: [], sessions: {}, idem: new Map(), memory: [], conversations: {}, gov: { status: 'not_connected' }, docsReady: {}, seq: 1, lastSeenAt: nowIso() });
     return devices.get(id);
   };
+
+  // ---- persistence (B1): load once, save after every successful write ----
+  const snapshot = () => ({ version: 1, savedAt: nowIso(), devices: [...devices], ingested: [...opps.values()].filter(o => !['mock', 'live'].includes(o.provenance.dataStatus)),
+    reports, hiddenByReports: [...hiddenByReports], reminders: notifier.all() });
+  const persist = () => { try { store.save(snapshot()); } catch (e) { console.error('store: save failed: ' + e.message); } };
+  const saved = store.load();
+  if (saved) {
+    (saved.devices || []).forEach(([id, d]) => devices.set(id, d));
+    (saved.ingested || []).forEach(o => opps.set(o.id, o));
+    reports.push(...(saved.reports || [])); (saved.hiddenByReports || []).forEach(x => hiddenByReports.add(x));
+    notifier.restore(saved.reminders);
+    for (const o of saved.ingested || []) if (!srcState.some(s => s.provider === o.provenance.provider))
+      srcState.push({ provider: o.provenance.provider, name: o.provenance.provider, kind: 'ส่งเข้าผ่าน Integrations', attribution: o.provenance.attribution, direction: 'push', state: 'ok' });
+    srcState.forEach(s => { s.itemCount = [...opps.values()].filter(o => o.provenance.provider === s.provider).length; });
+  }
+
+  // ---- AI budget (B4) and call log (B5) ----
+  const hashDevice = id => crypto.createHash('sha256').update(String(id)).digest('hex').slice(0, 12);
+  function aiFor(d) {
+    if ((ai.provider === 'rules' && agent.provider === 'rules') || !(aiDailyLimit > 0)) return { ai, agent };
+    const day = nowIso().slice(0, 10);
+    if (!d.aiUse || d.aiUse.day !== day) d.aiUse = { day, n: 0 };
+    if (d.aiUse.n >= aiDailyLimit) return { ai: rulesAi, agent: rulesAgent, limited: true };
+    d.aiUse.n++; return { ai, agent };
+  }
+  function logAi(device, kind, out) {
+    if (!aiLogFile || !out) return;
+    try {
+      fs.mkdirSync(path.dirname(path.resolve(aiLogFile)), { recursive: true });
+      fs.appendFileSync(aiLogFile, JSON.stringify({ at: nowIso(), kind, device: hashDevice(device), provider: kind === 'agent' ? agent.provider : ai.provider, aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId }) + '\n');
+    } catch (e) { console.error('ai log: ' + e.message); }
+  }
   const curConsent = d => d.consents[d.consents.length - 1];
   const has = (d, p) => { const c = curConsent(d); return !!(c && c.noticeVersion === NOTICE.version && c.purposes[p] === true); };
   const E = (status, code, message, extra = {}) => [status, { code, message, status, retryable: status >= 500, ...extra }];
@@ -113,6 +168,7 @@ function createServer(opts = {}) {
       .filter(o => !text || (o.title + ' ' + (o.organization || '')).includes(text))
       .filter(o => !onlyMoney || o.money.basis !== 'none')
       .filter(o => o.location.precision !== 'exact' || o.location.distanceKm <= r)
+      .filter(o => o.provenance.linkStatus !== 'broken')
       .filter(o => !o.provenance.expiresAt || new Date(o.provenance.expiresAt) > new Date());
     const hidden = showSus ? 0 : xs.filter(o => o.suspicious).length;
     if (!showSus) xs = xs.filter(o => !o.suspicious);
@@ -208,7 +264,8 @@ function createServer(opts = {}) {
   const on = (method, pattern, fn, o = {}) => R.push({ method, re: new RegExp('^' + pattern.replace(/\{(\w+)\}/g, '(?<$1>[^/]+)') + '$'), fn, ...o });
 
   // System + config + privacy
-  on('GET', '/v1/health', () => [200, { status: 'ok', version: readJson('package.json').version, commit: COMMIT, startedAt, ai: { provider: ai.provider, agent: agent.provider }, features: { govConnected: govOn, demo: demoOn }, sources: srcState.map(s => ({ provider: s.provider, state: s.state })) }], { public: true });
+  on('GET', '/v1/health', () => [200, { status: 'ok', version: readJson('package.json').version, commit: COMMIT, startedAt, ai: { provider: ai.provider, agent: agent.provider }, features: { govConnected: govOn, demo: demoOn }, sources: srcState.map(s => ({ provider: s.provider, state: s.state })),
+    store: store.kind, notifier: notifier.kind, aiDailyLimit, jobs: jobs.state }], { public: true });
   on('GET', '/v1/app-config', ({ req }) => {
     const cfg = readJson('app-config.sample.json');
     cfg.featureFlags = { ...cfg.featureFlags, govConnected: govOn }; cfg.noticeVersion = NOTICE.version;
@@ -282,13 +339,13 @@ function createServer(opts = {}) {
     return { sessionId: sid, aiStatus: s.aiStatus, done: false, question: Q[s.i].question, quickReplies: Q[s.i].quickReplies, profileDraft: s.draft };
   };
   on('POST', '/v1/intake/sessions', ({ d }) => { const g = need(d, 'core'); if (g) return g; const sid = 's' + d.seq++; d.sessions[sid] = { i: 0, draft: {}, aiStatus: has(d, 'ai') ? 'fallback_rules' : 'skipped_no_consent' }; return [201, turn(sid, d.sessions[sid])]; });
-  on('POST', '/v1/intake/sessions/{id}/messages', async ({ d, p, body }) => {
+  on('POST', '/v1/intake/sessions/{id}/messages', async ({ d, device, p, body }) => {
     const s = d.sessions[p.id]; if (!s) return E(404, 'NOT_FOUND', 'ไม่พบการคุยนี้');
     if (!body || typeof body.text !== 'string' || !body.text.trim()) return E(422, 'VALIDATION', 'ต้องมีข้อความ');
     const Q = ref.intake; if (s.i >= Q.length) return [200, turn(p.id, s)];
     const q = Q[s.i], k = q.key, field = { question: q.question, options: ['goals', 'hoursPerWeek'].includes(k) ? q.quickReplies : undefined, number: k === 'incomeGoalPerMonth' };
     let v = body.text.trim();
-    if (has(d, 'ai')) { const r = await ai.extract(field, v); v = r.value; s.aiStatus = r.aiStatus; } else v = require('./adapters/ai').rulesExtract(field, v);
+    if (has(d, 'ai')) { const r = await aiFor(d).ai.extract(field, v); logAi(device, 'extract', r); v = r.value; s.aiStatus = r.aiStatus; } else v = require('./adapters/ai').rulesExtract(field, v);
     s.draft[k] = k === 'skills' || k === 'goals' ? [String(v)] : v;
     if (k === 'district') { const g = geo.geocode(v); if (g) { s.draft.lat = g.lat; s.draft.lng = g.lng; } }
     s.i++; return [200, turn(p.id, s)];
@@ -304,15 +361,26 @@ function createServer(opts = {}) {
       hiddenSuspicious: res.hidden, suggestions: res.suggestions.length ? res.suggestions : undefined, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
   });
   on('GET', '/v1/opportunities/{id}', ({ p }) => opps.has(p.id) ? [200, fresh(opps.get(p.id))] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'), { public: true });
-  const reports = [];
   on('POST', '/v1/opportunities/{id}/reports', ({ device, p, body }) => {
     if (!opps.has(p.id)) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
     if (!body || !['suspicious', 'wrong_info', 'expired', 'other'].includes(body.reason)) return E(400, 'VALIDATION', 'reason ไม่ถูกต้อง');
-    reports.push({ device, id: p.id, reason: body.reason, note: body.note, at: nowIso() }); return [202];
+    reports.push({ device: hashDevice(device), id: p.id, reason: body.reason, note: body.note, at: nowIso() });
+    // A13: enough different devices saying "suspicious" hides the item until the team reviews it.
+    const n = new Set(reports.filter(r => r.id === p.id && r.reason === 'suspicious').map(r => r.device)).size, o = opps.get(p.id);
+    if (n >= reportHide && !hiddenByReports.has(p.id)) { hiddenByReports.add(p.id); o.suspicious = true; o.suspiciousReasons = [...o.suspiciousReasons, 'ผู้ใช้หลายคนแจ้งว่าน่าสงสัย ซ่อนไว้รอทีมตรวจ']; }
+    return [202];
   });
 
   // Money
   on('GET', '/v1/money', ({ d }) => [200, { ...money.list(d.facts, govData(d)), govLink: govOn ? d.gov.status : 'disabled' }]);
+  // Check money from answers without storing anything (before consent). Same engine, no device state.
+  on('POST', '/v1/money/preview', ({ body }) => {
+    const { errors, clean } = money.validateFacts(body && body.facts);
+    if (errors.length) return E(422, 'VALIDATION', 'ข้อมูลไม่ถูกต้อง', { missingFields: errors });
+    const facts = Object.fromEntries(Object.entries(clean).filter(([, v]) => v !== undefined));
+    const r = money.list(facts, null), next = r.items.find(i => i.status === 'need' && i.nextQuestion);
+    return [200, { ...r, nextQuestion: next ? { ...next.nextQuestion, moneyId: next.id } : undefined, stored: false }];
+  }, { public: true });
   on('GET', '/v1/money/{id}', ({ d, p }) => { const r = money.route(p.id, d.facts, govData(d), d.docsReady[p.id]); return r ? [200, r] : E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); });
   on('PATCH', '/v1/money/{id}', ({ d, p, body }) => {
     const g = need(d, 'core'); if (g) return g;
@@ -323,41 +391,72 @@ function createServer(opts = {}) {
   });
 
   // AI one-shot
-  on('POST', '/v1/ai/rankings', async ({ d, body }) => {
+  on('POST', '/v1/ai/rankings', async ({ d, device, body }) => {
     const ids = body && Array.isArray(body.opportunityIds) ? body.opportunityIds : [];
     if (!ids.length) return E(400, 'VALIDATION', 'ต้องมี opportunityIds อย่างน้อย 1 รายการ');
     const candidates = [...new Set(ids)].slice(0, 50).map(id => opps.get(id)).filter(o => o && !o.suspicious);
     if (!has(d, 'ai')) { const r = require('./adapters/ai').rulesRank(d.profile, candidates); return [200, { aiStatus: 'skipped_no_consent', ranked: r }]; }
-    const out = await ai.rank(d.profile, candidates);
+    const out = await aiFor(d).ai.rank(d.profile, candidates); logAi(device, 'rank', out);
     return [200, { aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId, ranked: out.ranked }];
   });
-  on('POST', '/v1/ai/explanations', async ({ d, body }) => {
+  on('POST', '/v1/ai/explanations', async ({ d, device, body }) => {
     if (!body || !['task_step', 'opportunity', 'money'].includes(body.subjectType) || !body.subjectId) return E(400, 'VALIDATION', 'ต้องมี subjectType และ subjectId');
     let subject;
     if (body.subjectType === 'task_step') { const t = d.tasks.find(x => x.id === body.subjectId); if (!t) return E(404, 'NOT_FOUND', 'ไม่พบงานนี้'); subject = { type: 'task_step', title: t.title, step: t.steps[Math.min(t.doneCount, t.steps.length - 1)] }; }
     else if (body.subjectType === 'opportunity') { const o = opps.get(body.subjectId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'); subject = { type: 'opportunity', opportunity: { title: o.title, conditions: o.conditions, category: o.category } }; }
     else { const r = money.route(body.subjectId, d.facts, govData(d)); if (!r) return E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); subject = { type: 'opportunity', opportunity: { title: r.title, conditions: r.reasons.map(x => x.text), category: 'money' } }; }
     if (!has(d, 'ai')) return [200, { aiStatus: 'skipped_no_consent', text: (await createAi({ baseUrl: '', apiKey: '' }).explain(subject)).text }];
-    const out = await ai.explain(subject);
+    const out = await aiFor(d).ai.explain(subject); logAi(device, 'explain', out);
     return [200, { aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId, text: out.text }];
   });
 
   // AI assistant (agent)
-  on('POST', '/v1/ai/conversations', ({ d }) => {
+  // Guided checklist: the next missing fact, in program order, from the money engine itself.
+  const nextStep = d => { const it = money.list(d.facts, govData(d)).items.find(i => i.status === 'need' && i.nextQuestion); return it ? { ...it.nextQuestion, moneyId: it.id } : null; };
+  const stepQuick = s => s && s.options ? s.options : undefined;
+  on('POST', '/v1/ai/conversations', ({ d, body }) => {
     const g = need(d, 'ai'); if (g) return g;
-    const id = 'conv' + d.seq++; d.conversations[id] = { history: [], pending: {} };
-    return [201, { conversationId: id, greeting: 'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย', quickReplies: ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'] }];
+    const id = 'conv' + d.seq++, guided = !body || body.mode !== 'free';
+    const step = guided ? nextStep(d) : null;
+    d.conversations[id] = { history: [], pending: {}, expect: step };
+    return [201, { conversationId: id, greeting: 'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย' + (step ? '\nเริ่มจากข้อนี้: ' + step.question : ''),
+      quickReplies: stepQuick(step) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], step: step || undefined }];
   });
   on('POST', '/v1/ai/conversations/{id}/messages', async ({ d, device, p, body }) => {
     const g = need(d, 'ai'); if (g) return g;
     const c = d.conversations[p.id]; if (!c) return E(404, 'NOT_FOUND', 'ไม่พบการคุยนี้');
     if (!body || typeof body.text !== 'string' || !body.text.trim()) return E(422, 'VALIDATION', 'ต้องมีข้อความ');
-    const tools = agentTools(d, device);
-    const out = await agent.respond({ text: body.text.trim().slice(0, 1000), history: c.history, memory: d.memory.map(m => m.text), profile: d.profile || {}, tools });
+    const text = body.text.trim().slice(0, 1000), tools = agentTools(d, device);
+    const turn = (reply, kind, extra = {}) => [200, { aiStatus: 'guarded', reply, toolCalls: [], pendingActions: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
+      step: c.expect || undefined, quickReplies: stepQuick(c.expect) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], ...extra }];
+    let v = guard.check(text, c.expect);
+    // A free-text reply to the current question ("อายุ 65") may still be an answer: normalise it, keep it only if valid.
+    if (v.kind === 'unclear' && c.expect) {
+      const r = await aiFor(d).ai.extract({ question: c.expect.question, options: c.expect.options, number: c.expect.type === 'number' }, text);
+      if ((c.expect.options && c.expect.options.includes(r.value)) || (c.expect.type === 'number' && typeof r.value === 'number')) v = { kind: 'answer', value: String(r.value) };
+    }
+    if (v.kind === 'answer') {
+      // The person picked an option the app offered: this is their own entry, not an AI write.
+      const [st, res] = svc.patchFacts(d, { [c.expect.fact]: toFact(c.expect, v.value || text) });
+      if (st >= 400) return turn('คำตอบนี้ใช้ไม่ได้ ลองเลือกจากตัวเลือกอีกครั้ง\n' + c.expect.question, 'answer');
+      c.expect = nextStep(d);
+      if (c.expect) return turn('บันทึกแล้ว\nข้อต่อไป: ' + c.expect.question, 'answer');
+      const sum = await require('./adapters/agent').rulesAgent({ text: 'เงินฉันอยู่ไหน', tools });
+      return turn('บันทึกแล้ว ตอบครบแล้ว\n' + sum.reply + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่นตามช่องทางในแอป', 'answer', { toolCalls: sum.toolCalls.map(t => ({ tool: t.tool })), quickReplies: ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'] });
+    }
+    if (v.kind !== 'in_scope') {
+      // Refused or unclear: never sent to the model, never added to history or memory.
+      return turn(v.reply + '\n' + (c.expect ? 'กลับมาที่คำถาม: ' + c.expect.question : guard.redirect), v.kind);
+    }
+    const out = await aiFor(d).agent.respond({ text, history: c.history, memory: d.memory.map(m => m.text), profile: d.profile || {}, tools,
+      systemPrompt: guard.systemPrompt(c.expect ? 'ถามข้อนี้: ' + c.expect.question : 'ช่วยต่อตามเช็คลิสต์') });
     const pendingActions = out.pending.filter(x => tools[x.tool] && tools[x.tool].mode === 'confirm').map(x => { const aid = 'pa' + d.seq++; c.pending[aid] = x; return { id: aid, tool: x.tool, label: x.label }; });
+    logAi(device, 'agent', out);
     const memoryAdded = out.memory.map(text => { const m = { id: 'm' + d.seq++, text: text.slice(0, 200), source: 'ai', at: nowIso() }; d.memory.push(m); return m; });
     c.history.push({ role: 'user', content: body.text }, { role: 'assistant', content: out.reply });
-    return [200, { aiStatus: out.aiStatus, aiInvocationId: 'agent-' + crypto.randomUUID().slice(0, 8), reply: out.reply, toolCalls: out.toolCalls.map(t => ({ tool: t.tool })), pendingActions, memoryAdded, quickReplies: out.quickReplies }];
+    return [200, { aiStatus: out.aiStatus, aiInvocationId: 'agent-' + crypto.randomUUID().slice(0, 8), reply: out.reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''),
+      toolCalls: out.toolCalls.map(t => ({ tool: t.tool })), pendingActions, memoryAdded, quickReplies: stepQuick(c.expect) || out.quickReplies,
+      guard: { kind: 'in_scope', policyVersion: guard.version }, step: c.expect || undefined }];
   });
   on('POST', '/v1/ai/conversations/{id}/actions/{actionId}', ({ d, device, p, body }) => {
     const g = need(d, 'ai'); if (g) return g;
@@ -390,7 +489,7 @@ function createServer(opts = {}) {
     const ideas = (pool.length ? pool : ref.skillIdeas);
     let order = ideas.map(i => i.id), aiStatus = 'fallback_rules';
     if (has(d, 'ai') && ai.provider !== 'rules') {
-      const r = await ai.rank(d.profile, ideas.map(i => ({ id: i.id, title: i.title, category: 'skill', mapGroup: 'skill', money: { basis: 'listing' }, conditions: i.assumptions, provenance: {} })));
+      const r = await aiFor(d).ai.rank(d.profile, ideas.map(i => ({ id: i.id, title: i.title, category: 'skill', mapGroup: 'skill', money: { basis: 'listing' }, conditions: i.assumptions, provenance: {} })));
       order = r.ranked.map(x => x.opportunityId); aiStatus = r.aiStatus;
     } else if (!has(d, 'ai')) aiStatus = 'skipped_no_consent';
     return [200, { aiStatus, items: order.map(id => ideas.find(i => i.id === id)).filter(Boolean).map(i => ({ id: i.id, title: i.title, track: 'C', grossPerMonth: i.grossPerMonth, costPerMonth: i.costPerMonth,
@@ -420,12 +519,16 @@ function createServer(opts = {}) {
     if (!body || !body.provider || !Array.isArray(body.items)) return E(422, 'VALIDATION', 'ต้องมี provider และ items');
     if (body.items.length > 500) return E(422, 'VALIDATION', 'ส่งได้ครั้งละไม่เกิน 500 รายการ');
     const status = ['live', 'curated', 'open_data'].includes(body.dataStatus) ? body.dataStatus : 'curated';
-    const rejected = []; let accepted = 0;
-    body.items.forEach((it, index) => { if (!validInput(it)) return rejected.push({ index, reason: 'ข้อมูลไม่ครบ หรือไม่มีลิงก์ต้นทาง หรือ exact ไม่มีพิกัด' }); upsert(body.provider, status, body.attribution || body.provider, it); accepted++; });
+    const rejected = [], mergedInto = []; let accepted = 0;
+    body.items.forEach((it, index) => {
+      if (!validInput(it)) return rejected.push({ index, reason: 'ข้อมูลไม่ครบ หรือไม่มีลิงก์ต้นทาง หรือ exact ไม่มีพิกัด' });
+      const r = upsert(body.provider, status, body.attribution || body.provider, it);
+      r.merged ? mergedInto.push({ index, existingId: r.id }) : accepted++;
+    });
     let st = srcState.find(s => s.provider === body.provider);
     if (!st) srcState.push(st = { provider: body.provider, name: body.provider, kind: 'ส่งเข้าผ่าน Integrations', attribution: body.attribution || body.provider, direction: 'push', state: 'ok' });
     Object.assign(st, { state: 'ok', lastFetchedAt: nowIso(), itemCount: [...opps.values()].filter(o => o.provenance.provider === body.provider).length });
-    return [200, { accepted, rejected }];
+    return [200, { accepted, rejected, merged: mergedInto }];
   }, { integration: true });
   on('POST', '/v1/integrations/webhooks/{provider}', ({ p, body }) => {
     if (!srcState.some(s => s.provider === p.provider)) return E(404, 'NOT_FOUND', 'ไม่รู้จักผู้ให้ข้อมูลนี้');
@@ -448,6 +551,41 @@ function createServer(opts = {}) {
     return [200, { persona: p.id, label: per.label, profile: d.profile, facts: d.facts, taskCount: d.tasks.length, dataStatus: 'mock' }];
   });
 
+  // ---- scheduled jobs (B3) ----
+  async function checkLinks(ctx) {
+    const f = ctx.fetch || opts.fetch || fetch;
+    const xs = [...opps.values()].filter(o => o.provenance.provider !== 'mock' && /^https?:\/\//.test(o.provenance.sourceUrl || '')).slice(0, ctx.limit || 300);
+    const count = { ok: 0, broken: 0, unknown: 0 };
+    for (const o of xs) {
+      let st = 'unknown';
+      try {
+        const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+        const r = await f(o.provenance.sourceUrl, { method: 'HEAD', redirect: 'follow', signal: ctl.signal }); clearTimeout(t);
+        st = r.status === 404 || r.status === 410 ? 'broken' : r.status < 400 ? 'ok' : 'unknown'; // 403/405 on HEAD is common, do not hide those
+      } catch { /* network error or timeout: unknown, keep the item */ }
+      o.provenance.linkStatus = st; o.provenance.linkCheckedAt = nowIso(); count[st]++;
+    }
+    persist();
+    return 'checked ' + xs.length + ': ok ' + count.ok + ', broken ' + count.broken + ', unknown ' + count.unknown;
+  }
+  const reminderText = j => {
+    const d = devices.get(j.deviceId), t = d && d.tasks.find(x => x.id === j.taskId);
+    if (!t) return 'ถึงเวลาทำขั้นต่อไปแล้ว';
+    if (t.status === 'snoozed') { t.status = 'active'; t.dueText = undefined; }
+    return 'เตือน: ' + t.title + ' ขั้นต่อไป ' + t.steps[Math.min(t.doneCount, t.steps.length - 1)];
+  };
+  const jobs = createJobs([
+    { name: 'sources_refresh', everyMinutes: refreshHours * 60, enabled: !!opts.live, run: async () => { await refresh('all'); return srcState.filter(s => s.direction === 'pull').map(s => s.provider + ' ' + s.state).join(', '); } },
+    { name: 'link_check', everyMinutes: 24 * 60, run: checkLinks },
+    { name: 'reminders', everyMinutes: 1, run: ctx => { const n = notifier.dispatch(ctx.now ?? Date.now(), reminderText); if (n) persist(); return 'sent ' + n; } },
+    { name: 'retention', everyMinutes: 24 * 60, enabled: retentionDays > 0, run: ctx => {
+      const days = ctx.days ?? retentionDays; if (!(days > 0)) return 'off (RETENTION_DAYS not set)';
+      const cut = (ctx.now ?? Date.now()) - days * 864e5; let n = 0;
+      for (const [id, d] of devices) if (new Date(d.lastSeenAt || 0).getTime() < cut) { devices.delete(id); notifier.cancel(id); n++; }
+      if (n) persist(); return 'deleted ' + n + ' devices not seen for ' + days + ' days';
+    } }
+  ]);
+
   // ---- HTTP ----
   const server = http.createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x'), requestId = crypto.randomUUID();
@@ -469,18 +607,33 @@ function createServer(opts = {}) {
       if (r.integration && req.headers['x-api-key'] !== integrationKey) return send(...E(401, 'UNAUTHORIZED', 'ต้องมี X-Api-Key ที่ถูกต้อง'));
       const device = req.headers['x-device-id'];
       if (!r.public && !r.integration && (!device || device.length < 8)) return send(...E(400, 'MISSING_DEVICE', 'ต้องมี X-Device-Id'));
-      try { const [st, b, h] = await r.fn({ req, q: u.searchParams, p: m.groups || {}, body, device, d: device ? dev(device) : null }); return send(st, b, h); }
+      try {
+        const d = device ? dev(device) : null; if (d) d.lastSeenAt = nowIso();
+        const [st, b, h] = await r.fn({ req, q: u.searchParams, p: m.groups || {}, body, device, d });
+        if (req.method !== 'GET' && st < 400) persist();
+        return send(st, b, h);
+      }
       catch (e) { if (opts.debug) console.error(e); return send(...E(500, 'INTERNAL', 'ระบบขัดข้อง')); }
     }
     send(...E(404, 'NOT_FOUND', 'ไม่พบ endpoint นี้'));
   });
-  server.ports = { ai, agent, notifier, refresh };
+  server.ports = { ai, agent, notifier, refresh, jobs, store, persist };
+  if (opts.jobs !== false) { jobs.start(); server.on('close', () => jobs.stop()); }
   return server;
 }
 
 module.exports = { createServer };
 if (require.main === module) {
   const port = +(process.env.PORT || 8080);
-  const s = createServer({ live: process.env.LIVE === '1', debug: true });
-  s.listen(port, () => console.log('Mock API on http://localhost:' + port + '  docs: /docs  AI: ' + s.ports.ai.provider + '  commit: ' + COMMIT));
+  // `npm run mock` keeps data in contracts/.data/ (git-ignored) so a restart does not wipe the demo.
+  const dataDir = path.join(DIR, '.data');
+  const s = createServer({ live: process.env.LIVE === '1', debug: true,
+    dataFile: process.env.DATA_FILE !== undefined ? process.env.DATA_FILE : path.join(dataDir, 'state.json'),
+    aiLogFile: process.env.AI_LOG_FILE !== undefined ? process.env.AI_LOG_FILE : path.join(dataDir, 'ai-calls.jsonl') });
+  s.listen(port, () => {
+    // B2: phones on the same Wi-Fi can call the LAN address; for other networks use a tunnel (see docs/guide/run-demo-server.md).
+    const lan = Object.values(require('os').networkInterfaces()).flat().filter(i => i && i.family === 'IPv4' && !i.internal).map(i => 'http://' + i.address + ':' + port);
+    console.log('API on http://localhost:' + port + '  docs: /docs  AI: ' + s.ports.ai.provider + '  store: ' + s.ports.store.kind + '  commit: ' + COMMIT);
+    console.log('Android emulator: http://10.0.2.2:' + port + (lan.length ? '  same Wi-Fi: ' + lan.join(', ') : ''));
+  });
 }

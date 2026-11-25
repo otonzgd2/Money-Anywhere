@@ -42,5 +42,7 @@ local.properties
 build/
 .gradle/
 .dart_tool/
+# Demo server data (device state, AI call log)
+contracts/.data/
 *.apk
 *.aab

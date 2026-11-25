@@ -59,7 +59,8 @@ The Owner chose speed to a working Demo over process guards (requested in chat).
 
 <!-- Technology choices locked for this project. -->
 
-- Mobile framework: Flutter (Dart), Android first. iOS may be added later from the same codebase but is out of scope for the Demo. Chosen by the Owner. AI provider, backend, hosting, and persistence remain open for AI-DLC design.
+- Mobile framework: Flutter (Dart), Android first. iOS may be added later from the same codebase but is out of scope for the Demo. Chosen by the Owner.
+- Backend, persistence, AI provider, hosting: see `docs/design/adr-001-stack.md`. The Flutter app depends only on `contracts/openapi.yaml` and app-config. Node.js server grown from `contracts/mock-server.js`; storage behind a `store` port (file or SQLite for the Demo, Postgres later); AI through the OpenAI-compatible adapter configured by `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` (Gemini free tier first, Typhoon as an option); laptop + tunnel for the demo. Each choice can be swapped without changing the app, provided `npm test` in `contracts/` still passes.
 
 ## Decided
 

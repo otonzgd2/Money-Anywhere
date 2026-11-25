@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.3.0
+  version: 0.6.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -283,6 +283,19 @@ paths:
         '200': { description: Overview, content: { application/json: { schema: { $ref: '#/components/schemas/MoneyOverview' } } } }
         '400': { $ref: '#/components/responses/Error' }
 
+  /v1/money/preview:
+    post:
+      operationId: previewMoney
+      tags: [Money]
+      summary: "เช็คเงินจากคำตอบโดยไม่บันทึกอะไร ใช้ก่อนผู้ใช้กดยินยอม (ไม่ต้องมี X-Device-Id)"
+      description: "Nothing is stored. nextQuestion is the next fact to ask, in program order."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [facts], properties: { facts: { type: object, additionalProperties: true } } } } }
+      responses:
+        '200': { description: Result, content: { application/json: { schema: { $ref: '#/components/schemas/MoneyPreview' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+
   /v1/money/{id}:
     get:
       operationId: getMoneyRoute
@@ -378,7 +391,11 @@ paths:
       operationId: createConversation
       tags: [AI]
       summary: "เริ่มคุยกับผู้ช่วย AI ที่รู้ข้อมูลของฉัน (ต้องยินยอม ai)"
+      description: "Default mode is guided: the greeting asks the first missing fact and quick replies are its options. Every message is checked against fixtures/assistant-policy.json before any AI call."
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, properties: { mode: { type: string, enum: [guided, free], default: guided } } } } }
       responses:
         '201': { description: Started, content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -580,6 +597,10 @@ components:
         ai: { type: object, properties: { provider: { type: string }, agent: { type: string } } }
         features: { type: object, properties: { govConnected: { type: boolean }, demo: { type: boolean } } }
         sources: { type: array, items: { type: object, properties: { provider: { type: string }, state: { type: string } } } }
+        store: { type: string, enum: [memory, file], description: "memory = lost on restart" }
+        notifier: { type: string, enum: [mock], description: "mock = reminders are logged, not pushed to the phone" }
+        aiDailyLimit: { type: integer, description: "AI calls per device per day before rules are used. 0 = no limit" }
+        jobs: { type: array, items: { type: object, required: [name, enabled], properties: { name: { type: string }, everyMinutes: { type: number }, enabled: { type: boolean }, lastRunAt: { type: string, format: date-time }, lastResult: { type: string } } } }
 
     AppConfig:
       type: object
@@ -610,8 +631,8 @@ components:
 
     AiStatus:
       type: string
-      enum: [ok, fallback_rules, skipped_no_consent, unavailable]
-      description: "fallback_rules = provider failed or not configured. skipped_no_consent = user did not consent to AI, rules were used."
+      enum: [ok, fallback_rules, skipped_no_consent, unavailable, guarded]
+      description: "fallback_rules = provider failed or not configured. skipped_no_consent = user did not consent to AI, rules were used. guarded = answered by the assistant policy without calling the AI (refusal, redirect, or a checklist answer)."
 
     PrivacyNotice:
       type: object
@@ -727,8 +748,9 @@ components:
         amount: { $ref: '#/components/schemas/MoneyAmount' }
         reasons: { type: array, items: { type: object, required: [text], properties: { ok: { type: boolean, nullable: true }, text: { type: string } } } }
         nextQuestion: { $ref: '#/components/schemas/MoneyQuestion' }
-        rulesVersion: { type: string }
-        dataStatus: { type: string, enum: [live, mock] }
+        rulesVersion: { type: string, description: "Date the criteria and rates were last checked against the sources (YYYY-MM-DD)" }
+        alreadyReceiving: { type: boolean, description: "The person said they already get this. Status is check (verify the amount); never counted as new money." }
+        dataStatus: { type: string, enum: [live, curated, mock], description: "live = government adapter, curated = rules from the listed public sources applied to self-reported answers, mock = demo government data" }
 
     MoneyOverview:
       type: object
@@ -746,12 +768,33 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/MoneyItem' } }
         govLink: { type: string, enum: [disabled, not_connected, pending, connected] }
 
+    MoneyPreview:
+      type: object
+      required: [summary, items, stored]
+      properties:
+        summary:
+          type: object
+          required: [monthly, once, allVerified, counted, pending]
+          properties:
+            monthly: { type: number }
+            once: { type: number }
+            allVerified: { type: boolean }
+            counted: { type: integer }
+            pending: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/MoneyItem' } }
+        nextQuestion: { $ref: '#/components/schemas/ChecklistStep' }
+        stored: { type: boolean, enum: [false] }
+
     MoneyRoute:
       allOf:
         - { $ref: '#/components/schemas/MoneyItem' }
         - type: object
-          required: [documents, channels, after, ifNo, claimable, sourceNote]
+          required: [documents, channels, after, ifNo, claimable, sources, sourceNote]
           properties:
+            sources:
+              type: array
+              description: "Where the criteria, rates, documents and channels came from"
+              items: { type: object, required: [title, url, checkedAt], properties: { title: { type: string }, url: { type: string, format: uri }, checkedAt: { type: string, format: date } } }
             documents: { type: array, items: { type: object, required: [index, text, ready], properties: { index: { type: integer }, text: { type: string }, ready: { type: boolean } } } }
             channels: { type: array, items: { $ref: '#/components/schemas/Channel' } }
             after: { type: string }
@@ -805,6 +848,8 @@ components:
         fetchedAt: { type: string, format: date-time }
         ageDays: { type: integer }
         attribution: { type: string }
+        linkStatus: { type: string, enum: [ok, broken, unknown], description: "Daily link check. broken (404/410) items are left out of search." }
+        linkCheckedAt: { type: string, format: date-time }
 
     Opportunity:
       type: object
@@ -855,6 +900,7 @@ components:
       properties:
         accepted: { type: integer }
         rejected: { type: array, items: { type: object, required: [index, reason], properties: { index: { type: integer }, reason: { type: string } } } }
+        merged: { type: array, description: "Rows that duplicate an item from another source (same title and organisation). The existing item is kept.", items: { type: object, required: [index, existingId], properties: { index: { type: integer }, existingId: { type: string } } } }
 
     WebhookEvent:
       type: object
@@ -927,6 +973,23 @@ components:
         conversationId: { type: string }
         greeting: { type: string }
         quickReplies: { type: array, items: { type: string } }
+        step: { $ref: '#/components/schemas/ChecklistStep' }
+
+    ChecklistStep:
+      description: "The question the assistant is waiting for (guided mode). Quick replies are its options."
+      allOf:
+        - { $ref: '#/components/schemas/MoneyQuestion' }
+        - type: object
+          properties:
+            moneyId: { type: string }
+
+    GuardResult:
+      type: object
+      required: [kind, policyVersion]
+      description: "How fixtures/assistant-policy.json classified the message. Anything other than in_scope never reached the AI."
+      properties:
+        kind: { type: string, enum: [answer, in_scope, injection, sensitive, guarantee, scam, off_topic, unclear] }
+        policyVersion: { type: string }
 
     AgentTurn:
       type: object
@@ -939,6 +1002,8 @@ components:
         pendingActions: { type: array, items: { $ref: '#/components/schemas/PendingAction' } }
         memoryAdded: { type: array, items: { $ref: '#/components/schemas/MemoryItem' } }
         quickReplies: { type: array, items: { type: string } }
+        guard: { $ref: '#/components/schemas/GuardResult' }
+        step: { $ref: '#/components/schemas/ChecklistStep' }
 
     PendingAction:
       type: object

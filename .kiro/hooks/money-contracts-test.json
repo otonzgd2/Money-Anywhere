@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run contract tests after contracts edits",
+      "trigger": "PostFileSave",
+      "description": "After a file under contracts/ is saved, remind the agent to run the contract tests before reporting.",
+      "matcher": "contracts[\\\\/](?!\\.data[\\\\/]).*\\.(js|json|yaml)$",
+      "action": {
+        "type": "agent",
+        "prompt": "A file under contracts/ changed. Before reporting done, run inside contracts/: cmd /c \"npm.cmd run check > .data\\check.txt 2>&1\" then read .data/check.txt and report the pass count. If any check fails, fix it first. If money rules changed, also run the mock smoke test."
+      }
+    }
+  ]
+}

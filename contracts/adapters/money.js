@@ -10,7 +10,19 @@ const OPS = {
 function amountOf(p, facts) {
   const a = p.amount || { type: 'none' };
   if (a.type === 'table') { const v = a.table[facts[a.fact]]; return v ? { basis: 'rate', value: v, unit: a.unit, note: a.note } : { basis: 'none', note: a.note, needsFact: facts[a.fact] === undefined ? a.fact : undefined }; }
-  if (a.type === 'pct_capped') { const w = facts[a.fact]; return typeof w === 'number' && w > 0 ? { basis: 'calc', value: Math.round(Math.min(w, a.cap) * a.pct), unit: a.unit, note: a.note } : { basis: 'none', note: 'ใส่ข้อมูลเพื่อคำนวณ', needsFact: a.fact }; }
+  if (a.type === 'fixed') return { basis: 'rate', value: a.value, unit: a.unit, note: a.note };
+  if (a.type === 'rate_plus') {
+    // Base rate shown at once; the bonus is added only when its fact is known (e.g. +200 with a State Welfare Card).
+    const known = facts[a.plus.fact] !== undefined, add = facts[a.plus.fact] === a.plus.when ? a.plus.value : 0;
+    return { basis: 'rate', value: a.base + add, unit: a.unit, note: a.note + (add ? ' ' + a.plus.note : ''), needsFact: known ? undefined : a.plus.fact };
+  }
+  if (a.type === 'pct_capped') {
+    // pctBy picks the rate from another fact (e.g. dismissed 60% vs resigned 30%); noteBy explains that rate.
+    const w = facts[a.fact], key = a.pctBy ? facts[a.pctBy.fact] : undefined;
+    const pct = a.pctBy ? a.pctBy.table[key] : a.pct, note = (a.noteBy && a.noteBy[key]) || a.note;
+    if (typeof pct !== 'number') return { basis: 'none', note: 'อัตราขึ้นกับคำตอบข้ออื่น', needsFact: a.pctBy.fact };
+    return typeof w === 'number' && w > 0 ? { basis: 'calc', value: Math.round(Math.min(w, a.cap) * pct), unit: a.unit, note } : { basis: 'none', note: 'ใส่ข้อมูลเพื่อคำนวณ · ' + note, needsFact: a.fact };
+  }
   if (a.type === 'product') {
     const missing = a.facts.find(f => typeof facts[f] !== 'number');
     return missing ? { basis: 'none', note: 'ใส่ข้อมูลเพื่อคำนวณ', needsFact: missing } : { basis: 'calc', value: a.facts.reduce((x, f) => x * facts[f], 1), unit: a.unit, note: a.note };
@@ -27,16 +39,26 @@ function createMoney(ref) {
     if (g) return { status: 'verified', reasons: [{ ok: true, text: 'ข้อมูลจากหน่วยงานผ่าน ThaID' }], amount: { basis: 'verified', value: g.amount, unit: p.kind === 'monthly' ? 'บาท/เดือน' : 'บาท', note: g.text }, dataStatus: g.mock ? 'mock' : 'live' };
     const reasons = [];
     for (const c of p.conditions) {
-      if (facts[c.fact] === undefined) return { status: 'need', reasons, nextQuestion: question(c.fact), amount: amountOf(p, facts), dataStatus: 'mock' };
+      if (facts[c.fact] === undefined) return { status: 'need', reasons, nextQuestion: question(c.fact), amount: amountOf(p, facts), dataStatus: 'curated' };
       const ok = OPS[c.op](facts[c.fact], c.value); reasons.push({ ok, text: c.label });
-      if (!ok) return { status: 'unlikely', reasons, amount: { basis: 'none', note: 'ตามข้อมูลที่ให้มา ไม่น่าจะมีสิทธิ์' }, dataStatus: 'mock' };
+      if (!ok) return { status: 'unlikely', reasons, amount: { basis: 'none', note: 'ตามข้อมูลที่ให้มา ไม่น่าจะมีสิทธิ์' }, dataStatus: 'curated' };
+    }
+    // haveIf: money the person may already receive. Not new money: shown as "check the amount", never counted.
+    if (p.haveIf) {
+      const h = p.haveIf;
+      if (facts[h.fact] === undefined) return { status: 'need', reasons, nextQuestion: question(h.fact), amount: amountOf(p, facts), dataStatus: 'curated' };
+      if (facts[h.fact] === h.value) {
+        const a = amountOf(p, facts);
+        return { status: 'check', alreadyReceiving: true, reasons: [...reasons, { ok: true, text: h.label }, { ok: null, text: h.note }], amount: { ...a, note: h.note, needsFact: undefined }, dataStatus: 'curated' };
+      }
     }
     (p.unknowns || []).forEach(t => reasons.push({ ok: null, text: t }));
     const amount = amountOf(p, facts);
-    return { status: p.resultIfMet || 'likely', reasons, amount, nextQuestion: amount.needsFact ? question(amount.needsFact) : undefined, dataStatus: 'mock' };
+    // curated = criteria and rates come from the public sources listed on the program; the user's answers are self-reported.
+    return { status: p.resultIfMet || 'likely', reasons, amount, nextQuestion: amount.needsFact ? question(amount.needsFact) : undefined, dataStatus: 'curated' };
   }
 
-  const item = (p, e) => ({ id: p.id, title: p.title, icon: p.icon, kind: p.kind, payer: p.payer, status: e.status, amount: strip(e.amount), reasons: e.reasons, nextQuestion: e.nextQuestion, rulesVersion: p.version, dataStatus: e.dataStatus });
+  const item = (p, e) => ({ id: p.id, title: p.title, icon: p.icon, kind: p.kind, payer: p.payer, status: e.status, amount: strip(e.amount), reasons: e.reasons, nextQuestion: e.nextQuestion, rulesVersion: p.version, dataStatus: e.dataStatus, alreadyReceiving: e.alreadyReceiving || undefined });
   const strip = a => { const { needsFact, ...rest } = a; return rest; };
 
   return {
@@ -51,7 +73,7 @@ function createMoney(ref) {
       const p = programs.find(x => x.id === id); if (!p) return null;
       const e = evaluate(p, facts, govData), base = item(p, e);
       const letter = p.letter ? p.letter.replace('{unpaidDays}', facts.unpaidDays ?? '...').replace('{amount}', typeof e.amount.value === 'number' ? e.amount.value.toLocaleString('th-TH') + ' บาท' : '...') : undefined;
-      return { ...base, documents: p.docs.map((t, i) => ({ index: i, text: t, ready: docsReady.includes(i) })), channels: p.channels, after: p.after, ifNo: p.ifNo, letterTemplate: letter, claimable: !['unlikely', 'need'].includes(e.status), sourceNote: 'เกณฑ์ อัตรา เอกสาร และช่องทางเป็นตัวอย่าง ต้องตรวจกับหน่วยงานก่อนใช้จริง' };
+      return { ...base, documents: p.docs.map((t, i) => ({ index: i, text: t, ready: docsReady.includes(i) })), channels: p.channels, after: p.after, ifNo: p.ifNo, letterTemplate: letter, claimable: !['unlikely', 'need'].includes(e.status), sources: p.sources || [], sourceNote: 'เกณฑ์ อัตรา เอกสาร และช่องทางรวบรวมจากแหล่งสาธารณะที่ระบุ ตรวจล่าสุด ' + p.version + ' ยังไม่ใช่การยืนยันสิทธิ์ ตรวจกับหน่วยงานก่อนยื่น แอปไม่รับประกันว่าจะได้เงิน' };
     },
     validateFacts(patch) {
       const errors = [], clean = {};

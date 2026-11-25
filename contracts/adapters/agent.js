@@ -80,12 +80,13 @@ function createAgent(opts = {}) {
 
   return {
     provider: configured ? 'openai_compatible' : 'rules',
-    async respond({ text, history = [], memory = [], profile = {}, tools }) {
+    async respond({ text, history = [], memory = [], profile = {}, tools, systemPrompt }) {
       if (!configured) return rulesAgent({ text, tools });
       const calls = [], pending = [], mem = []; let toolJson = '';
       const specs = Object.entries(tools).map(([name, t]) => ({ type: 'function', function: { name, description: t.description, parameters: t.parameters } }));
+      // systemPrompt comes from fixtures/assistant-policy.json (scope + checklist + current step).
       const messages = [
-        { role: 'system', content: 'คุณคือผู้ช่วยของแอป Money Anywhere ตอบภาษาไทยสั้นๆ ใช้เฉพาะข้อมูลจากเครื่องมือ ห้ามแต่งตัวเลขเงิน สิทธิ์ หรือหน่วยงาน ห้ามรับประกันว่าจะได้เงินหรือได้งาน แอปไม่ยื่นแทนผู้ใช้ งานที่เปลี่ยนข้อมูลต้องรอผู้ใช้ยืนยัน' },
+        { role: 'system', content: systemPrompt || 'คุณคือผู้ช่วยของแอป Money Anywhere ตอบภาษาไทยสั้นๆ ใช้เฉพาะข้อมูลจากเครื่องมือ ห้ามแต่งตัวเลขเงิน สิทธิ์ หรือหน่วยงาน ห้ามรับประกันว่าจะได้เงินหรือได้งาน แอปไม่ยื่นแทนผู้ใช้ งานที่เปลี่ยนข้อมูลต้องรอผู้ใช้ยืนยัน' },
         { role: 'system', content: 'สิ่งที่ผู้ใช้เคยบอก: ' + (memory.join(' · ') || 'ไม่มี') + ' · โปรไฟล์: ' + JSON.stringify({ district: profile.district, skills: profile.skills, goals: profile.goals, hoursPerWeek: profile.hoursPerWeek }) },
         ...history.slice(-8), { role: 'user', content: String(text) }];
       try {
@@ -112,4 +113,4 @@ function createAgent(opts = {}) {
     }
   };
 }
-module.exports = { createAgent, guardMoney };
+module.exports = { createAgent, guardMoney, rulesAgent };

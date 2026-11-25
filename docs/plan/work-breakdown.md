@@ -31,9 +31,9 @@
 | T0.7 | เตรียมอุปกรณ์ทดสอบ (emulator หรือมือถือ USB debugging) | P1 | T0.6 | `adb devices` เห็นเครื่อง | TODO |
 | T0.8 | ตั้ง AI provider และ API key ใน `.env` (ไม่ commit) | OWNER | - | เรียก API ทดสอบได้ | TODO |
 | T0.9 | ตรวจ Kiro: agent `aidlc` และ `/aidlc --doctor` | AI | - | ผล doctor ไม่มี error | TODO |
-| T0.10 | commit และ push เฟส 0 | AI | T0.1-T0.4 | commit hash | TODO |
+| T0.10 | commit และ push เฟส 0 | AI | T0.1-T0.4 | commit `a0dad62` (งานหลัง `2ef3b48` ยังไม่ commit ณ 26 พ.ย.) | DONE |
 | T0.11 | บันทึกการตัดสินใจใช้ Flutter ใน `project.md` | AI | - | `project.md` (Tech Stack, Decided) | DONE |
-| T0.12 | ติดตั้ง Flutter SDK ที่ `C:\src\flutter` และเพิ่มใน PATH | AI | - | `flutter --version` ผ่าน | DOING |
+| T0.12 | ติดตั้ง Flutter SDK และเพิ่มใน PATH | P1 | - | `flutter --version` ผ่าน (ตรวจ 26 พ.ย.: ไม่พบ flutter, java, adb ใน PATH) | TODO |
 | T0.13 | `flutter doctor` ไม่มีข้อผิดพลาดเรื่อง Android toolchain | P1 | T0.5, T0.6, T0.12 | ผล doctor | TODO |
 
 ผ่านเฟส 0 เมื่อ: T0.5-T0.9 DONE (hello-world APK ติดตั้งได้ทำใน T4.1 หลังเลือก framework)
@@ -66,7 +66,7 @@
 | TM.10 | หน้าโปรไฟล์/ตั้งค่า (แก้ ลบข้อมูล), เรียงลำดับ/ค้นหาด้วยคำ, รายการโปรด, ปุ่ม "ผลนี้ไม่ตรง" | AI | TM.9 | mock | TODO |
 | TM.11 | สำรวจแหล่งข้อมูลทีละแหล่ง (Greenhouse, Lever, ที่ตั้งโรงเรียนฝึกอาชีพ กทม., OSM) พร้อมตัวอย่าง response และสิทธิ์ใช้ | AI | - | ตารางหลักฐาน | DOING |
 | TM.12 | ชุดข้อมูลคัดมืออย่างน้อย 30 รายการ มี URL, วันที่ตรวจ, พิกัดจากที่อยู่จริง | P1-P3 | TM.1, TM.11 | ไฟล์ข้อมูล | TODO |
-| TM.13 | ตัดสินวิธีเก็บ AI key (ในแอป vs พร็อกซีบางๆ) | OWNER+AI | T0.8 | ADR | TODO |
+| TM.13 | ตัดสินวิธีเก็บ AI key (ในแอป vs พร็อกซีบางๆ) | OWNER+AI | T0.8 | ADR-001: key อยู่ที่ server ใน `.env` แอปไม่ถือ key | DONE |
 | TM.14 | Mock ทักษะเป็น dropdown ค้นหาได้ มีหัวข้อหมวด และเพิ่มทักษะเองได้ | AI | - | `docs/mockups/index.html` | DONE |
 | TM.15 | Mock แผนรายได้แสดงทุกทางเลือก เรียงได้ 3 แบบ เทียบได้สูงสุด 3 และแยกกลุ่มที่ไม่ทราบเงิน | AI | - | `docs/mockups/index.html` | DONE |
 | TM.16 | ร่างฟิลด์กลางและการแมปของแต่ละเจ้า | AI | TM.11 | `docs/design/opportunity-sources.md` | DONE |
@@ -93,18 +93,27 @@
 | TB.12 | ยืนยันว่า "TM standard" คือมาตรฐานไหน แล้วปรับสัญญาตาม | OWNER+AI | TB.10 | ตารางเทียบใน api-review ข้อ 3 | TODO |
 | TB.13 | ทดสอบ AI adapter กับผู้ให้บริการจริง | AI | TB.6 | ผลเรียกจริง | TODO |
 | TB.14 | Gap analysis หลังบ้านเทียบ requirements | AI | TB.10 | `docs/design/backend-gaps.md` | DONE |
-| TB.15 | P0 ที่ทำใน mock ได้: health+commit (A6), ช่องทางทางการ (A7), กฎตรวจสิทธิ์ (A1), คำนวณแผน (A3), ไอเดียทักษะ+AI โปรไฟล์ (A2, A4) | AI | TB.14 | contract test | TODO |
-| TB.16 | P0 ที่รอ TB.6: DB ถาวร (B1), host สำหรับมือถือ (B2), AI จริง (A5) | AI+OWNER | TB.6 | server ที่มือถือเรียกได้ | TODO |
+| TB.15 | P0 ที่ทำใน mock ได้: health+commit (A6), ช่องทางทางการ (A7), กฎตรวจสิทธิ์ (A1), คำนวณแผน (A3), ไอเดียทักษะ+AI โปรไฟล์ (A2, A4) | AI | TB.14 | API 0.3 `npm test` 87/87 (ดู TF.3) | DONE |
+| TB.16 | P0 ที่รอ TB.6: DB ถาวร (B1), host สำหรับมือถือ (B2), AI จริง (A5) | AI+OWNER | TB.6 | B1 ทำแล้ว (file store, test restart) · B2 server พิมพ์ IP Wi-Fi ยังไม่ลองมือถือจริง · A5 รอ key | DOING |
+| TB.18 | P1 ที่ไม่ต้องรอใคร: งานตามรอบ, คุมโควตา AI, log AI, ตรวจลิงก์, รวมรายการซ้ำ, ซ่อนจากรายงาน, CHANGELOG, จดรายการไม่ชัวร์ | AI | TB.6 | API 0.4.0, `docs/plan/open-items.md`, `contracts/CHANGELOG.md` | DONE |
 | TF.1 | หน้าบ้าน PDPA: ประกาศ, ยินยอมแยกข้อ, ถอนได้, ประวัติ, ยืนยันอายุ, ปฏิเสธแล้วใช้บางส่วนได้ | AI | - | mock + smoke test 30/30 | DONE |
 | TF.2 | Owner ตัดสิน: แอปเดียว, โหมดเชื่อมรัฐซ่อนหลัง flag, ต้องบอกเงินอยู่ไหนและพาไปเอาให้จบ | OWNER | - | `project.md` Decided | DONE |
 | TF.4 | หน้าบ้าน "เงินอยู่ไหน": การ์ดยอดรวม, หน้าเงินของฉัน, เส้นทางรับเงิน 5 ขั้น, ThaID ซ่อน/แสดง | AI | TF.2 | mock + smoke test 44/44 | DONE |
-| TF.5 | หาเกณฑ์ อัตรา เอกสาร ช่องทางจริงของ 4 รายการเงินพร้อมแหล่งอ้างอิง | P1-P3 | TF.4 | ไฟล์อ้างอิง | TODO |
+| TF.5 | หาเกณฑ์ อัตรา เอกสาร ช่องทางจริงของ 4 รายการเงินพร้อมแหล่งอ้างอิง | P1-P3 | TF.4 | `moneyPrograms` มี `sources` + วันที่ตรวจ, API ส่ง `sources`, `npm test` 89/89, smoke test 54/54 | DONE (รอตรวจกับหน่วยงาน: อัตราว่างงานกรณีลาออก 30%, หน้า empui.doe.go.th) |
 | TF.6 | Owner ปรับ requirements ข้อ 9 ให้ตรงกับการตัดสินใจ | OWNER | TF.2 | requirements.md | TODO |
 | TF.3 | แก้ API ตามหน้าบ้าน (v0.3): PDPA, เงินอยู่ไหน, ThaID ซ่อน, ผู้ช่วย AI, health, ideas, outcome, suggestions, demo | AI | TF.1, TF.4 | `npm test` 87/87, 47/47 operations | DONE |
 | TF.7 | หน้าบ้านผู้ช่วย AI: ถามจากข้อมูลของฉัน, ปุ่มยืนยันก่อนทำ, หน้า "AI จำอะไรเกี่ยวกับฉัน" | AI | TF.3 | smoke test 53/53 | DONE |
 | TF.8 | อัปเดต gap analysis หลัง v0.3 | AI | TF.3 | `docs/design/backend-gaps.md` | DONE |
-| TB.17 | P1: scheduler, คุมค่า AI, log/หลักฐาน, env, Dart client, ผลลัพธ์งาน, ตรวจลิงก์, dedupe, คำแนะนำเมื่อไม่พบผล, personas | AI | TB.16 | contract test | TODO |
-| TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | ADR (รวมกับ T2.7, TM.13) | TODO |
+| TF.9 | หน้าแรกแบบ "เงินก่อน": เลือกเป้าหมาย, เช็คด่วนทีละข้อ, หน้า "สิ่งแรกที่ควรทำ" 3 แท็บ (ไม่จัดอันดับข้ามแท็บ) | AI | TF.4 | mock + `docs/design/navigation.md` (รอ Owner ยืนยัน) | DONE |
+| TF.10 | รีวิวข้อเสนอ "Money Now" ของ Codex พร้อมเหตุผล ประโยชน์ ช่องโหว่ | AI | TF.9 | สรุปในแชท 26 พ.ย. และ `navigation.md` | DONE |
+| TF.11 | ปิดช่องโหว่หน้าแรก: ถาม "ได้อยู่แล้วไหม", เพิ่มเงินเด็ก + เบี้ยความพิการ, เช็คก่อนแล้วค่อยขอยินยอม | AI | TF.10 | mock smoke test + API 0.6 | DONE |
+| TF.12 | ปุ่ม AI ใหญ่กดครั้งเดียว + กฎคุม AI ไม่ให้ออกนอกเรื่อง (policy ไฟล์เดียวใช้ทั้ง server และ mock) | AI | TF.11 | `contracts/fixtures/assistant-policy.json`, API 0.5, smoke test 84/84 | DONE |
+| TF.13 | หาข้อมูลที่ยังไม่ชัวร์ D1-D12 | AI | TF.5 | D1 D4 D6 ยืนยันแล้ว ที่เหลือใน `docs/plan/open-items.md` | DOING |
+| TF.14 | ผู้รู้กฎหมายตรวจข้อความ PDPA และการยินยอมแบบกดปุ่มเดียว (M6, M8) | OWNER | TF.12 | บันทึกผลตรวจ | TODO |
+| TB.19 | หลังบ้านตามให้ตรงกับ mock: `POST /v1/money/preview`, `child_support`, `disability`, `alreadyReceiving` | AI | TF.11 | API 0.6.0 `npm test` 115/115, 48/48 operations | DONE |
+| TB.20 | ให้ id รายการเงินใน mock ตรงกับ API (`old`→`old_age`, `child`→`child_support` ฯลฯ) ก่อนเขียน Flutter | AI | TB.19 | smoke test | TODO |
+| TB.17 | P1: scheduler, คุมค่า AI, log/หลักฐาน, env, Dart client, ผลลัพธ์งาน, ตรวจลิงก์, dedupe, คำแนะนำเมื่อไม่พบผล, personas | AI | TB.16 | ทำแล้วใน TB.18 ยกเว้น Dart client (ย้ายไป T4.1 เพราะต้องมี Flutter) | DONE |
+| TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | `docs/design/adr-001-stack.md` (AI เสนอ Owner ให้เปลี่ยนทีหลังได้) | DONE |
 | TB.7 | Mock server ครบทุก operation ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.2 | `npm run mock`; LIVE=1 ดึง Greenhouse 220 และ Lever 6 ตำแหน่งในกรุงเทพฯ (ทดสอบจริงแล้ว) | DONE |
 
 ## เฟส 2: Inception
@@ -117,7 +126,7 @@
 | T2.4 | Domain Design | AI | T2.3 | artifact | TODO |
 | T2.5 | Units Generation (แบ่ง 3 คน) | AI | T2.4 | artifact | TODO |
 | T2.6 | Contract Design | AI | T2.5 | artifact | TODO |
-| T2.7 | เลือก AI provider, backend, persistence (framework เลือก Flutter แล้ว) | AI+OWNER | T2.4 | ADR | TODO |
+| T2.7 | เลือก AI provider, backend, persistence (framework เลือก Flutter แล้ว) | AI+OWNER | T2.4 | `docs/design/adr-001-stack.md` (TB.6) | DONE |
 | T2.8 | Delivery Planning (Bolt) | AI | T2.5-T2.7 | แผน Bolt | TODO |
 | T2.9 | Review แบบ advisory 1 รอบ และตรวจ FR/AC ครบทุกข้อ | AI | T2.8 | ตาราง traceability | TODO |
 
@@ -132,7 +141,7 @@
 
 | ID | งาน | เจ้าของ | ขึ้นกับ | Evidence | สถานะ |
 |---|---|---|---|---|---|
-| T4.1 | Bolt 1 Walking skeleton: ติดตั้ง APK, กรอกโปรไฟล์, เรียก AI จริง, แสดงผล | P1-P3 | T0.7, T0.8, T3.2 | APK + commit hash | TODO |
+| T4.1 | Bolt 1 Walking skeleton: ติดตั้ง APK, หน้าแรกปุ่ม AI + เช็คเงินด่วน, เรียก API 0.6 (รวมสร้าง Dart client จาก `openapi.yaml`) | P1-P3 | T0.7, T0.8, T0.13 | APK + commit hash | TODO |
 | T4.2 | Bolt 2 Track A เงินที่ควรตรวจ/รับคืน + กฎคำนวณ deterministic | TBD | T4.1 | build+test + hash | TODO |
 | T4.3 | Bolt 3 Track B งาน | TBD | T4.1 | build+test + hash | TODO |
 | T4.4 | Bolt 4 Track C รายได้จากทักษะ | TBD | T4.1 | build+test + hash | TODO |
