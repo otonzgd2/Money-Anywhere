@@ -125,6 +125,35 @@
   .msheet { background:#fff; width:100%; border-radius:26px 26px 0 0; padding:10px 20px 22px; max-height:88%; overflow-y:auto; animation:up .22s ease; }
   @keyframes up { from { transform:translateY(40px); opacity:.4 } to { transform:none; opacity:1 } }
   .toast.undo { pointer-events:auto; }
+  /* skill combobox */
+  .combo { position:relative; background:#fff; border:1.5px solid #dbe5e0; border-radius:14px; padding:6px; }
+  .combo:focus-within { border-color:var(--p); }
+  .combo input { border:0; padding:8px 6px; }
+  .csel { display:flex; flex-wrap:wrap; gap:5px; }
+  .cchip { background:var(--pl); color:var(--pd); border-radius:14px; padding:5px 10px; font-size:12.5px; font-weight:600; }
+  .cchip b { cursor:pointer; margin-left:4px; opacity:.7; }
+  .dd { position:absolute; left:-1.5px; right:-1.5px; top:100%; margin-top:4px; background:#fff; border-radius:14px; box-shadow:0 10px 28px rgba(0,0,0,.18); max-height:260px; overflow-y:auto; z-index:30; }
+  .ddg { position:sticky; top:0; background:#f3f7f5; font-size:11px; font-weight:800; color:var(--mut); padding:7px 12px; letter-spacing:.02em; }
+  .ddo { display:flex; justify-content:space-between; padding:10px 14px; font-size:13.5px; cursor:pointer; }
+  .ddo:hover { background:#f0fdf4; }
+  .ddo.on { color:var(--pd); font-weight:700; }
+  .ddo.add { color:var(--blue); font-weight:700; border-top:1px solid #eef3f0; }
+  /* planner */
+  .plan.sel { box-shadow:0 0 0 2px var(--p), 0 4px 14px rgba(15,60,40,.07); }
+  .pnet { font-size:22px; font-weight:800; color:var(--pd); margin:8px 0 4px; }
+  .pnet span { font-size:12px; font-weight:600; color:var(--mut); }
+  .goalbar { height:6px; background:#e5eee9; border-radius:4px; overflow:hidden; margin-bottom:3px; }
+  .goalbar i { display:block; height:100%; background:linear-gradient(90deg,#34d399,#047857); }
+  .pmeta { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .pmeta span { background:#f3f7f5; border-radius:10px; padding:4px 9px; font-size:11.5px; }
+  .pdet { border-top:1px solid #eef3f0; margin-top:10px; padding-top:8px; font-size:13px; }
+  .pdet .row { padding:3px 0; }
+  .cmpchk { display:flex; align-items:center; gap:8px; margin:10px 0 0; color:var(--ink); font-size:12.5px; cursor:pointer; }
+  .cmpchk input { width:18px; height:18px; accent-color:var(--p); }
+  .cmpbar { display:flex; justify-content:space-between; align-items:center; padding:10px 18px; background:#fff; box-shadow:0 -4px 14px rgba(15,60,40,.1); font-size:13px; font-weight:700; }
+  .cmpt { font-size:12px; margin:10px 0; }
+  .cmpt th { font-size:12px; color:var(--ink); }
+  .cmpt td.win { background:#dcfce7; color:#166534; font-weight:700; }
   .mapbtns { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:8px; z-index:6; }
   .mapbtns div { width:40px; height:40px; border-radius:50%; background:#fff; display:grid; place-items:center; font-size:18px; font-weight:700; box-shadow:0 3px 10px rgba(0,0,0,.2); cursor:pointer; }
   .searchhere { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; font-weight:700; box-shadow:0 6px 16px rgba(0,0,0,.3); cursor:pointer; z-index:6; white-space:nowrap; }
@@ -262,7 +291,12 @@
       </div>
       <label>จังหวัด</label><select><option>กรุงเทพฯ</option><option>เชียงใหม่</option><option>ขอนแก่น</option></select>
       <label>ทักษะ</label>
-      <div class="chips" onclick="if(event.target.tagName==='SPAN')event.target.classList.toggle('on')"><span class="on">ขับรถ</span><span class="on">ทำอาหาร</span><span>ถ่ายภาพ</span><span>คอมพิวเตอร์</span><span>สอนพิเศษ</span></div>
+      <div class="combo" id="skillCombo">
+        <div class="csel" id="skillSel"></div>
+        <input id="skillIn" placeholder="🔍 พิมพ์ค้นหา เช่น ขับ, อาหาร, ช่าง" oninput="skillOpen()" onfocus="skillOpen()" onkeydown="if(event.key==='Enter'){event.preventDefault();skillEnter()}">
+        <div class="dd hidden" id="skillDD"></div>
+      </div>
+      <div class="mut" style="margin-top:4px">เลือกได้หลายอย่าง ไม่พบในรายการก็พิมพ์เพิ่มเองได้</div>
       <label>เวลาว่างต่อสัปดาห์</label><select><option>10-20 ชั่วโมง</option><option>20-40 ชั่วโมง</option></select>
       <label>อยากได้เพิ่มต่อเดือน</label><input value="5,000 บาท">
       <button class="btn" onclick="go('loading')">หาโอกาสให้ฉัน</button>
@@ -360,22 +394,9 @@
 
   <!-- 6 Planner -->
   <div class="view" id="v-planner">
-    <div class="top"><div class="back" onclick="go('detail')">‹</div><div class="ttl">แผนรายได้</div></div>
-    <div class="body">
-      <p class="mut" style="margin-top:0">ตัวเลขเป็นประมาณการตามสมมติฐานด้านล่าง <span class="tag t-est" style="margin:0">ประมาณการ</span></p>
-      <div class="card"><table>
-        <tr><th></th><th>ส่งของ</th><th>อาหารกล่อง</th></tr>
-        <tr><td>รายได้/เดือน</td><td>6,000</td><td>8,000</td></tr>
-        <tr><td>ต้นทุนตรง</td><td>1,500</td><td>3,000</td></tr>
-        <tr><td><b>สุทธิ (ประมาณ)</b></td><td><b>4,500</b></td><td><b>5,000</b></td></tr>
-        <tr><td>แรงที่ใช้</td><td>สูง</td><td>กลาง</td></tr>
-        <tr><td>กว่าจะได้เงิน</td><td>1 สัปดาห์</td><td>2-3 สัปดาห์</td></tr>
-        <tr><td>ความเสี่ยง</td><td>ค่าน้ำมัน</td><td>ลูกค้าไม่แน่นอน</td></tr>
-      </table></div>
-      <h3>สมมติฐาน</h3>
-      <ul style="padding-left:18px"><li>ทำงาน 15 ชั่วโมงต่อสัปดาห์</li><li>ราคาน้ำมันและวัตถุดิบเป็นค่าสมมติ</li></ul>
-      <button class="btn" onclick="go('checklist')">เลือกแผนและเริ่มลงมือ</button>
-    </div>
+    <div class="top"><div class="back" onclick="go('results')">‹</div><div class="ttl">แผนรายได้</div></div>
+    <div class="body" id="planBody"></div>
+    <div class="cmpbar hidden" id="cmpbar"><span id="cmpn"></span><button class="btn sm" style="margin:0;width:auto;padding:10px 18px" onclick="openCompare()">เปรียบเทียบ</button></div>
   </div>
 
   <!-- 7 Checklist -->
@@ -462,6 +483,7 @@ function go(id) {
   document.getElementById('v-'+id).classList.add('on');
   if (id === 'map') { renderMap(); if (loc.state === 'ask') askLoc(); }
   if (id === 'home') renderHome();
+  if (id === 'planner') renderPlanner();
   if (id === 'tracker') renderTracker();
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'));
   const nb = document.getElementById('nav-'+id); if (nb) nb.classList.add('on');
@@ -512,7 +534,7 @@ const GROUPS = {
   job:{ic:'💼',c:'#2563eb',n:'งาน'}, skill:{ic:'🛠️',c:'#d97706',n:'ทักษะ'},
   sell:{ic:'🏪',c:'#7c3aed',n:'ขายของ'}, money:{ic:'💰',c:'#0e9f6e',n:'เงิน/สิทธิ์'}
 };
-const STATUS = { cur:['Curated (ตัวอย่างรูปแบบ)','t-src'], opn:['Open data (ข้อมูลเก่า)','t-est'], osm:['สถานที่จาก OSM (ยังไม่ยืนยันว่ารับซื้อ)','t-ai'], mock:['DEMO / MOCK','t-mock'] };
+const STATUS = { live:['LIVE จาก API','t-src'], cur:['Curated (ตัวอย่างรูปแบบ)','t-src'], opn:['Open data (ข้อมูลเก่า)','t-est'], osm:['สถานที่จาก OSM (ยังไม่ยืนยันว่ารับซื้อ)','t-ai'], mock:['DEMO / MOCK','t-mock'] };
 const TIER = { 1:['ระบุจำนวนโดยแหล่งทางการ','#166534','#dcfce7'], 2:['ช่วงตามประกาศ (ไม่ใช่ค่าที่รับประกัน)','#1e40af','#dbeafe'], 3:['ไม่ระบุจำนวนเงิน','#475569','#e2e8f0'] };
 const ITEMS = [
   {id:'j1',g:'job',t:'งานแพ็คของ รายวัน',dx:1.2,dy:-0.8,tier:2,amt:'400-450',unit:'บาท/วัน ตามที่ประกาศ',short:'฿400-450',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'เดินทางใกล้ เวลาทำงานยืดหยุ่น ไม่ต้องลงทุน',cond:['ทำงาน 4-6 ชม./วัน','ไม่ต้องมีประสบการณ์']},
@@ -548,9 +570,10 @@ function searchHere() {
   a.addEventListener('touchstart', start, {passive:true}); a.addEventListener('touchmove', move, {passive:true}); a.addEventListener('touchend', end);
 })();
 const fbar = document.getElementById('fbar');
-const FCHIPS = [['all','ทั้งหมด'],['job','💼 งาน'],['skill','🛠️ ทักษะ'],['sell','🏪 ขายของ'],['money','💰 เงิน/สิทธิ์'],['$','💵 เฉพาะที่ระบุเงิน'],['!','⚠️ น่าสงสัย']];
+const FCHIPS = [['all','ทั้งหมด'],['job','💼 งาน'],['skill','🛠️ ทักษะ'],['sell','🏪 ขายของ'],['money','💰 เงิน/สิทธิ์'],['$','💵 เฉพาะที่ระบุเงิน'],['!','⚠️ น่าสงสัย'],['src','🗂️ แหล่งข้อมูล']];
 FCHIPS.forEach(([k,l]) => { const s = document.createElement('span'); s.textContent = l; s.dataset.k = k; s.onclick = () => chipClick(k); fbar.appendChild(s); });
 function chipClick(k) {
+  if (k === 'src') { openSources(); return; }
   if (k === 'all') { mapState.groups = new Set(['job','skill','sell','money']); mapState.onlyMoney = false; }
   else if (k === '$') mapState.onlyMoney = !mapState.onlyMoney;
   else if (k === '!') mapState.showScam = !mapState.showScam;
@@ -601,7 +624,8 @@ function openItem(id) {
     + amountBox
     + '<p style="margin:4px 0"><b>📍</b> '+place+'</p>'
     + '<p style="margin:4px 0">'+freshHtml(it)+'</p>'
-    + '<p style="margin:4px 0"><b>🤖 ทำไมตรงกับคุณ:</b> '+it.why+' <span class="tag t-ai" style="margin:0">AI วิเคราะห์</span></p>'
+    + commonFields(it)
+    + '<p style="margin:4px 0"><b>'+(it.st==='live'?'💡':'🤖')+' ทำไมตรงกับคุณ:</b> '+it.why+(it.st==='live'?'':' <span class="tag t-ai" style="margin:0">AI วิเคราะห์</span>')+'</p>'
     + '<h3 style="margin:10px 0 4px">เงื่อนไข</h3><ul style="margin:0;padding-left:18px">'+it.cond.map(c => '<li>'+c+'</li>').join('')+'</ul>'
     + '<h3 style="margin:10px 0 4px">แหล่งที่มา</h3><p class="mut" style="margin:0">'+it.src+'<br>'+it.date+'</p>'
     + '<div class="note">ไม่รับประกันว่าจะได้เงินหรือได้งาน ตรวจสอบกับผู้ประกาศหรือหน่วยงานก่อนเสมอ</div>'
@@ -690,7 +714,11 @@ function snooze(id) {
   modal('<b style="font-size:17px">ให้เตือนอีกทีเมื่อไหร่</b>'
     + ['พรุ่งนี้เช้า','อีก 3 วัน','สัปดาห์หน้า','ไม่ต้องเตือน'].map(l => '<button class="btn sec" onclick="closeModal();toast(\'ตกลง: '+l+' (จำลอง)\')">'+l+'</button>').join(''));
 }
-function sourceOpen(id) { toast('จำลอง: เปิดเว็บไซต์ต้นทาง'); setTimeout(() => promptReturn(id), 1500); }
+function sourceOpen(id) {
+  const it = ITEMS.find(i => i.id === id);
+  if (it.url) window.open(it.url, '_blank', 'noopener'); else toast('จำลอง: รายการนี้ไม่มีลิงก์จริง');
+  setTimeout(() => promptReturn(id), 1500);
+}
 function promptReturn(id) {
   const it = ITEMS.find(i => i.id === id);
   modal('<h2 style="font-size:19px;margin-top:4px">กลับมาแล้ว 👋</h2><p>คุณได้สมัครหรือยื่นเรื่อง “'+esc(it.t)+'” แล้วหรือยัง</p>'
@@ -762,6 +790,160 @@ const AGE = {j1:2,j2:5,j3:12,j4:3,j5:40,s1:1800,s2:1800,m1:20,m2:20,w1:7,w2:7,w3
 const EXP = {w3:'ปิดรับสมัคร 15 ธ.ค. (ตัวอย่าง)',j5:'ประกาศอาจหมดอายุแล้ว'};
 ITEMS.push({id:'x1',g:'job',t:'งานด่วน รายได้วันละ 3,000 (ต้องโอนค่ามัดจำ)',dx:-0.6,dy:0.9,tier:3,known:'ประกาศไม่ระบุแหล่งรายได้ และขอให้โอนเงินก่อน',scam:true,st:'mock',src:'ประกาศตัวอย่างน่าสงสัย (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ไม่แนะนำ',cond:['เรียกเก็บเงินล่วงหน้า','สัญญาผลตอบแทนสูงผิดปกติ']});
 ITEMS.forEach(i => { i.age = AGE[i.id]; i.exp = EXP[i.id]; });
+
+/* ---------- Providers: every source is normalised into the same common fields ---------- */
+const PROVIDERS = {
+  greenhouse:{n:'Greenhouse Job Board API',kind:'API สาธารณะ ไม่ต้องใช้ key',lic:'ลิงก์กลับไปที่ประกาศต้นทาง'},
+  lever:{n:'Lever Postings API',kind:'API สาธารณะ ไม่ต้องใช้ key',lic:'ลิงก์กลับไปที่ประกาศต้นทาง'},
+  bmaopen:{n:'data.go.th โรงเรียนฝึกอาชีพ กทม.',kind:'Open data',lic:'ต้องระบุที่มาตามสัญญาอนุญาต'},
+  osm:{n:'OpenStreetMap',kind:'Open data',lic:'© OpenStreetMap contributors'},
+  curated:{n:'ทีมคัดเอง (Curated)',kind:'ไฟล์ข้อมูลในแอป',lic:'ระบุ URL ต้นทางทุกรายการ'},
+  mock:{n:'Mock',kind:'ข้อมูลจำลอง',lic:'-'}
+};
+const PROV_OF = {s1:'bmaopen',s2:'bmaopen',m1:'osm',m2:'osm'};
+const PREC = { exact:'ตรงจุด (ปักหมุดได้)', city:'ระดับเมือง (ไม่ปักหมุด)', none:'ไม่ผูกสถานที่' };
+ITEMS.forEach(i => { i.prov = PROV_OF[i.id] || 'mock'; i.org = i.org || 'ผู้ประกาศตัวอย่าง'; i.prec = i.dx === undefined ? 'none' : 'exact'; i.loctx = i.dx === undefined ? '-' : 'ที่อยู่ตัวอย่าง (สมมติ)'; });
+const provState = { greenhouse:{s:'idle',n:0}, lever:{s:'idle',n:0}, bmaopen:{s:'file'}, osm:{s:'file'}, curated:{s:'file'}, mock:{s:'file'} };
+function fmtDate(d) { const x = new Date(d); return isNaN(x) ? '-' : x.toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'numeric'}); }
+function commonFields(it) {
+  const p = PROVIDERS[it.prov] || PROVIDERS.mock;
+  const pay = it.tier < 3 ? '฿'+it.amt+' '+it.unit : 'ไม่ระบุ';
+  const rows = [['ผู้ประกาศ', it.org], ['ที่ตั้งตามต้นทาง', it.loctx], ['ความแม่นยำตำแหน่ง', PREC[it.prec]], ['ค่าตอบแทน', pay], ['อัปเดตที่ต้นทาง', it.updated ? fmtDate(it.updated) : '-'], ['แหล่งข้อมูล', p.n+' ('+p.kind+')']];
+  return '<div class="card" style="padding:10px 12px;margin:8px 0"><table>'+rows.map(r => '<tr><td class="mut" style="width:42%">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')+'</table></div>';
+}
+async function fetchJson(url) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), 8000);
+  try { const r = await fetch(url, {signal:c.signal}); if (!r.ok) throw new Error('HTTP '+r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+const LIVE = [
+  ['greenhouse', 'https://boards-api.greenhouse.io/v1/boards/agoda/jobs', d => (d.jobs || []).map(j => ({pid:j.id, title:j.title, org:j.company_name || 'Agoda', loc:(j.location && j.location.name) || '', url:j.absolute_url, updated:j.updated_at}))],
+  ['lever', 'https://api.lever.co/v0/postings/Coda?mode=json', d => (Array.isArray(d) ? d : []).map(j => ({pid:j.id, title:j.text, org:'Coda', loc:(j.categories && j.categories.location) || '', url:j.hostedUrl, updated:j.createdAt}))]
+];
+async function loadLive() {
+  for (let i = ITEMS.length - 1; i >= 0; i--) if (ITEMS[i].st === 'live') ITEMS.splice(i, 1);
+  await Promise.all(LIVE.map(async ([k, url, norm]) => {
+    provState[k] = {s:'loading', n:0};
+    try {
+      const all = norm(await fetchJson(url));
+      const bkk = all.filter(j => /bangkok/i.test(j.loc) && !/malaysia/i.test(j.loc) && j.url).slice(0, 6);
+      bkk.forEach(j => ITEMS.push({id:k+'_'+j.pid, g:'job', t:j.title, st:'live', prov:k, org:j.org, loctx:j.loc, prec:'city', tier:3,
+        known:'API ไม่ส่งค่าจ้างมา ดูรายละเอียดที่ประกาศต้นทาง', url:j.url, updated:j.updated,
+        age:Math.max(0, Math.round((Date.now() - new Date(j.updated)) / 864e5)),
+        src:PROVIDERS[k].n, date:'ดึงข้อมูลเมื่อ '+new Date().toLocaleTimeString('th-TH'),
+        why:'อยู่ในหมวดงานที่คุณเลือก (ยังไม่ได้ให้ AI วิเคราะห์)',
+        cond:['ต้นทางระบุที่ตั้งแค่ "'+j.loc+'" จึงไม่ปักหมุดบนแผนที่','ตรวจคุณสมบัติและวิธีสมัครที่ประกาศต้นทาง']}));
+      provState[k] = {s:'ok', n:bkk.length, total:all.length, at:new Date()};
+    } catch (e) { provState[k] = {s:'fail', n:0, err:e.name === 'AbortError' ? 'หมดเวลา' : e.message}; }
+  }));
+  if (document.getElementById('v-map').classList.contains('on')) renderMap();
+}
+function openSources() {
+  const cnt = k => ITEMS.filter(i => i.prov === k).length;
+  const stx = k => { const s = provState[k];
+    if (s.s === 'ok') return '<span style="color:#166534">✓ โหลดแล้ว '+s.n+' รายการในกรุงเทพฯ (จากทั้งหมด '+s.total+')</span>';
+    if (s.s === 'fail') return '<span style="color:#b42318">✕ โหลดไม่สำเร็จ ('+esc(s.err)+') ในแอปจริงไม่มีปัญหา CORS แบบเบราว์เซอร์</span>';
+    if (s.s === 'loading') return 'กำลังโหลด...';
+    return cnt(k)+' รายการ'; };
+  document.getElementById('sheet').innerHTML = '<div class="grab"></div><div class="row"><b style="font-size:16px">แหล่งข้อมูลบนแผนที่</b><span class="mut" style="cursor:pointer;font-size:20px" onclick="closeSheet()">✕</span></div>'
+    + '<p class="mut">ทุกแหล่งถูกแปลงเป็นฟิลด์ชุดเดียวกัน แล้วลิงก์กลับไปดูที่ต้นทาง</p>'
+    + Object.keys(PROVIDERS).map(k => '<div class="li" style="cursor:default"><div><b style="font-size:13.5px">'+PROVIDERS[k].n+'</b><div class="mut">'+PROVIDERS[k].kind+' · '+PROVIDERS[k].lic+'</div><div style="font-size:12px;margin-top:2px">'+stx(k)+'</div></div></div>').join('')
+    + '<button class="btn sm" onclick="event.stopPropagation();loadLive().then(openSources);openSources()">🔄 ดึงข้อมูลสดใหม่</button>';
+  document.getElementById('sheet').classList.add('open');
+}
+
+/* ---------- Skill picker: one searchable dropdown with category headers ---------- */
+const SKILLS = {
+  'ขับขี่และขนส่ง':['ขับรถยนต์','ขับมอเตอร์ไซค์','ส่งของ/ส่งอาหาร','ขับรถบรรทุก'],
+  'อาหารและเครื่องดื่ม':['ทำอาหาร','ทำขนม/เบเกอรี่','ชงกาแฟ/เครื่องดื่ม','ช่วยงานครัว'],
+  'งานบ้านและบริการ':['ทำความสะอาด','ซักรีด','ดูแลสวน','ดูแลสัตว์เลี้ยง'],
+  'ดูแลคน':['ดูแลผู้สูงอายุ','เลี้ยงเด็ก','ปฐมพยาบาลเบื้องต้น'],
+  'ช่างและซ่อมแซม':['ช่างไฟฟ้า','ช่างประปา','ซ่อมรถ/มอเตอร์ไซค์','ช่างไม้','ตัดเย็บเสื้อผ้า'],
+  'คอมพิวเตอร์และออฟฟิศ':['พิมพ์เอกสาร','Excel/ตาราง','กรอกข้อมูล','ใช้โซเชียลมีเดีย'],
+  'ขายและบริการลูกค้า':['ขายหน้าร้าน','ขายออนไลน์','แอดมินเพจ/ตอบแชท'],
+  'สอนและภาษา':['สอนพิเศษ','ภาษาอังกฤษ','ภาษาจีน','แปลเอกสาร'],
+  'ศิลปะและสื่อ':['ถ่ายภาพ','ตัดต่อวิดีโอ','ออกแบบกราฟิก','งานฝีมือ/ประดิษฐ์'],
+  'เกษตร':['ปลูกผัก','เลี้ยงสัตว์']
+};
+let skillPicked = ['ขับรถยนต์','ทำอาหาร'];
+const escA = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+function skillRender() {
+  document.getElementById('skillSel').innerHTML = skillPicked.map(s => '<span class="cchip">'+esc(s)+' <b data-x="'+escA(s)+'">✕</b></span>').join('');
+}
+function skillOpen() {
+  const q = document.getElementById('skillIn').value.trim(), dd = document.getElementById('skillDD'); let h = '';
+  for (const [g, list] of Object.entries(SKILLS)) {
+    const m = list.filter(s => !q || s.includes(q) || g.includes(q)); if (!m.length) continue;
+    h += '<div class="ddg">'+g+'</div>' + m.map(s => { const on = skillPicked.includes(s); return '<div class="ddo'+(on?' on':'')+'" data-s="'+escA(s)+'"><span>'+esc(s)+'</span>'+(on?'<b>✓</b>':'')+'</div>'; }).join('');
+  }
+  if (q && !Object.values(SKILLS).flat().includes(q) && !skillPicked.includes(q)) h += '<div class="ddo add" data-s="'+escA(q)+'">＋ เพิ่ม "'+esc(q)+'" เป็นทักษะของฉัน</div>';
+  if (!h) h = '<div class="ddo" style="color:#6b7c75">ไม่พบ ลองพิมพ์คำอื่น</div>';
+  dd.innerHTML = h; dd.classList.remove('hidden');
+}
+function skillToggle(s) { skillPicked = skillPicked.includes(s) ? skillPicked.filter(x => x !== s) : skillPicked.concat(s); skillRender(); skillOpen(); }
+function skillEnter() { const i = document.getElementById('skillIn'), q = i.value.trim(); if (!q) return; const hit = Object.values(SKILLS).flat().find(s => s.includes(q)); skillToggle(hit || q); i.value = ''; skillOpen(); }
+document.getElementById('skillDD').addEventListener('mousedown', e => { const o = e.target.closest('.ddo'); if (o && o.dataset.s) { e.preventDefault(); skillToggle(o.dataset.s); if (o.classList.contains('add')) document.getElementById('skillIn').value = ''; } });
+document.getElementById('skillSel').addEventListener('click', e => { if (e.target.dataset.x) { skillPicked = skillPicked.filter(x => x !== e.target.dataset.x); skillRender(); } });
+document.addEventListener('mousedown', e => { if (!document.getElementById('skillCombo').contains(e.target)) document.getElementById('skillDD').classList.add('hidden'); });
+skillRender();
+
+/* ---------- Income planner: all options, sortable, compare up to 3 ---------- */
+const PLANS = [
+  {id:'pl1',t:'งานแพ็คของ รายวัน',tr:'B',gross:[6400,7200],cost:[400,600],pay:7,eff:2,risk:'งานอาจไม่มีทุกวัน',src:'ช่วงตามประกาศ',ass:['4 วัน/สัปดาห์ × 400-450 บาท','ค่าเดินทางเป็นค่าสมมติ']},
+  {id:'pl2',t:'ขับรถส่งของ รายวัน',tr:'B',gross:[6000,8400],cost:[1500,2200],pay:7,eff:3,risk:'ค่าน้ำมันขึ้นลง',src:'ช่วงตามประกาศ',ass:['3 วัน/สัปดาห์','ค่าน้ำมันเป็นค่าสมมติ']},
+  {id:'pl3',t:'รับทำอาหารกล่อง',tr:'C',gross:[7000,10000],cost:[3000,4000],pay:14,eff:2,risk:'ยอดสั่งไม่แน่นอน',src:'ประมาณการ',ass:['20 กล่อง/สัปดาห์','ราคาวัตถุดิบเป็นค่าสมมติ']},
+  {id:'pl4',t:'พิมพ์เอกสาร ฟรีแลนซ์',tr:'C',gross:[2400,4000],cost:[0,300],pay:10,eff:1,risk:'งานไม่สม่ำเสมอ',src:'ช่วงตามประกาศ',ass:['8 งาน/เดือน']},
+  {id:'pl5',t:'เบี้ยยังชีพผู้สูงอายุ',tr:'A',gross:[600,1000],cost:[0,0],pay:30,eff:1,risk:'ต้องลงทะเบียนตามรอบ',src:'ทางการ (ค่าตัวอย่างสมมติ)',ass:['ตรวจสิทธิ์และจำนวนจริงกับหน่วยงาน']},
+  {id:'pl6',t:'ขายของมือสอง',tr:'C',gross:null,why:'ราคาขึ้นกับของและร้านรับซื้อ',pay:1,eff:1,risk:'ราคาต่อรองได้',src:'ไม่ระบุ'},
+  {id:'pl7',t:'ตรวจสิทธิ์ภาษีคืน',tr:'A',gross:null,why:'จำนวนขึ้นกับข้อมูลภาษีของคุณ แอปไม่ทราบ',pay:60,eff:1,risk:'อาจไม่มีสิทธิ์',src:'ไม่ระบุ'}
+];
+const planUI = { sort:'net', cmp:new Set(), goal:5000, open:null };
+const netOf = p => p.gross ? [p.gross[0]-p.cost[1], p.gross[1]-p.cost[0]] : null;
+const mid = r => (r[0]+r[1])/2;
+const fmt = n => n.toLocaleString('th-TH');
+const EFF = {1:'ใช้แรงน้อย',2:'ปานกลาง',3:'ใช้แรงมาก'};
+const payTx = d => d <= 1 ? 'ได้ทันที' : d <= 7 ? 'ภายใน 1 สัปดาห์' : d <= 14 ? 'ภายใน 2 สัปดาห์' : 'ประมาณ '+Math.round(d/30)+' เดือน';
+function renderPlanner() {
+  const known = PLANS.filter(p => p.gross), unknown = PLANS.filter(p => !p.gross);
+  const key = {net:p => -mid(netOf(p)), fast:p => p.pay, easy:p => p.eff*100 - mid(netOf(p))/1000}[planUI.sort];
+  known.sort((a,b) => key(a) - key(b));
+  let h = '<p class="mut" style="margin-top:0">ทุกทางเลือกที่ตรงกับคุณ '+PLANS.length+' รายการ ตัวเลขต่อเดือนเป็นประมาณการ คำนวณจาก (รายได้ - ต้นทุน) <span class="tag t-est" style="margin:0">ประมาณการ</span></p>';
+  h += '<div class="seg" style="margin-bottom:12px">'+[['net','💵 เงินเหลือมาก'],['fast','⚡ ได้เงินเร็ว'],['easy','🙂 ใช้แรงน้อย']].map(([k,l]) => '<div class="'+(planUI.sort===k?'on':'')+'" onclick="planUI.sort=\''+k+'\';renderPlanner()">'+l+'</div>').join('')+'</div>';
+  h += known.map(p => { const n = netOf(p), cov = Math.min(100, Math.round(mid(n)/planUI.goal*100)), on = planUI.cmp.has(p.id), op = planUI.open === p.id;
+    return '<div class="card plan'+(on?' sel':'')+'"><div class="row" onclick="planUI.open='+(op?'null':'\''+p.id+'\'')+';renderPlanner()" style="cursor:pointer"><div class="row" style="gap:10px;justify-content:flex-start"><div class="badge b'+p.tr+'">'+p.tr+'</div><b>'+p.t+'</b></div><span class="mut">'+(op?'▲':'▼')+'</span></div>'
+      + '<div class="pnet">฿'+fmt(n[0])+' - '+fmt(n[1])+'<span> เหลือ/เดือน</span></div>'
+      + '<div class="goalbar"><i style="width:'+cov+'%"></i></div><div class="mut">ประมาณ '+cov+'% ของเป้า ฿'+fmt(planUI.goal)+'/เดือน</div>'
+      + '<div class="pmeta"><span>⏱️ '+payTx(p.pay)+'</span><span>💪 '+EFF[p.eff]+'</span><span>⚠️ '+p.risk+'</span></div>'
+      + (op ? '<div class="pdet"><div class="row"><span class="mut">รายได้</span><b>฿'+fmt(p.gross[0])+' - '+fmt(p.gross[1])+'</b></div><div class="row"><span class="mut">ต้นทุนตรง</span><b>฿'+fmt(p.cost[0])+' - '+fmt(p.cost[1])+'</b></div><div class="row"><span class="mut">ที่มาของตัวเลข</span><b>'+p.src+'</b></div><div class="mut" style="margin-top:6px">สมมติฐาน: '+p.ass.join(' · ')+'</div><button class="btn sm" onclick="go(\'checklist\')">เลือกทางนี้และเริ่มลงมือ</button></div>' : '')
+      + '<label class="cmpchk"><input type="checkbox" '+(on?'checked':'')+' onchange="toggleCmp(\''+p.id+'\')"> เทียบกับตัวเลือกอื่น</label></div>'; }).join('');
+  h += '<h3>ยังประเมินเป็นตัวเงินไม่ได้</h3>' + unknown.map(p => '<div class="card"><div class="row" style="gap:10px;justify-content:flex-start"><div class="badge b'+p.tr+'">'+p.tr+'</div><b>'+p.t+'</b></div><p class="mut" style="margin:6px 0 0">ไม่ทราบจำนวนเงิน: '+p.why+'</p><div class="pmeta"><span>⏱️ '+payTx(p.pay)+'</span><span>💪 '+EFF[p.eff]+'</span></div></div>').join('');
+  h += '<div class="note">ทางเลือกทำพร้อมกันได้ ตัวเลขเป็นค่าประมาณ ไม่รับประกันรายได้</div>';
+  document.getElementById('planBody').innerHTML = h;
+  const bar = document.getElementById('cmpbar'); bar.classList.toggle('hidden', planUI.cmp.size < 2);
+  document.getElementById('cmpn').textContent = 'เลือกไว้ '+planUI.cmp.size+' รายการ';
+}
+function toggleCmp(id) {
+  if (planUI.cmp.has(id)) planUI.cmp.delete(id);
+  else if (planUI.cmp.size >= 3) { toast('เทียบได้สูงสุด 3 รายการบนจอมือถือ'); }
+  else planUI.cmp.add(id);
+  renderPlanner();
+}
+function openCompare() {
+  const ps = PLANS.filter(p => planUI.cmp.has(p.id));
+  const best = (f, lowWins) => { const v = ps.map(f); const b = lowWins ? Math.min(...v) : Math.max(...v); return v.map(x => x === b); };
+  const bn = best(p => mid(netOf(p))), bf = best(p => p.pay, true), be = best(p => p.eff, true);
+  const cell = (txt, win) => '<td'+(win?' class="win"':'')+'>'+txt+'</td>';
+  modal('<div class="row"><b style="font-size:17px">เปรียบเทียบ</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="closeModal()">✕</span></div>'
+    + '<table class="cmpt"><tr><th></th>'+ps.map(p => '<th>'+p.t+'</th>').join('')+'</tr>'
+    + '<tr><td class="mut">เหลือ/เดือน</td>'+ps.map((p,i) => cell('฿'+fmt(netOf(p)[0])+'-'+fmt(netOf(p)[1]), bn[i])).join('')+'</tr>'
+    + '<tr><td class="mut">ได้เงิน</td>'+ps.map((p,i) => cell(payTx(p.pay), bf[i])).join('')+'</tr>'
+    + '<tr><td class="mut">แรงที่ใช้</td>'+ps.map((p,i) => cell(EFF[p.eff], be[i])).join('')+'</tr>'
+    + '<tr><td class="mut">ความเสี่ยง</td>'+ps.map(p => '<td>'+p.risk+'</td>').join('')+'</tr>'
+    + '<tr><td class="mut">ที่มาตัวเลข</td>'+ps.map(p => '<td>'+p.src+'</td>').join('')+'</tr></table>'
+    + '<p class="mut">ช่องสีเขียว = ดีที่สุดในแถวนั้น ตัวเลขเป็นค่าประมาณ</p>'
+    + ps.map(p => '<button class="btn sec sm" onclick="closeModal();go(\'checklist\')">เลือก '+p.t+'</button>').join(''));
+}
+loadLive();
 function freshHtml(it) {
   const a = it.age; let c = '#166534', tx = 'ตรวจเมื่อ '+a+' วันก่อน';
   if (a > 365) { c = '#b42318'; tx = 'ข้อมูลเก่ามาก (ประมาณ '+Math.round(a/365)+' ปี) ตรวจที่ต้นทางก่อน'; }
