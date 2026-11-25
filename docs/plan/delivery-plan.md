@@ -8,7 +8,7 @@
 ## สถานะเครื่องที่ตรวจเมื่อ 2026-11 (ตรวจจริงในเครื่องนี้)
 - มี: Node.js
 - ไม่มี: Java/JDK, Android SDK (adb), Flutter/Dart, Gradle
-- ใน repo ยังไม่มี `docs/product/requirements.md` และ `README.md`
+- (อัปเดตแล้ว) `docs/product/requirements.md` และ `README.md` อยู่ใน repo แล้ว ณ commit `a0dad62` ส่วนสถานะการติดตั้งเครื่องมือด้านบนยังไม่ได้ตรวจซ้ำ
 
 ## ภาพรวมเฟส
 

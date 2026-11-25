@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Anywhere - Clickable Mock v2 (DEMO / MOCK)</title>
+<style>
+  :root {
+    --p:#0e9f6e; --pd:#047857; --pl:#d1fae5; --ink:#0f1f1a; --mut:#6b7c75; --bg:#f3f7f5; --card:#fff;
+    --warn:#b45309; --warnbg:#fff7e6; --bad:#b42318; --badbg:#fdecea; --blue:#2563eb; --r:18px;
+  }
+  * { box-sizing:border-box; font-family:"Segoe UI","Noto Sans Thai",system-ui,sans-serif; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:linear-gradient(135deg,#e7efeb,#cfe3da); color:var(--ink); display:flex; gap:28px; padding:24px; justify-content:center; flex-wrap:wrap; min-height:100vh; }
+  .side { width:250px; }
+  .side h1 { font-size:20px; margin:0 0 4px; }
+  .side p { font-size:13px; color:var(--mut); margin:0 0 14px; line-height:1.5; }
+  .nav button { display:block; width:100%; text-align:left; margin:0 0 6px; padding:8px 12px; border:0; background:#ffffffaa; border-radius:10px; cursor:pointer; font-size:13px; color:var(--ink); }
+  .nav button.on { background:var(--p); color:#fff; }
+  .nav .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:12px 0 6px; }
+  .legend { font-size:12px; color:var(--mut); margin-top:14px; line-height:1.9; }
+
+  .phone { width:380px; height:760px; background:#111; border-radius:44px; padding:11px; box-shadow:0 24px 50px rgba(6,40,28,.35); }
+  .screen { width:100%; height:100%; background:var(--bg); border-radius:34px; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+  .status { height:30px; display:flex; justify-content:space-between; align-items:center; padding:0 22px; font-size:12px; font-weight:600; color:var(--ink); }
+  .pill { position:absolute; top:6px; left:50%; transform:translateX(-50%); background:#ffedd5; color:#9a3412; font-size:10px; font-weight:700; padding:2px 10px; border-radius:10px; z-index:5; letter-spacing:.03em; }
+  .view { display:none; flex-direction:column; flex:1; min-height:0; }
+  .view.on { display:flex; }
+  .top { padding:6px 18px 10px; display:flex; align-items:center; gap:10px; }
+  .top .back { width:34px; height:34px; border-radius:12px; background:#fff; display:grid; place-items:center; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.08); font-size:16px; }
+  .top .ttl { font-weight:700; font-size:17px; }
+  .body { flex:1; overflow-y:auto; padding:6px 18px 18px; }
+  .body::-webkit-scrollbar { width:0; }
+
+  h2 { font-size:22px; line-height:1.3; margin:6px 0 8px; }
+  h3 { font-size:14px; margin:16px 0 8px; }
+  p, li { font-size:13px; line-height:1.55; }
+  .mut { color:var(--mut); font-size:12px; }
+
+  .hero { background:linear-gradient(145deg,#0e9f6e,#047857); color:#fff; border-radius:26px; padding:22px 20px 24px; position:relative; overflow:hidden; margin-bottom:16px; }
+  .hero:before, .hero:after { content:""; position:absolute; border-radius:50%; background:#ffffff18; }
+  .hero:before { width:150px; height:150px; right:-40px; top:-50px; }
+  .hero:after { width:90px; height:90px; right:50px; bottom:-40px; }
+  .hero .logo { font-size:34px; }
+  .hero h2 { color:#fff; margin:8px 0 6px; position:relative; }
+  .hero p { color:#d1fae5; margin:0; position:relative; }
+
+  .mode { display:flex; gap:14px; align-items:center; background:var(--card); border-radius:var(--r); padding:16px; margin-bottom:12px; box-shadow:0 4px 14px rgba(15,60,40,.08); cursor:pointer; border:2px solid transparent; transition:.15s; }
+  .mode:hover { border-color:var(--p); transform:translateY(-1px); }
+  .mode .ic { width:50px; height:50px; border-radius:16px; display:grid; place-items:center; font-size:24px; flex:none; }
+  .mode.ai .ic { background:linear-gradient(145deg,#a7f3d0,#34d399); }
+  .mode.man .ic { background:#e0e7ff; }
+  .mode b { font-size:15px; }
+  .mode .rec { font-size:10px; background:var(--p); color:#fff; padding:2px 8px; border-radius:8px; margin-left:6px; vertical-align:middle; }
+
+  .card { background:var(--card); border-radius:var(--r); padding:14px; margin-bottom:12px; box-shadow:0 4px 14px rgba(15,60,40,.07); }
+  .card.click { cursor:pointer; transition:.15s; }
+  .card.click:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(15,60,40,.12); }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .tag { display:inline-block; font-size:10.5px; padding:3px 9px; border-radius:10px; margin:6px 5px 0 0; font-weight:600; }
+  .t-src { background:#dcfce7; color:#166534; }
+  .t-ai { background:#dbeafe; color:#1e40af; }
+  .t-est { background:#fef3c7; color:#92400e; }
+  .t-user { background:#f3e8ff; color:#6b21a8; }
+  .t-mock { background:#ffe4e6; color:#9f1239; }
+  .badge { width:34px; height:34px; border-radius:12px; display:grid; place-items:center; font-weight:800; color:#fff; flex:none; }
+  .bA { background:#0e9f6e; } .bB { background:#2563eb; } .bC { background:#d97706; }
+  .score { font-size:12px; font-weight:700; color:var(--pd); background:var(--pl); padding:3px 9px; border-radius:10px; }
+
+  .btn { display:block; width:100%; background:linear-gradient(145deg,#10b981,#047857); color:#fff; border:0; border-radius:16px; padding:14px; font-size:15px; font-weight:700; cursor:pointer; margin-top:12px; box-shadow:0 8px 18px rgba(4,120,87,.28); }
+  .btn.sec { background:#fff; color:var(--pd); box-shadow:none; border:1.5px solid #bfe6d6; }
+  .btn.sm { padding:10px; font-size:13px; }
+
+  label { font-size:12px; color:var(--mut); display:block; margin:12px 0 5px; font-weight:600; }
+  input, select, textarea { width:100%; padding:12px; border:1.5px solid #dbe5e0; border-radius:14px; font-size:14px; background:#fff; outline:none; }
+  input:focus, select:focus, textarea:focus { border-color:var(--p); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips span { padding:8px 13px; border:1.5px solid #dbe5e0; border-radius:20px; font-size:13px; background:#fff; cursor:pointer; transition:.12s; }
+  .chips span.on, .chips span:hover { background:var(--p); color:#fff; border-color:var(--p); }
+  .seg { display:flex; background:#e5eee9; border-radius:14px; padding:4px; gap:4px; }
+  .seg div { flex:1; text-align:center; padding:9px 4px; border-radius:11px; font-size:13px; font-weight:600; color:var(--mut); cursor:pointer; }
+  .seg div.on { background:#fff; color:var(--pd); box-shadow:0 2px 6px rgba(0,0,0,.08); }
+
+  .note { background:var(--warnbg); color:var(--warn); border-radius:14px; padding:11px 13px; font-size:12px; line-height:1.5; margin:10px 0; }
+  .bad { background:var(--badbg); color:var(--bad); border-radius:14px; padding:11px 13px; font-size:12px; line-height:1.5; margin:10px 0; }
+
+  /* chat */
+  .chat { flex:1; overflow-y:auto; padding:6px 16px; display:flex; flex-direction:column; gap:10px; }
+  .chat::-webkit-scrollbar { width:0; }
+  .msg { max-width:82%; padding:11px 14px; border-radius:18px; font-size:13.5px; line-height:1.5; animation:pop .2s ease; }
+  .msg.ai { background:#fff; border-bottom-left-radius:6px; box-shadow:0 2px 8px rgba(15,60,40,.08); align-self:flex-start; }
+  .msg.me { background:linear-gradient(145deg,#10b981,#047857); color:#fff; border-bottom-right-radius:6px; align-self:flex-end; }
+  .who { font-size:10px; color:var(--mut); margin:0 0 3px 4px; align-self:flex-start; }
+  .typing { align-self:flex-start; background:#fff; padding:12px 16px; border-radius:18px; display:flex; gap:4px; }
+  .typing i { width:6px; height:6px; background:#9db3aa; border-radius:50%; animation:b 1s infinite; }
+  .typing i:nth-child(2){animation-delay:.15s} .typing i:nth-child(3){animation-delay:.3s}
+  @keyframes b { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+  @keyframes pop { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+  .quick { padding:6px 16px 4px; display:flex; flex-wrap:wrap; gap:6px; }
+  .quick span { padding:8px 13px; border:1.5px solid var(--p); color:var(--pd); border-radius:20px; font-size:13px; background:#fff; cursor:pointer; }
+  .quick span:hover { background:var(--p); color:#fff; }
+  .composer { display:flex; gap:8px; padding:8px 14px 12px; }
+  .composer input { border-radius:22px; }
+  .composer button { width:46px; border:0; border-radius:50%; background:var(--p); color:#fff; font-size:18px; cursor:pointer; }
+  .sum { background:#fff; border:1.5px dashed var(--p); border-radius:16px; padding:12px; align-self:stretch; font-size:13px; }
+  .sum div { display:flex; justify-content:space-between; padding:3px 0; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  td, th { padding:8px 4px; border-bottom:1px solid #edf2ef; text-align:left; }
+  th { color:var(--mut); font-weight:600; }
+  .big { font-size:28px; font-weight:800; color:var(--pd); }
+  .prog { display:flex; gap:5px; margin:8px 0 6px; }
+  .prog i { flex:1; height:7px; border-radius:4px; background:#dde7e2; }
+  .prog i.on { background:var(--p); }
+  .chk { display:flex; gap:10px; align-items:flex-start; padding:9px 0; font-size:13.5px; border-bottom:1px solid #eef3f0; }
+  .chk:last-child { border:0; }
+  .chk input { width:20px; height:20px; margin:0; accent-color:var(--p); flex:none; }
+
+  .tabs { display:flex; background:#fff; padding:6px 10px 12px; box-shadow:0 -4px 14px rgba(15,60,40,.08); }
+  .tabs div { flex:1; text-align:center; font-size:11px; color:var(--mut); cursor:pointer; padding-top:4px; font-weight:600; }
+  .tabs div span { display:block; font-size:19px; }
+  .tabs div.on { color:var(--pd); }
+  /* Returning user, progress modal, large text */
+  .modal { position:absolute; inset:0; background:#0f1f1a88; z-index:40; display:none; align-items:flex-end; }
+  .modal.on { display:flex; }
+  .msheet { background:#fff; width:100%; border-radius:26px 26px 0 0; padding:10px 20px 22px; max-height:88%; overflow-y:auto; animation:up .22s ease; }
+  @keyframes up { from { transform:translateY(40px); opacity:.4 } to { transform:none; opacity:1 } }
+  .toast.undo { pointer-events:auto; }
+  .mapbtns { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:8px; z-index:6; }
+  .mapbtns div { width:40px; height:40px; border-radius:50%; background:#fff; display:grid; place-items:center; font-size:18px; font-weight:700; box-shadow:0 3px 10px rgba(0,0,0,.2); cursor:pointer; }
+  .searchhere { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; font-weight:700; box-shadow:0 6px 16px rgba(0,0,0,.3); cursor:pointer; z-index:6; white-space:nowrap; }
+  #mapArea { cursor:grab; user-select:none; }
+  .mapbanner { position:absolute; top:0; left:0; right:0; background:#fff7e6; color:#92400e; font-size:12px; padding:8px 12px; z-index:7; font-weight:600; }
+  #maperr { position:absolute; inset:0; background:#fffffff2; z-index:8; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; }
+  #mapempty { position:absolute; left:14px; right:14px; top:50%; transform:translateY(-50%); background:#fff; border-radius:18px; padding:16px; text-align:center; box-shadow:0 8px 24px rgba(0,0,0,.2); z-index:5; }
+  #mapArea.hasb .nolocal, #mapArea.hasb .mapbtns { top:46px; }
+  .pin .age { position:absolute; right:-6px; top:-6px; font-size:13px; }
+  .next { background:linear-gradient(145deg,#0e9f6e,#047857); color:#fff; border-radius:24px; padding:18px; margin-bottom:14px; box-shadow:0 10px 22px rgba(4,120,87,.28); }
+  .next .lab { font-size:11px; font-weight:700; opacity:.85; letter-spacing:.03em; }
+  .next h2 { color:#fff; font-size:20px; margin:4px 0 2px; }
+  .next .btn { background:#fff; color:var(--pd); box-shadow:none; margin-top:12px; }
+  .next .btn.ghost { background:transparent; color:#fff; border:1.5px solid #ffffff88; margin-top:8px; padding:11px; }
+  .chip2 { display:inline-flex; gap:6px; align-items:center; background:#fff; border-radius:18px; padding:7px 12px; font-size:12px; box-shadow:0 2px 8px rgba(15,60,40,.08); cursor:pointer; }
+  .stepbox { background:#f0fdf4; border:1.5px solid #bbf7d0; border-radius:16px; padding:12px 14px; margin:10px 0; font-size:14px; }
+  .xl p, .xl li, .xl .mut, .xl .chk, .xl td, .xl th, .xl .msg, .xl .stepbox { font-size:15.5px !important; }
+  .xl .btn { font-size:17px; padding:17px; }
+  .xl h2 { font-size:25px; }
+  .xl .tag { font-size:12px; }
+  /* Money Map */
+  .fbar { display:flex; gap:6px; padding:0 14px 8px; overflow-x:auto; }
+  .fbar::-webkit-scrollbar { height:0; }
+  .fbar span { white-space:nowrap; padding:7px 12px; border-radius:18px; background:#fff; font-size:12.5px; font-weight:600; border:1.5px solid #dbe5e0; cursor:pointer; }
+  .fbar span.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .rbar { display:flex; align-items:center; gap:8px; padding:0 14px 8px; font-size:12px; color:var(--mut); }
+  .rbar .seg { flex:1; padding:3px; }
+  .rbar .seg div { padding:6px 2px; font-size:12px; }
+  #mapArea { flex:1; position:relative; overflow:hidden; margin:0 14px; border-radius:22px; background:#e9efe8; min-height:0; box-shadow:inset 0 0 0 1px #d5e0d9; }
+  #mapArea svg.bg { position:absolute; inset:0; width:100%; height:100%; }
+  .ring { position:absolute; border-radius:50%; border:2px dashed #0e9f6e; background:#0e9f6e14; transform:translate(-50%,-50%); pointer-events:none; }
+  .me { position:absolute; width:16px; height:16px; background:#2563eb; border:3px solid #fff; border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 0 6px #2563eb33; }
+  .pin { position:absolute; transform:translate(-50%,-100%); cursor:pointer; text-align:center; transition:.15s; }
+  .pin .dot { width:34px; height:34px; border-radius:50% 50% 50% 4px; transform:rotate(-45deg); display:grid; place-items:center; color:#fff; border:2.5px solid #fff; box-shadow:0 3px 8px rgba(0,0,0,.3); margin:0 auto; }
+  .pin .dot b { transform:rotate(45deg); font-size:15px; }
+  .pin.mock .dot { border-style:dashed; border-color:#fff; outline:2px dashed #be123c; outline-offset:1px; }
+  .pin .amt { position:absolute; top:-18px; left:50%; transform:translateX(-50%); background:#fff; color:var(--ink); font-size:10.5px; font-weight:800; padding:2px 6px; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,.2); white-space:nowrap; }
+  .pin.sel { z-index:5; transform:translate(-50%,-100%) scale(1.25); }
+  .scalebar { position:absolute; left:10px; bottom:8px; font-size:10.5px; background:#ffffffcc; padding:2px 8px; border-radius:8px; color:var(--mut); }
+  .attr { position:absolute; right:8px; bottom:8px; font-size:9.5px; background:#ffffffcc; padding:2px 6px; border-radius:6px; color:var(--mut); }
+  .nolocal { position:absolute; left:10px; top:10px; background:#fff; padding:7px 12px; border-radius:18px; font-size:12px; font-weight:700; box-shadow:0 3px 10px rgba(0,0,0,.18); cursor:pointer; }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:26px 26px 0 0; max-height:72%; overflow-y:auto; transform:translateY(105%); transition:.25s; padding:10px 18px 18px; box-shadow:0 -10px 30px rgba(0,0,0,.18); z-index:20; }
+  .sheet.open { transform:none; }
+  .sheet::-webkit-scrollbar { width:0; }
+  .grab { width:40px; height:4px; background:#cfd8d3; border-radius:3px; margin:0 auto 10px; }
+  .amtbox { border-radius:16px; padding:12px 14px; margin:10px 0; }
+  .amtbox .lab { font-size:10.5px; font-weight:800; letter-spacing:.02em; }
+  .amtbox .val { font-size:26px; font-weight:800; margin:2px 0; }
+  .aiest { border:1.5px dashed #93c5fd; background:#eff6ff; color:#1e40af; border-radius:12px; padding:9px 11px; font-size:12px; margin-top:8px; }
+  .li { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid #eef3f0; cursor:pointer; align-items:center; }
+  .li:last-child { border:0; }
+  .li .ic { width:38px; height:38px; border-radius:12px; display:grid; place-items:center; color:#fff; flex:none; }
+  .li .r { margin-left:auto; text-align:right; font-weight:800; font-size:12.5px; }
+  .toast { position:absolute; left:50%; bottom:90px; transform:translateX(-50%); background:#111; color:#fff; font-size:12px; padding:8px 14px; border-radius:16px; z-index:50; opacity:0; transition:.2s; pointer-events:none; }
+  .toast.on { opacity:1; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div class="side">
+  <h1>Money Anywhere</h1>
+  <p>Clickable mock v2 (DEMO / MOCK) กดเมนูหรือกดในหน้าจอเพื่อดู flow ข้อมูลทั้งหมดเป็นข้อมูลสมมติ</p>
+  <div class="nav" id="nav"></div>
+  <div class="grp" style="font-size:11px;color:#6b7c75;margin:10px 0 4px">ผู้ใช้ตัวอย่าง (สมมติ) สำหรับ AC-01</div>
+  <select id="persona" onchange="setPersona(this.value)" style="padding:8px;border-radius:10px;font-size:12.5px">
+    <option value="p1">A · คุณสมชาย 65 ปี (เงินที่ควรตรวจ)</option>
+    <option value="p2">B · คุณสุดา 28 ปี (หางาน)</option>
+    <option value="p3">C · คุณมานี 40 ปี (รายได้จากทักษะ)</option>
+  </select>
+  <div class="grp" style="font-size:11px;color:#6b7c75;margin:10px 0 4px">ทดสอบสถานะแผนที่</div>
+  <div style="display:flex;flex-wrap:wrap;gap:5px">
+    <button onclick="setSim('offline')" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">ออฟไลน์</button>
+    <button onclick="setSim('stale')" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">ข้อมูลเก่า</button>
+    <button onclick="setSim('error')" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">โหลดล้มเหลว</button>
+    <button onclick="go('map');gpsFail()" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">GPS ล้ม</button>
+    <button onclick="setSim(null)" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">ปกติ</button>
+  </div>
+  <button id="usrToggle" onclick="toggleUser()" style="width:100%;margin-top:10px;padding:9px;border:0;border-radius:10px;background:#0f1f1a;color:#fff;cursor:pointer;font-size:12.5px">👤 ผู้ใช้: ครั้งแรก (กดสลับเป็นผู้ใช้เดิม)</button>
+  <div class="legend">
+    <span class="tag t-src">มีแหล่งที่มา</span> ข้อเท็จจริงที่อ้างอิงได้<br>
+    <span class="tag t-ai">AI วิเคราะห์</span> ข้อสรุปจาก AI<br>
+    <span class="tag t-est">ประมาณการ</span> ตัวเลขประมาณ<br>
+    <span class="tag t-user">ผู้ใช้แจ้ง</span> ข้อมูลจากผู้ใช้<br>
+    <span class="tag t-mock">DEMO / MOCK</span> ข้อมูลจำลอง
+  </div>
+</div>
+
+<div class="phone"><div class="screen">
+  <div class="pill">DEMO / MOCK</div>
+  <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
+
+  <!-- 1 Welcome: choose mode -->
+  <div class="view on" id="v-welcome">
+    <div class="body">
+      <div class="hero">
+        <div class="logo">💸</div>
+        <h2>เงินฉันอยู่ไหน?</h2>
+        <p>หาเงินที่คุณอาจมีสิทธิ์ และโอกาสหารายได้ ที่เหมาะกับชีวิตคุณ</p>
+      </div>
+      <h3 style="margin-top:4px">อยากเริ่มแบบไหน</h3>
+      <div class="mode ai" onclick="withConsent(startChat)">
+        <div class="ic">🤖</div>
+        <div><b>คุยกับ AI</b><span class="rec">แนะนำ</span><div class="mut">ตอบคำถามสั้นๆ ให้ AI ช่วยหาให้</div></div>
+      </div>
+      <div class="mode man" onclick="withConsent(() => go('manual'))">
+        <div class="ic">🧭</div>
+        <div><b>เลือกเอง</b><div class="mut">เลือกหมวดและกรอกข้อมูลเอง</div></div>
+      </div>
+      <div class="note">แอปไม่รับประกันว่าจะได้เงินหรือได้งาน ผลทั้งหมดต้องตรวจสอบกับหน่วยงานทางการ</div>
+    </div>
+  </div>
+
+  <!-- 1b Home for returning users -->
+  <div class="view" id="v-home"><div class="body" id="homeBody"></div></div>
+
+  <!-- 2a Chat intake -->
+  <div class="view" id="v-chat">
+    <div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">คุยกับ AI</div></div>
+    <div class="chat" id="chat"></div>
+    <div class="quick" id="quick"></div>
+    <div class="composer">
+      <input id="chatIn" placeholder="พิมพ์ตอบ หรือแตะตัวเลือก" onkeydown="if(event.key==='Enter')sendText()">
+      <button onclick="sendText()">➤</button>
+    </div>
+  </div>
+
+  <!-- 2b Manual -->
+  <div class="view" id="v-manual">
+    <div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">เลือกเอง</div></div>
+    <div class="body">
+      <label style="margin-top:0">อยากหาอะไร</label>
+      <div class="seg" id="seg" onclick="if(event.target.dataset.t){[...this.children].forEach(c=>c.classList.remove('on'));event.target.classList.add('on')}">
+        <div data-t="A" class="on">💰 เงินที่ควรได้</div><div data-t="B">💼 งาน</div><div data-t="C">🛠️ ทักษะ</div>
+      </div>
+      <label>จังหวัด</label><select><option>กรุงเทพฯ</option><option>เชียงใหม่</option><option>ขอนแก่น</option></select>
+      <label>ทักษะ</label>
+      <div class="chips" onclick="if(event.target.tagName==='SPAN')event.target.classList.toggle('on')"><span class="on">ขับรถ</span><span class="on">ทำอาหาร</span><span>ถ่ายภาพ</span><span>คอมพิวเตอร์</span><span>สอนพิเศษ</span></div>
+      <label>เวลาว่างต่อสัปดาห์</label><select><option>10-20 ชั่วโมง</option><option>20-40 ชั่วโมง</option></select>
+      <label>อยากได้เพิ่มต่อเดือน</label><input value="5,000 บาท">
+      <button class="btn" onclick="go('loading')">หาโอกาสให้ฉัน</button>
+      <button class="btn sec sm" onclick="go('error-missing')">ลองกรณีข้อมูลไม่ครบ</button>
+    </div>
+  </div>
+
+  <!-- 3 Loading -->
+  <div class="view" id="v-loading">
+    <div class="body" style="text-align:center">
+      <div class="big" style="margin-top:110px;font-size:54px">🔎</div>
+      <h2>AI กำลังวิเคราะห์</h2>
+      <p class="mut">จับคู่โอกาสกับโปรไฟล์ของคุณ และตรวจแหล่งที่มา</p>
+      <button class="btn" onclick="go('results')">ดูผล (จำลอง)</button>
+      <button class="btn sec sm" onclick="go('error-ai')">ลองกรณี AI ล้มเหลว</button>
+      <button class="btn sec sm" onclick="go('error-none')">ลองกรณีไม่พบผล</button>
+    </div>
+  </div>
+
+  <!-- 4 Results -->
+  <div class="view" id="v-results">
+    <div class="top"><div class="ttl" style="font-size:20px">โอกาสสำหรับคุณ</div></div>
+    <div class="body">
+      <div class="seg" style="margin-bottom:12px"><div class="on">📋 รายการ</div><div onclick="go('map')">🗺️ แผนที่</div></div>
+      <p class="mut" style="margin-top:0">เรียงตามความตรงกับโปรไฟล์ ผลจาก AI ต้องตรวจสอบกับแหล่งทางการก่อนเสมอ</p>
+      <div class="card click" onclick="go('detail')">
+        <div class="row"><div class="row" style="justify-content:flex-start;gap:10px"><div class="badge bA">A</div><b>ตรวจสิทธิ์ภาษีคืน</b></div><span class="score">ตรงมาก</span></div>
+        <p class="mut" style="margin:8px 0 0">เพราะ: มีรายได้และเคยถูกหักภาษี ณ ที่จ่าย</p>
+        <span class="tag t-src">มีแหล่งที่มา</span><span class="tag t-ai">AI วิเคราะห์</span><span class="tag t-mock">DEMO / MOCK</span>
+      </div>
+      <div class="card click" onclick="go('detail')">
+        <div class="row"><div class="row" style="justify-content:flex-start;gap:10px"><div class="badge bB">B</div><b>ขับรถส่งของ รายวัน</b></div><span class="score">ตรงดี</span></div>
+        <p class="mut" style="margin:8px 0 0">เพราะ: ทักษะขับรถ เวลาว่าง 10-20 ชม.</p>
+        <span class="tag t-src">มีแหล่งที่มา</span><span class="tag t-mock">DEMO / MOCK</span>
+      </div>
+      <div class="card click" onclick="go('detail')">
+        <div class="row"><div class="row" style="justify-content:flex-start;gap:10px"><div class="badge bC">C</div><b>รับทำอาหารกล่อง</b></div><span class="score">ตรงพอใช้</span></div>
+        <p class="mut" style="margin:8px 0 0">เพราะ: ทักษะทำอาหาร ต้นทุนต่ำ</p>
+        <span class="tag t-est">ประมาณการ</span><span class="tag t-ai">AI วิเคราะห์</span>
+      </div>
+      <div class="card click" onclick="go('scam')" style="border:1.5px solid #fecaca">
+        <b>⚠️ "ลงทุนวันละ 500 รับ 5,000"</b>
+        <p class="mut" style="margin:6px 0 0">ตรวจพบสัญญาณน่าสงสัย ถูกซ่อนจากรายการแนะนำ แตะเพื่อดูเหตุผล</p>
+        <span class="tag t-mock">DEMO / MOCK</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4b Money Map -->
+  <div class="view" id="v-map">
+    <div class="top"><div class="ttl" style="font-size:20px">โอกาสสำหรับคุณ</div></div>
+    <div style="padding:0 18px 10px;display:flex;gap:8px;align-items:center"><div class="seg" style="flex:1"><div onclick="go('results')">📋 รายการ</div><div class="on">🗺️ แผนที่</div></div><span class="chip2" id="locline" onclick="pickDistrict()" style="white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis"></span></div>
+    <div class="fbar" id="fbar"></div>
+    <div class="rbar"><span>รัศมี</span>
+      <div class="seg" id="rseg"><div data-r="1">1 กม.</div><div data-r="3">3 กม.</div><div data-r="5" class="on">5 กม.</div><div data-r="10">10 กม.</div></div></div>
+    <div id="mapArea">
+      <svg class="bg" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <rect width="100" height="100" fill="#e9efe8"/>
+        <path d="M-5 70 C 20 60, 30 85, 55 62 S 90 40, 105 48" stroke="#a9d3ee" stroke-width="7" fill="none"/>
+        <g stroke="#fff" stroke-width="1.6" fill="none"><path d="M0 30 L100 22"/><path d="M20 0 L35 100"/><path d="M0 85 L100 78"/><path d="M62 0 L70 100"/><path d="M0 50 L100 55"/></g>
+        <g stroke="#f6e3a3" stroke-width="1" fill="none"><path d="M0 12 L100 40"/><path d="M85 0 L80 100"/><path d="M5 100 L50 0"/></g>
+        <circle cx="22" cy="20" r="6" fill="#cfe7c8"/><circle cx="78" cy="78" r="7" fill="#cfe7c8"/>
+      </svg>
+      <div class="ring" id="ring"></div>
+      <div id="pins"></div>
+      <div class="me" id="me"></div>
+      <div class="nolocal" id="nolocal" onclick="openList()"></div>
+      <div class="mapbtns"><div onclick="event.stopPropagation();zoomR(-1)">＋</div><div onclick="event.stopPropagation();zoomR(1)">－</div><div onclick="event.stopPropagation();recenter()">📍</div></div>
+      <div class="searchhere hidden" id="searchhere" onclick="event.stopPropagation();searchHere()">🔄 ค้นหาในพื้นที่นี้</div>
+      <div class="scalebar" id="scalebar"></div>
+      <div class="attr">ภาพแผนที่จำลอง (จริงใช้ © OpenStreetMap)</div>
+      <div class="mapbanner hidden" id="mapbanner"></div>
+      <div id="mapempty" class="hidden"></div>
+      <div id="maperr" class="hidden"><div style="font-size:40px">📡</div><b>โหลดข้อมูลไม่สำเร็จ</b><p class="mut">แอปจะไม่แสดงข้อมูลที่เดาขึ้นเอง</p><button class="btn sm" onclick="event.stopPropagation();setSim(null)">ลองใหม่</button><button class="btn sec sm" onclick="event.stopPropagation();go('results')">ดูรายการแทน</button></div>
+      <div class="sheet" id="sheet"></div>
+      <div class="toast" id="toast"></div>
+    </div>
+    <div class="mut" style="padding:8px 18px 4px" id="mapcount"></div>
+  </div>
+
+  <!-- 5 Detail -->
+  <div class="view" id="v-detail">
+    <div class="top"><div class="back" onclick="go('results')">‹</div><div class="ttl">รายละเอียด</div></div>
+    <div class="body">
+      <div class="row" style="justify-content:flex-start;gap:10px"><div class="badge bA">A</div><h2 style="margin:0">ตรวจสิทธิ์ภาษีคืน</h2></div>
+      <span class="tag t-src">มีแหล่งที่มา</span><span class="tag t-mock">DEMO / MOCK</span>
+      <div class="card" style="margin-top:12px"><b>📚 แหล่งที่มา</b><p class="mut" style="margin:6px 0 0">กรมสรรพากร (ตัวอย่างอ้างอิง) เอกสารสมมติ เวอร์ชัน 2026-01 ตรวจล่าสุด: สมมติ</p></div>
+      <div class="card"><b>✅ เงื่อนไข</b><ul style="margin:6px 0 0;padding-left:18px"><li>ยื่นแบบภายในกำหนด</li><li>มีหลักฐานการหักภาษี ณ ที่จ่าย</li></ul></div>
+      <div class="card"><b>❓ ความไม่แน่นอน</b><p class="mut" style="margin:6px 0 0">แอปไม่ทราบข้อมูลภาษีจริงของคุณ ต้องตรวจสิทธิ์กับหน่วยงานทางการ</p></div>
+      <div class="note">ไม่รับประกันว่าจะได้เงินคืน สิทธิ์จริงตัดสินโดยหน่วยงานทางการ</div>
+      <button class="btn" onclick="go('planner')">ดูแผนรายได้</button>
+      <button class="btn sec" onclick="go('checklist')">ไปที่ขั้นตอนลงมือทำ</button>
+    </div>
+  </div>
+
+  <!-- 6 Planner -->
+  <div class="view" id="v-planner">
+    <div class="top"><div class="back" onclick="go('detail')">‹</div><div class="ttl">แผนรายได้</div></div>
+    <div class="body">
+      <p class="mut" style="margin-top:0">ตัวเลขเป็นประมาณการตามสมมติฐานด้านล่าง <span class="tag t-est" style="margin:0">ประมาณการ</span></p>
+      <div class="card"><table>
+        <tr><th></th><th>ส่งของ</th><th>อาหารกล่อง</th></tr>
+        <tr><td>รายได้/เดือน</td><td>6,000</td><td>8,000</td></tr>
+        <tr><td>ต้นทุนตรง</td><td>1,500</td><td>3,000</td></tr>
+        <tr><td><b>สุทธิ (ประมาณ)</b></td><td><b>4,500</b></td><td><b>5,000</b></td></tr>
+        <tr><td>แรงที่ใช้</td><td>สูง</td><td>กลาง</td></tr>
+        <tr><td>กว่าจะได้เงิน</td><td>1 สัปดาห์</td><td>2-3 สัปดาห์</td></tr>
+        <tr><td>ความเสี่ยง</td><td>ค่าน้ำมัน</td><td>ลูกค้าไม่แน่นอน</td></tr>
+      </table></div>
+      <h3>สมมติฐาน</h3>
+      <ul style="padding-left:18px"><li>ทำงาน 15 ชั่วโมงต่อสัปดาห์</li><li>ราคาน้ำมันและวัตถุดิบเป็นค่าสมมติ</li></ul>
+      <button class="btn" onclick="go('checklist')">เลือกแผนและเริ่มลงมือ</button>
+    </div>
+  </div>
+
+  <!-- 7 Checklist -->
+  <div class="view" id="v-checklist">
+    <div class="top"><div class="back" onclick="go('results')">‹</div><div class="ttl">ขั้นตอนลงมือทำ</div></div>
+    <div class="body">
+      <div class="card">
+        <div class="chk"><input type="checkbox" checked> เตรียมบัตรประชาชนและหลักฐานการหักภาษี</div>
+        <div class="chk"><input type="checkbox"> เข้าตรวจสิทธิ์ผ่านเว็บไซต์ทางการ</div>
+        <div class="chk"><input type="checkbox"> ยื่นคำขอกับหน่วยงานด้วยตัวเอง</div>
+        <div class="chk"><input type="checkbox"> เก็บหลักฐานการยื่นคำขอ</div>
+      </div>
+      <div class="note">แอปไม่ยื่นคำขอแทนคุณ ปุ่มด้านล่างพาไปยังช่องทางทางการ (ตัวอย่าง)</div>
+      <button class="btn sec" >เปิดช่องทางทางการ (จำลอง)</button>
+      <button class="btn" onclick="go('tracker')">บันทึกความคืบหน้า</button>
+    </div>
+  </div>
+
+  <!-- 8 Tracker -->
+  <div class="view" id="v-tracker">
+    <div class="top"><div class="ttl" style="font-size:20px">ความคืบหน้า</div></div>
+    <div class="body">
+      <div class="card">
+        <div class="row"><b>ตรวจสิทธิ์ภาษีคืน</b><span class="tag t-user" style="margin:0">ผู้ใช้แจ้ง</span></div>
+        <div class="prog"><i class="on"></i><i class="on"></i><i></i><i></i></div>
+        <div class="mut">ขั้นที่ 2 จาก 4: เข้าตรวจสิทธิ์ (ผู้ใช้แจ้งเอง ยังไม่ยืนยันจากหน่วยงาน)</div>
+        <button class="btn sec sm">อัปเดตสถานะ</button>
+      </div>
+      <div class="card">
+        <div class="row"><b>สมัครงานขับรถส่งของ</b><span class="tag t-user" style="margin:0">ผู้ใช้แจ้ง</span></div>
+        <div class="prog"><i class="on"></i><i></i><i></i><i></i></div>
+        <div class="mut">ขั้นที่ 1 จาก 4: เตรียมเอกสาร</div>
+      </div>
+      <div class="card"><span class="tag t-src" style="margin:0">ยืนยันจากภายนอก</span><p class="mut" style="margin:8px 0 0">ยังไม่มีรายการที่ยืนยันจากแหล่งภายนอกในเวอร์ชันนี้</p></div>
+    </div>
+  </div>
+
+  <!-- 9 Scam -->
+  <div class="view" id="v-scam">
+    <div class="top"><div class="back" onclick="go('results')">‹</div><div class="ttl">สัญญาณเตือน</div></div>
+    <div class="body">
+      <div class="bad"><b>⚠️ พบสัญญาณที่น่าสงสัย</b></div>
+      <div class="card"><ul style="margin:0;padding-left:18px"><li>เรียกเก็บเงินล่วงหน้าก่อนได้งาน/เงิน</li><li>สัญญาผลตอบแทนสูงผิดปกติ</li><li>ขอรหัส OTP หรือรหัสผ่านธนาคาร</li></ul></div>
+      <div class="note">ระบบตรวจจับได้ไม่ครบทุกกรณี ห้ามโอนเงินหรือให้รหัสใดๆ ตรวจสอบกับหน่วยงานทางการก่อน</div>
+      <button class="btn" onclick="go('results')">กลับ</button>
+    </div>
+  </div>
+
+  <!-- Errors -->
+  <div class="view" id="v-error-missing"><div class="top"><div class="back" onclick="go('manual')">‹</div><div class="ttl">ข้อมูลไม่พอ</div></div>
+    <div class="body"><div class="note">ยังขาดข้อมูล: จังหวัด และเวลาว่าง ใส่เพิ่มเพื่อให้จับคู่ได้ดีขึ้น (หรือให้ AI ถามให้ก็ได้)</div>
+    <button class="btn" onclick="startChat()">ให้ AI ถามต่อ</button><button class="btn sec" onclick="go('manual')">กลับไปกรอก</button></div></div>
+  <div class="view" id="v-error-none"><div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">ไม่พบผล</div></div>
+    <div class="body"><div class="note">ยังไม่พบโอกาสที่ตรงกับโปรไฟล์นี้ ลองขยายพื้นที่หรือเพิ่มทักษะ</div><button class="btn" onclick="go('welcome')">เริ่มใหม่</button></div></div>
+  <div class="view" id="v-error-ai"><div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">ระบบขัดข้อง</div></div>
+    <div class="body"><div class="bad">AI ใช้งานไม่ได้ชั่วคราว แอปจะไม่แสดงผลที่เดาขึ้นเอง</div><button class="btn" onclick="go('loading')">ลองใหม่</button><button class="btn sec" onclick="go('manual')">ใช้แบบเลือกเอง</button></div></div>
+
+  <div class="modal" id="modal" onclick="if(event.target===this)closeModal()"><div class="msheet" id="msheet"></div></div>
+  <div class="toast" id="gtoast" style="z-index:60"></div>
+
+  <div class="tabs" id="tabs">
+    <div id="tab-home" onclick="goHome()"><span>🏠</span>หน้าแรก</div>
+    <div id="tab-res" onclick="go('results')"><span>✨</span>โอกาส</div>
+    <div id="tab-trk" onclick="go('tracker')"><span>📈</span>ความคืบหน้า</div>
+  </div>
+</div></div>
+
+<script>
+const screens = [
+  ['g','เริ่มต้น'],['welcome','1 เลือกวิธี (ผู้ใช้ใหม่)'],['home','1b หน้าแรก (ผู้ใช้เดิม)'],['chat','2a คุยกับ AI'],['manual','2b เลือกเอง'],['loading','3 กำลังวิเคราะห์'],
+  ['g','ผลและการลงมือ'],['results','4 ผลลัพธ์ (รายการ)'],['map','4b แผนที่ Money Map'],['detail','5 รายละเอียดและแหล่งที่มา'],['planner','6 แผนรายได้'],
+  ['checklist','7 เช็คลิสต์ลงมือทำ'],['tracker','8 ติดตามความคืบหน้า'],['scam','9 สัญญาณหลอกลวง'],
+  ['g','กรณีผิดปกติ'],['error-missing','E1 ข้อมูลไม่พอ'],['error-none','E2 ไม่พบผล'],['error-ai','E3 AI ล้มเหลว']
+];
+const nav = document.getElementById('nav');
+screens.forEach(([id,label]) => {
+  if (id === 'g') { const d = document.createElement('div'); d.className = 'grp'; d.textContent = label; nav.appendChild(d); return; }
+  const b = document.createElement('button'); b.textContent = label; b.id = 'nav-'+id;
+  b.onclick = () => id === 'chat' ? startChat() : go(id); nav.appendChild(b);
+});
+const noTabs = ['chat','loading','scam'];
+function go(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+  document.getElementById('v-'+id).classList.add('on');
+  if (id === 'map') { renderMap(); if (loc.state === 'ask') askLoc(); }
+  if (id === 'home') renderHome();
+  if (id === 'tracker') renderTracker();
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'));
+  const nb = document.getElementById('nav-'+id); if (nb) nb.classList.add('on');
+  document.getElementById('tabs').classList.toggle('hidden', noTabs.includes(id));
+  document.querySelectorAll('.tabs div').forEach(t => t.classList.remove('on'));
+  const t = {welcome:'tab-home',home:'tab-home',results:'tab-res',map:'tab-res',tracker:'tab-trk'}[id]; if (t) document.getElementById(t).classList.add('on');
+}
+
+/* Scripted AI chat (mock): every reply is canned, no real AI is called. */
+const steps = [
+  { q:'สวัสดีค่ะ ฉันเป็นผู้ช่วย AI วันนี้อยากให้ช่วยเรื่องอะไรมากที่สุดคะ', opts:['ตรวจเงินที่ควรได้','หางาน','หารายได้จากทักษะ','ยังไม่แน่ใจ'], key:'เป้าหมาย' },
+  { q:'อยู่จังหวัดไหนคะ จะได้หางานหรือสิทธิ์ที่ใกล้ตัว', opts:['กรุงเทพฯ','เชียงใหม่','ขอนแก่น','จังหวัดอื่น'], key:'จังหวัด' },
+  { q:'ถนัดหรือทำอะไรได้บ้างคะ พิมพ์เองก็ได้', opts:['ขับรถ','ทำอาหาร','คอมพิวเตอร์','ยังไม่มีทักษะเฉพาะ'], key:'ทักษะ' },
+  { q:'ว่างทำงานสัปดาห์ละกี่ชั่วโมงคะ', opts:['ไม่เกิน 10','10-20','20-40','เต็มเวลา'], key:'เวลาว่าง' },
+  { q:'อยากได้รายได้เพิ่มเดือนละเท่าไหร่คะ', opts:['ไม่เกิน 3,000','3,000-5,000','5,000-10,000','มากกว่า 10,000'], key:'เป้ารายได้' }
+];
+let si = 0, answers = [];
+const chat = document.getElementById('chat'), quick = document.getElementById('quick');
+function bubble(cls, text) { const d = document.createElement('div'); d.className = 'msg '+cls; d.textContent = text; chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d; }
+function aiSay(text, after) {
+  const w = document.createElement('div'); w.className = 'who'; w.textContent = 'AI (จำลอง)'; chat.appendChild(w);
+  const t = document.createElement('div'); t.className = 'typing'; t.innerHTML = '<i></i><i></i><i></i>'; chat.appendChild(t); chat.scrollTop = chat.scrollHeight;
+  setTimeout(() => { t.remove(); bubble('ai', text); if (after) after(); }, 700);
+}
+function ask() {
+  quick.innerHTML = '';
+  if (si >= steps.length) return summary();
+  const s = steps[si];
+  aiSay(s.q, () => { s.opts.forEach(o => { const c = document.createElement('span'); c.textContent = o; c.onclick = () => answer(o); quick.appendChild(c); }); });
+}
+function answer(text) {
+  if (!text.trim() || si >= steps.length) return;
+  bubble('me', text); answers.push([steps[si].key, text]); si++; quick.innerHTML = ''; setTimeout(ask, 250);
+}
+function sendText() { const i = document.getElementById('chatIn'); const v = i.value; i.value = ''; answer(v); }
+function summary() {
+  aiSay('ขอบคุณค่ะ สรุปข้อมูลที่ได้ ถูกต้องไหมคะ (เก็บเท่าที่จำเป็นเท่านั้น)', () => {
+    const s = document.createElement('div'); s.className = 'sum';
+    s.innerHTML = answers.map(a => '<div><span class="mut">'+a[0]+'</span><b>'+a[1].replace(/</g,'&lt;')+'</b></div>').join('') + '<span class="tag t-user">ผู้ใช้แจ้ง</span><span class="tag t-mock">DEMO / MOCK</span>';
+    chat.appendChild(s);
+    const b = document.createElement('button'); b.className = 'btn'; b.textContent = 'ถูกต้อง ให้ AI หาโอกาสเลย'; b.onclick = () => go('loading'); chat.appendChild(b);
+    const m = document.createElement('button'); m.className = 'btn sec sm'; m.textContent = 'ขอแก้ไขเอง'; m.onclick = () => go('manual'); chat.appendChild(m);
+    chat.scrollTop = chat.scrollHeight;
+  });
+}
+/* ---------- Money Map (mock data; positions are km offsets from the user point) ---------- */
+const GROUPS = {
+  job:{ic:'💼',c:'#2563eb',n:'งาน'}, skill:{ic:'🛠️',c:'#d97706',n:'ทักษะ'},
+  sell:{ic:'🏪',c:'#7c3aed',n:'ขายของ'}, money:{ic:'💰',c:'#0e9f6e',n:'เงิน/สิทธิ์'}
+};
+const STATUS = { cur:['Curated (ตัวอย่างรูปแบบ)','t-src'], opn:['Open data (ข้อมูลเก่า)','t-est'], osm:['สถานที่จาก OSM (ยังไม่ยืนยันว่ารับซื้อ)','t-ai'], mock:['DEMO / MOCK','t-mock'] };
+const TIER = { 1:['ระบุจำนวนโดยแหล่งทางการ','#166534','#dcfce7'], 2:['ช่วงตามประกาศ (ไม่ใช่ค่าที่รับประกัน)','#1e40af','#dbeafe'], 3:['ไม่ระบุจำนวนเงิน','#475569','#e2e8f0'] };
+const ITEMS = [
+  {id:'j1',g:'job',t:'งานแพ็คของ รายวัน',dx:1.2,dy:-0.8,tier:2,amt:'400-450',unit:'บาท/วัน ตามที่ประกาศ',short:'฿400-450',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'เดินทางใกล้ เวลาทำงานยืดหยุ่น ไม่ต้องลงทุน',cond:['ทำงาน 4-6 ชม./วัน','ไม่ต้องมีประสบการณ์']},
+  {id:'j2',g:'job',t:'ผู้ช่วยร้านอาหาร พาร์ตไทม์',dx:-2.1,dy:1.4,tier:2,amt:'55-60',unit:'บาท/ชั่วโมง ตามที่ประกาศ',short:'฿55-60/ชม.',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ตรงกับทักษะทำอาหาร',cond:['กะเย็น 17:00-22:00','มีอาหารให้ 1 มื้อ']},
+  {id:'j3',g:'job',t:'พนักงานทำความสะอาดสำนักงาน',dx:3.4,dy:2.2,tier:3,known:'ประกาศไม่ระบุค่าจ้าง ต้องสอบถามผู้ประกาศ',aiEst:'ประมาณ 350-450 บาท/วัน จากงานลักษณะใกล้เคียง (ประมาณการโดย AI ไม่ใช่ข้อมูลจากประกาศ)',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ไม่ต้องใช้ทักษะพิเศษ',cond:['ทำงานเช้า']},
+  {id:'j4',g:'job',t:'คนขับรถส่งของ รายวัน',dx:-4.5,dy:-2.8,tier:2,amt:'500-700',unit:'บาท/วัน ก่อนหักค่าน้ำมัน',short:'฿500-700',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ตรงกับทักษะขับรถ',cond:['ต้องมีใบขับขี่','ใช้รถของร้านหรือรถตัวเอง']},
+  {id:'j5',g:'job',t:'พิมพ์เอกสาร (ฟรีแลนซ์ ทำที่ออฟฟิศ)',dx:7,dy:3,tier:2,amt:'300-500',unit:'บาท/งาน ตามที่ประกาศ',short:'฿300-500',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ใช้คอมพิวเตอร์เบื้องต้น',cond:['ส่งงานภายใน 2 วัน']},
+  {id:'s1',g:'skill',t:'โรงเรียนฝึกอาชีพ (ตัวอย่าง 1)',dx:0.9,dy:2.6,tier:3,known:'ฝึกอาชีพฟรีสำหรับผู้ว่างงาน ไม่ใช่เงินสด ได้ทักษะเพิ่ม',aiEst:'อาจประหยัดค่าเรียนราว 3,000-6,000 บาท (ประมาณการโดย AI ไม่ใช่ข้อมูลจากแหล่ง)',st:'opn',src:'ชุดข้อมูลเปิด กทม. (ที่ตั้ง)',date:'ข้อมูลปี 2564 ต้องโทรยืนยันก่อนไป',why:'เพิ่มทักษะเพื่อหารายได้ในอนาคต',cond:['ต้องตรวจรอบเปิดรับ','เงื่อนไขผู้สมัครต้องสอบถามโรงเรียน']},
+  {id:'s2',g:'skill',t:'โรงเรียนฝึกอาชีพ (ตัวอย่าง 2)',dx:-3.6,dy:-1.2,tier:3,known:'ฝึกอาชีพฟรี ไม่ใช่เงินสด',st:'opn',src:'ชุดข้อมูลเปิด กทม. (ที่ตั้ง)',date:'ข้อมูลปี 2564 ต้องโทรยืนยันก่อนไป',why:'เพิ่มทักษะ',cond:['ต้องตรวจรอบเปิดรับ']},
+  {id:'m1',g:'sell',t:'ร้านรับซื้อของเก่า (ตัวอย่าง)',dx:1.8,dy:-2.4,tier:3,known:'ราคาขึ้นกับสินค้า ต้องสอบถามร้าน',st:'osm',src:'OpenStreetMap (เป็นแค่ที่ตั้ง)',date:'ตรวจล่าสุด: สมมติ',why:'ขายของที่ไม่ใช้แล้วได้',cond:['ยังไม่ยืนยันว่าร้านรับซื้อสินค้าประเภทใด','โทรถามก่อนไป']},
+  {id:'m2',g:'sell',t:'ร้านของมือสอง (ตัวอย่าง)',dx:-1.4,dy:-1.1,tier:3,known:'ราคาขึ้นกับสินค้า ต้องสอบถามร้าน',st:'osm',src:'OpenStreetMap (เป็นแค่ที่ตั้ง)',date:'ตรวจล่าสุด: สมมติ',why:'ขายของมือสอง',cond:['โทรถามก่อนไป']},
+  /* no map location: list only */
+  {id:'w1',g:'money',t:'เบี้ยยังชีพผู้สูงอายุ (ตัวอย่าง)',tier:1,amt:'600-1,000',unit:'บาท/เดือน ตามช่วงอายุ (ค่าตัวอย่างสมมติ)',short:'฿600-1,000/เดือน',st:'mock',src:'หน่วยงานที่ดูแลสิทธิ์ (ตัวอย่าง)',date:'ตรวจล่าสุด: สมมติ',why:'อายุของคุณเข้าเกณฑ์ที่ควรตรวจสิทธิ์',cond:['ต้องลงทะเบียนตามช่วงเวลา','สิทธิ์จริงตัดสินโดยหน่วยงาน']},
+  {id:'w2',g:'money',t:'ตรวจสิทธิ์ภาษีคืน',tier:3,known:'จำนวนขึ้นกับข้อมูลภาษีของคุณ แอปไม่ทราบตัวเลขจริง',aiEst:null,st:'mock',src:'กรมสรรพากร (ตัวอย่างอ้างอิง)',date:'ตรวจล่าสุด: สมมติ',why:'เคยถูกหักภาษี ณ ที่จ่าย',cond:['ยื่นแบบภายในกำหนด']},
+  {id:'w3',g:'money',t:'ทุนช่วยเหลือที่ไม่ต้องชำระคืน (ตัวอย่าง)',tier:2,amt:'10,000-50,000',unit:'บาท ตามโครงการ ผู้ผ่านการคัดเลือกเท่านั้น',short:'฿10-50k',st:'mock',src:'หน่วยงานให้ทุน (ตัวอย่าง)',date:'รอบสมัครสิ้นสุด: สมมติ',why:'ตรงกับเป้ารายได้ระยะยาว',cond:['ต้องผ่านการคัดเลือก','ไม่ใช่ทุกคนมีสิทธิ์']},
+  {id:'w4',g:'money',t:'ค่าจ้างค้างรับ/เงินชดเชย',tier:3,known:'จำนวนต้องคำนวณจากข้อเท็จจริงของคุณและตรวจกับหน่วยงาน',st:'mock',src:'หน่วยงานแรงงาน (ตัวอย่าง)',date:'ตรวจล่าสุด: สมมติ',why:'ตรวจว่าควรยื่นเรื่องหรือไม่',cond:['ต้องมีหลักฐานการจ้าง']},
+  {id:'w5',g:'job',t:'งานพิมพ์ต้นฉบับออนไลน์ (ทำที่บ้าน)',tier:2,amt:'300-800',unit:'บาท/งาน ตามที่ประกาศ',short:'฿300-800',st:'mock',src:'ประกาศตัวอย่าง (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ไม่ต้องเดินทาง',cond:['ต้องมีอินเทอร์เน็ต']}
+];
+const mapState = { groups:new Set(['job','skill','sell','money']), r:5, onlyMoney:false, sel:null, px:0, py:0, sx:0, sy:0, moved:false };
+const RADII = [1,3,5,10];
+function zoomR(step) { const i = Math.min(3, Math.max(0, RADII.indexOf(mapState.r) + step)); mapState.r = RADII[i]; closeSheet(); renderMap(); }
+function recenter() { mapState.px = mapState.py = mapState.sx = mapState.sy = 0; closeSheet(); renderMap(); }
+function searchHere() {
+  const area = document.getElementById('mapArea'), half = Math.min(area.clientWidth, area.clientHeight)/2*0.88, scale = half/mapState.r;
+  mapState.sx = -mapState.px/scale; mapState.sy = -mapState.py/scale; closeSheet(); renderMap(); toast('ค้นหาใหม่ในพื้นที่นี้แล้ว (จำลอง)');
+}
+(function () {
+  const a = document.getElementById('mapArea'); let d = null;
+  const start = e => { const p = e.touches ? e.touches[0] : e; d = {x:p.clientX, y:p.clientY, px:mapState.px, py:mapState.py}; mapState.moved = false; };
+  const move = e => { if (!d) return; const p = e.touches ? e.touches[0] : e; const dx = p.clientX-d.x, dy = p.clientY-d.y; if (Math.abs(dx)+Math.abs(dy) > 4) mapState.moved = true; if (!mapState.moved) return; mapState.px = d.px+dx; mapState.py = d.py+dy; renderMap(); };
+  const end = () => { d = null; setTimeout(() => { mapState.moved = false; }, 0); };
+  a.addEventListener('mousedown', start); window.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+  a.addEventListener('touchstart', start, {passive:true}); a.addEventListener('touchmove', move, {passive:true}); a.addEventListener('touchend', end);
+})();
+const fbar = document.getElementById('fbar');
+const FCHIPS = [['all','ทั้งหมด'],['job','💼 งาน'],['skill','🛠️ ทักษะ'],['sell','🏪 ขายของ'],['money','💰 เงิน/สิทธิ์'],['$','💵 เฉพาะที่ระบุเงิน'],['!','⚠️ น่าสงสัย']];
+FCHIPS.forEach(([k,l]) => { const s = document.createElement('span'); s.textContent = l; s.dataset.k = k; s.onclick = () => chipClick(k); fbar.appendChild(s); });
+function chipClick(k) {
+  if (k === 'all') { mapState.groups = new Set(['job','skill','sell','money']); mapState.onlyMoney = false; }
+  else if (k === '$') mapState.onlyMoney = !mapState.onlyMoney;
+  else if (k === '!') mapState.showScam = !mapState.showScam;
+  else { if (mapState.groups.size === 4) mapState.groups = new Set([k]); else if (mapState.groups.has(k)) { mapState.groups.delete(k); if (!mapState.groups.size) mapState.groups = new Set(['job','skill','sell','money']); } else mapState.groups.add(k); }
+  closeSheet(); renderMap();
+}
+document.getElementById('rseg').onclick = e => { const r = e.target.dataset.r; if (!r) return; mapState.r = +r; closeSheet(); renderMap(); };
+const dist = it => Math.hypot(it.dx, it.dy);
+function toast(m) { const t = document.getElementById('gtoast'); t.textContent = m; t.classList.remove('undo'); t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.remove('on'), 2200); }
+function closeSheet() { document.getElementById('sheet').classList.remove('open'); mapState.sel = null; document.querySelectorAll('.pin').forEach(p => p.classList.remove('sel')); }
+function renderMap() {
+  const area = document.getElementById('mapArea'); const w = area.clientWidth, h = area.clientHeight; if (!w) return;
+  const cx = w/2, cy = h/2, half = Math.min(w,h)/2*0.88, scale = half / mapState.r;
+  const ring = document.getElementById('ring'); ring.style.left = (cx+mapState.px+mapState.sx*scale)+'px'; ring.style.top = (cy+mapState.py+mapState.sy*scale)+'px'; ring.style.width = ring.style.height = (half*2)+'px';
+  const me = document.getElementById('me'); me.style.left = (cx+mapState.px)+'px'; me.style.top = (cy+mapState.py)+'px';
+  const vcx = -mapState.px/scale, vcy = -mapState.py/scale;
+  document.getElementById('searchhere').classList.toggle('hidden', Math.hypot(vcx-mapState.sx, vcy-mapState.sy) <= mapState.r*0.25);
+  document.getElementById('scalebar').textContent = 'รัศมี '+mapState.r+' กม.';
+  document.querySelectorAll('#fbar span').forEach(s => { const k = s.dataset.k; s.classList.toggle('on', k === 'all' ? mapState.groups.size === 4 && !mapState.onlyMoney : k === '$' ? mapState.onlyMoney : k === '!' ? mapState.showScam : mapState.groups.size < 4 && mapState.groups.has(k)); });
+  document.querySelectorAll('#rseg div').forEach(d => d.classList.toggle('on', +d.dataset.r === mapState.r));
+  const pins = document.getElementById('pins'); pins.innerHTML = '';
+  const ok = it => mapState.groups.has(it.g) && (!mapState.onlyMoney || it.tier < 3) && (!it.scam || mapState.showScam);
+  const onMap = ITEMS.filter(i => i.dx !== undefined && ok(i) && Math.hypot(i.dx-mapState.sx, i.dy-mapState.sy) <= mapState.r);
+  onMap.forEach(it => {
+    const g = GROUPS[it.g]; const p = document.createElement('div'); p.className = 'pin'+(it.st==='mock'?' mock':''); p.dataset.id = it.id;
+    p.style.left = (cx+mapState.px + it.dx*scale)+'px'; p.style.top = (cy+mapState.py + it.dy*scale)+'px';
+    p.innerHTML = (it.tier < 3 ? '<div class="amt">'+it.short+'</div>' : '') + '<div class="dot" style="background:'+(it.scam?'#b42318':g.c)+'"><b>'+(it.scam?'⚠️':g.ic)+'</b></div>' + (it.age > 30 ? '<span class="age" title="ข้อมูลเก่า">⏳</span>' : '');
+    p.onclick = ev => { ev.stopPropagation(); if (mapState.moved) return; openItem(it.id); }; pins.appendChild(p);
+  });
+  const noLoc = ITEMS.filter(i => i.dx === undefined && ok(i));
+  const nl = document.getElementById('nolocal'); nl.textContent = '📋 ไม่มีที่ตั้ง '+noLoc.length+' รายการ'; nl.style.display = noLoc.length ? 'block' : 'none';
+  document.getElementById('mapcount').textContent = 'พบ '+onMap.length+' แห่งในรัศมี '+mapState.r+' กม. และ '+noLoc.length+' รายการที่ไม่ผูกสถานที่';
+  mapStates(onMap.length);
+  area.onclick = () => { if (!mapState.moved) closeSheet(); };
+}
+function openItem(id) {
+  const it = ITEMS.find(i => i.id === id); mapState.sel = id;
+  document.querySelectorAll('.pin').forEach(p => p.classList.toggle('sel', p.dataset.id === id));
+  const g = GROUPS[it.g], t = TIER[it.tier], s = STATUS[it.st];
+  const place = it.dx === undefined ? 'ไม่ผูกสถานที่ (แสดงเฉพาะในรายการ)' : 'ห่างจากคุณประมาณ '+dist(it).toFixed(1)+' กม.';
+  const amountBox = it.scam ? '<div class="bad"><b>⚠️ พบสัญญาณน่าสงสัย</b><br>เรียกเก็บเงินล่วงหน้า และสัญญาผลตอบแทนสูงผิดปกติ ห้ามโอนเงินหรือให้รหัสใดๆ ตรวจกับหน่วยงานทางการก่อน (ระบบตรวจจับได้ไม่ครบทุกกรณี)</div>' : it.tier < 3
+    ? '<div class="amtbox" style="background:'+t[2]+';color:'+t[1]+'"><div class="lab">'+t[0]+'</div><div class="val">฿'+it.amt+'</div><div style="font-size:12px">'+it.unit+'</div></div>'
+    : '<div class="amtbox" style="background:'+t[2]+';color:'+t[1]+'"><div class="lab">'+t[0]+'</div><div style="font-size:19px;font-weight:800;margin:3px 0">ไม่ทราบจำนวนเงิน</div><div style="font-size:12px">สิ่งที่ทราบ: '+it.known+'</div>'
+      + (it.aiEst ? '<button class="btn sec sm" style="margin-top:8px" onclick="document.getElementById(\'ai-'+it.id+'\').classList.remove(\'hidden\');this.remove()">ให้ AI ประมาณการ (ไม่ใช่ข้อมูลจริง)</button><div class="aiest hidden" id="ai-'+it.id+'">🤖 '+it.aiEst+'</div>' : '') + '</div>';
+  document.getElementById('sheet').innerHTML =
+    '<div class="grab"></div><div class="row"><div class="row" style="gap:10px;justify-content:flex-start"><div class="badge" style="background:'+g.c+'">'+g.ic+'</div><b style="font-size:16px">'+it.t+'</b></div><span class="mut" style="cursor:pointer;font-size:20px" onclick="closeSheet()">✕</span></div>'
+    + '<span class="tag '+s[1]+'">'+s[0]+'</span><span class="tag t-user" style="background:#e2e8f0;color:#334155">'+g.n+'</span>'
+    + amountBox
+    + '<p style="margin:4px 0"><b>📍</b> '+place+'</p>'
+    + '<p style="margin:4px 0">'+freshHtml(it)+'</p>'
+    + '<p style="margin:4px 0"><b>🤖 ทำไมตรงกับคุณ:</b> '+it.why+' <span class="tag t-ai" style="margin:0">AI วิเคราะห์</span></p>'
+    + '<h3 style="margin:10px 0 4px">เงื่อนไข</h3><ul style="margin:0;padding-left:18px">'+it.cond.map(c => '<li>'+c+'</li>').join('')+'</ul>'
+    + '<h3 style="margin:10px 0 4px">แหล่งที่มา</h3><p class="mut" style="margin:0">'+it.src+'<br>'+it.date+'</p>'
+    + '<div class="note">ไม่รับประกันว่าจะได้เงินหรือได้งาน ตรวจสอบกับผู้ประกาศหรือหน่วยงานก่อนเสมอ</div>'
+    + (it.scam
+      ? '<button class="btn" onclick="go(\'scam\')">ดูเหตุผลที่เตือน</button><button class="btn sec sm" onclick="toast(\'ขอบคุณ ส่งรายงานแล้ว (จำลอง)\')">รายงานประกาศนี้</button>'
+      : '<button class="btn" onclick="sourceOpen(\''+it.id+'\')">ดูประกาศต้นทาง ↗</button><button class="btn sec sm" onclick="addPlan(\''+it.id+'\',1)">＋ บันทึกไว้ในความคืบหน้า</button>');
+  document.getElementById('sheet').classList.add('open');
+}
+function openList() {
+  const ok = it => mapState.groups.has(it.g) && (!mapState.onlyMoney || it.tier < 3) && (!it.scam || mapState.showScam);
+  const rows = ITEMS.filter(i => i.dx === undefined && ok(i)).map(it => { const g = GROUPS[it.g];
+    return '<div class="li" onclick="openItem(\''+it.id+'\')"><div class="ic" style="background:'+g.c+'">'+g.ic+'</div><div><b style="font-size:13.5px">'+it.t+'</b><div class="mut">'+(it.tier<3?TIER[it.tier][0]:'ไม่ระบุจำนวนเงิน')+'</div></div><div class="r" style="color:'+(it.tier<3?TIER[it.tier][1]:'#64748b')+'">'+(it.tier<3?it.short:'-')+'</div></div>'; }).join('');
+  document.getElementById('sheet').innerHTML = '<div class="grab"></div><b style="font-size:16px">รายการที่ไม่ผูกสถานที่</b><p class="mut">สิทธิ์ เงินที่ต้องตรวจ และงานออนไลน์ ไม่มีตำแหน่งจริงจึงไม่ปักหมุด</p>'+rows;
+  document.getElementById('sheet').classList.add('open');
+}
+/* ---------- Progress tracking (all progress is user-reported in this mock) ---------- */
+let returning = false, xl = false;
+let tasks = [
+  {id:'t1',title:'ตรวจสิทธิ์ภาษีคืน',steps:['เตรียมบัตรประชาชนและหลักฐานหักภาษี','เข้าตรวจสิทธิ์ผ่านเว็บไซต์ทางการ','ยื่นคำขอกับหน่วยงาน','รอผลจากหน่วยงาน'],done:1,due:'ควรทำภายใน 31 ธ.ค. (ตัวอย่าง)'},
+  {id:'t2',title:'สมัครงานขับรถส่งของ',steps:['เตรียมเอกสาร','ติดต่อผู้ประกาศ','ไปสัมภาษณ์','เริ่มงาน'],done:1,due:''}
+];
+const esc = s => String(s).replace(/</g,'&lt;');
+const finished = t => t.done >= t.steps.length;
+const nextTask = () => tasks.find(t => !finished(t) && !t.blocked) || tasks.find(t => !finished(t));
+const segs = t => '<div class="prog">'+t.steps.map((s,i) => '<i class="'+(i<t.done?'on':'')+'"></i>').join('')+'</div>';
+const stTag = t => finished(t) ? '<span class="tag t-user" style="margin:0">ครบตามที่คุณแจ้ง</span>' : t.blocked ? '<span class="tag t-est" style="margin:0">ติดปัญหา</span>' : '<span class="tag t-user" style="margin:0">ผู้ใช้แจ้ง</span>';
+const refresh = () => { renderHome(); renderTracker(); };
+function goHome() { go(returning ? 'home' : 'welcome'); }
+function toggleUser() { returning = !returning; document.getElementById('usrToggle').textContent = '👤 ผู้ใช้: '+(returning?'กลับมาใช้ มีงานค้าง':'ครั้งแรก')+' (กดสลับ)'; goHome(); }
+function toggleXL() { xl = !xl; document.querySelector('.screen').classList.toggle('xl', xl); renderHome(); }
+function modal(html) { document.getElementById('msheet').innerHTML = '<div class="grab"></div>'+html; document.getElementById('modal').classList.add('on'); }
+function closeModal() { document.getElementById('modal').classList.remove('on'); }
+function toastUndo(m, fn) {
+  const t = document.getElementById('gtoast'); t.innerHTML = m+' <u id="undoBtn" style="margin-left:10px;cursor:pointer;color:#6ee7b7">เลิกทำ</u>';
+  t.classList.add('on','undo'); document.getElementById('undoBtn').onclick = () => { fn(); t.classList.remove('on'); };
+  clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.remove('on'), 5000);
+}
+function renderHome() {
+  const n = nextTask(), active = tasks.filter(t => !finished(t));
+  let h = '<div class="row" style="margin:2px 0 10px"><div><div class="mut">ยินดีต้อนรับกลับ</div><b style="font-size:21px">สวัสดี คุณ'+persona.name+' 👋</b><div class="mut">'+persona.sub+'</div></div><span class="chip2" onclick="toggleXL()">'+(xl?'ตัวอักษรปกติ':'A+ ตัวใหญ่')+'</span></div>';
+  h += '<div class="chip2" onclick="go(\'manual\')" style="margin-bottom:14px">📍 '+persona.chip+' <b style="color:var(--pd)">แก้ไข</b></div>';
+  if (n) {
+    h += '<div class="next"><div class="lab">ขั้นต่อไปของคุณ</div><h2>'+esc(n.title)+'</h2><div style="font-size:14px;opacity:.95">ขั้นที่ '+(n.done+1)+' จาก '+n.steps.length+': '+esc(n.steps[n.done])+'</div>'
+      + (n.due ? '<div style="font-size:12px;opacity:.85;margin-top:4px">⏰ '+esc(n.due)+'</div>' : '')
+      + '<button class="btn" onclick="openUpd(\''+n.id+'\')">ทำต่อ</button><button class="btn ghost" onclick="snooze(\''+n.id+'\')">ไว้ทีหลัง</button></div>';
+  } else h += '<div class="card"><b>🎉 ไม่มีงานค้าง</b><p class="mut" style="margin:6px 0 0">ครบทุกขั้นตามที่คุณแจ้งแล้ว ลองหาโอกาสใหม่ด้านล่าง</p></div>';
+  if (active.length > 1 || (active.length === 1 && !n)) {
+    h += '<h3>งานที่กำลังทำ</h3>' + active.map(t => '<div class="card click" onclick="openUpd(\''+t.id+'\')"><div class="row"><b>'+esc(t.title)+'</b>'+stTag(t)+'</div>'+segs(t)+'<div class="mut">'+t.done+' จาก '+t.steps.length+' ขั้น</div></div>').join('');
+  }
+  h += '<h3>มีโอกาสใหม่ใกล้คุณ</h3><div class="card click" onclick="go(\'map\')"><div class="row"><div><b>พบ '+nearCount()+' แห่งในรัศมี 5 กม.</b><div class="mut">ดูบนแผนที่</div></div><span style="font-size:26px">🗺️</span></div></div>';
+  h += '<h3>หาโอกาสเพิ่ม</h3><div class="row" style="gap:10px"><button class="btn sec sm" style="margin:0" onclick="startChat()">🤖 คุยกับ AI</button><button class="btn sec sm" style="margin:0" onclick="go(\'manual\')">🧭 เลือกเอง</button></div>';
+  h += '<p class="mut" style="margin-top:14px">ความคืบหน้าเป็นข้อมูลที่คุณแจ้งเอง ยังไม่ได้ยืนยันจากหน่วยงาน (DEMO / MOCK)</p>';
+  document.getElementById('homeBody').innerHTML = h;
+}
+function renderTracker() {
+  let h = '<p class="mut" style="margin-top:0">แตะที่รายการเพื่ออัปเดต ทำได้ในไม่กี่วินาที</p>';
+  h += tasks.map(t => '<div class="card click" onclick="openUpd(\''+t.id+'\')"><div class="row"><b>'+esc(t.title)+'</b>'+stTag(t)+'</div>'+segs(t)
+    + '<div class="mut">'+(finished(t)?'ครบทุกขั้นตามที่คุณแจ้ง (ยังไม่ยืนยันจากหน่วยงาน)':'ขั้นที่ '+(t.done+1)+' จาก '+t.steps.length+': '+esc(t.steps[t.done]))+'</div></div>').join('');
+  h += '<div class="card"><span class="tag t-src" style="margin:0">ยืนยันจากภายนอก</span><p class="mut" style="margin:8px 0 0">ยังไม่มีรายการที่ยืนยันจากแหล่งภายนอกในเวอร์ชันนี้</p></div>';
+  document.querySelector('#v-tracker .body').innerHTML = h;
+}
+function openUpd(id) {
+  const t = tasks.find(x => x.id === id); if (finished(t)) return;
+  modal('<div class="row"><b style="font-size:17px">'+esc(t.title)+'</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="closeModal()">✕</span></div>'
+    + segs(t) + '<div class="mut">ขั้นที่ '+(t.done+1)+' จาก '+t.steps.length+'</div>'
+    + '<div class="stepbox">ขั้นนี้: <b>'+esc(t.steps[t.done])+'</b></div>'
+    + '<button class="btn sec sm" style="margin-top:0" onclick="toast(\'จำลอง: เปิดช่องทางทางการ\')">เปิดช่องทางทางการ ↗</button>'
+    + '<button class="btn" onclick="markDone(\''+t.id+'\')">✓ ทำขั้นนี้เสร็จแล้ว</button>'
+    + '<button class="btn sec sm" onclick="stuck(\''+t.id+'\')">😟 ติดปัญหา / ไม่เข้าใจ</button>'
+    + '<button class="btn sec sm" onclick="snooze(\''+t.id+'\')">⏰ ไว้ทีหลัง</button>'
+    + '<p class="mut" style="margin:12px 0 0">สถานะนี้คุณเป็นผู้แจ้ง แอปไม่ได้ตรวจกับหน่วยงาน</p>');
+}
+function markDone(id) {
+  const t = tasks.find(x => x.id === id), prev = {done:t.done, blocked:t.blocked};
+  t.done++; t.blocked = false; closeModal(); refresh();
+  toastUndo(finished(t) ? '🎉 ครบทุกขั้นแล้ว (ตามที่คุณแจ้ง)' : 'บันทึกแล้ว ✓', () => { t.done = prev.done; t.blocked = prev.blocked; refresh(); });
+}
+function stuck(id) {
+  const t = tasks.find(x => x.id === id); t.blocked = true; refresh();
+  modal('<b style="font-size:17px">ไม่เป็นไร บอกเราหน่อยว่าติดตรงไหน</b>'
+    + '<div class="chips" style="margin-top:10px" onclick="if(event.target.tagName===\'SPAN\'){document.getElementById(\'aihelp\').classList.remove(\'hidden\')}"><span>ไม่เข้าใจขั้นตอน</span><span>เอกสารไม่ครบ</span><span>เว็บใช้ไม่ได้</span><span>อื่นๆ</span></div>'
+    + '<div class="aiest hidden" id="aihelp" style="margin-top:12px">🤖 (จำลอง) ลองทำทีละข้อ: 1) เตรียมบัตรประชาชน 2) เปิดเว็บทางการจากปุ่มในแอป 3) ถ้ายังติด โทรสอบถามหน่วยงานโดยตรงได้ ผมไม่ยื่นแทนคุณ</div>'
+    + '<button class="btn" onclick="closeModal()">กลับไปทำต่อ</button>');
+}
+function snooze(id) {
+  modal('<b style="font-size:17px">ให้เตือนอีกทีเมื่อไหร่</b>'
+    + ['พรุ่งนี้เช้า','อีก 3 วัน','สัปดาห์หน้า','ไม่ต้องเตือน'].map(l => '<button class="btn sec" onclick="closeModal();toast(\'ตกลง: '+l+' (จำลอง)\')">'+l+'</button>').join(''));
+}
+function sourceOpen(id) { toast('จำลอง: เปิดเว็บไซต์ต้นทาง'); setTimeout(() => promptReturn(id), 1500); }
+function promptReturn(id) {
+  const it = ITEMS.find(i => i.id === id);
+  modal('<h2 style="font-size:19px;margin-top:4px">กลับมาแล้ว 👋</h2><p>คุณได้สมัครหรือยื่นเรื่อง “'+esc(it.t)+'” แล้วหรือยัง</p>'
+    + '<button class="btn" onclick="addPlan(\''+id+'\',2)">✓ ยื่น/สมัครแล้ว</button>'
+    + '<button class="btn sec" onclick="addPlan(\''+id+'\',1)">ยังไม่ได้ยื่น แต่สนใจ (บันทึกไว้)</button>'
+    + '<button class="btn sec sm" onclick="closeModal()">ไม่ต้องบันทึก</button>');
+}
+function addPlan(id, done) {
+  const it = ITEMS.find(i => i.id === id); let t = tasks.find(x => x.src === id);
+  if (!t) { t = {id:'t'+Date.now(), src:id, title:it.t, steps:['บันทึกไว้/สนใจ','ยื่นหรือติดต่อ','รอผล','ได้ผลลัพธ์ตามที่ตกลง'], done:done, due:''}; tasks.push(t); }
+  else t.done = Math.max(t.done, done);
+  closeModal(); refresh(); toast('บันทึกใน "ความคืบหน้า" แล้ว');
+}
+/* ---------- Personas, location, consent, map states, freshness, suspicious pins ---------- */
+const PERSONAS = {
+  p1:{name:'สมชาย',sub:'อายุ 65 ปี (ตัวตนสมมติ) · track A',chip:'กรุงเทพฯ · ขับรถ, ทำอาหาร · ว่าง 10-20 ชม.',groups:['job','skill','sell','money'],tasks:null},
+  p2:{name:'สุดา',sub:'อายุ 28 ปี (ตัวตนสมมติ) · track B',chip:'บางกะปิ · พิมพ์เอกสาร, คอมพิวเตอร์ · ว่างเต็มเวลา',groups:['job','skill'],
+    tasks:[{id:'u1',title:'สมัครงานแพ็คของ รายวัน',steps:['เตรียมเอกสาร','ติดต่อผู้ประกาศ','ไปสัมภาษณ์','เริ่มงาน'],done:2,due:'ผู้ประกาศนัดคุย (ตัวอย่าง)'},{id:'u2',title:'ลงทะเบียนฝึกอาชีพ',steps:['ตรวจรอบเปิดรับ','โทรสอบถามเงื่อนไข','ยื่นใบสมัคร','เริ่มเรียน'],done:0,due:''}]},
+  p3:{name:'มานี',sub:'อายุ 40 ปี (ตัวตนสมมติ) · track C',chip:'ลาดพร้าว · ทำอาหาร · ว่าง 20-40 ชม.',groups:['skill','sell','money'],
+    tasks:[{id:'v1',title:'ทดลองขายอาหารกล่องรอบแรก',steps:['วางแผนเมนูและต้นทุน','ทดลองทำและถ่ายรูป','เปิดรับออเดอร์','ส่งมอบและเก็บเงิน'],done:1,due:''},{id:'v2',title:'ขายของมือสองที่ไม่ใช้แล้ว',steps:['คัดของที่จะขาย','สอบถามราคาร้านรับซื้อ','ตัดสินใจขาย'],done:0,due:''}]}
+};
+PERSONAS.p1.tasks = JSON.parse(JSON.stringify(tasks));
+let persona = PERSONAS.p1;
+function setPersona(k) {
+  persona = PERSONAS[k]; tasks = JSON.parse(JSON.stringify(persona.tasks)); mapState.groups = new Set(persona.groups);
+  returning = true; document.getElementById('usrToggle').textContent = '👤 ผู้ใช้: กลับมาใช้ มีงานค้าง (กดสลับ)'; closeSheet(); go('home');
+}
+function nearCount() { return ITEMS.filter(i => i.dx !== undefined && !i.scam && persona.groups.includes(i.g) && Math.hypot(i.dx, i.dy) <= 5).length; }
+
+let needConsent = true;
+function withConsent(fn) {
+  if (!needConsent) { fn(); return; }
+  window._afterConsent = fn;
+  modal('<h2 style="font-size:19px;margin-top:4px">ข้อมูลของคุณ</h2>'
+    + '<ul style="padding-left:18px"><li>เก็บเท่าที่จำเป็น: พื้นที่ ทักษะ เวลาว่าง และเป้ารายได้</li><li>ไม่ขอเลขบัตรประชาชน รหัสผ่าน หรือ OTP</li><li>ลบข้อมูลของคุณได้ทุกเมื่อในหน้าตั้งค่า</li><li>เวอร์ชันสาธิตนี้ใช้ข้อมูลสมมติเท่านั้น</li></ul>'
+    + '<button class="btn" onclick="needConsent=false;closeModal();window._afterConsent()">ยอมรับและไปต่อ</button><button class="btn sec sm" onclick="closeModal()">ยังไม่ต้องการ</button>');
+}
+
+let loc = {state:'ask', label:''};
+function setLoc(state, label) { loc = {state, label: label || 'ตำแหน่งปัจจุบัน (สมมติ)'}; closeModal(); renderMap(); }
+function askLoc() {
+  modal('<h2 style="font-size:19px;margin-top:4px">ขอใช้ตำแหน่งของคุณ</h2><p>ใช้เพื่อหาโอกาสใกล้ตัวเท่านั้น ไม่เก็บประวัติการเดินทาง (เวอร์ชันสาธิตใช้ตำแหน่งสมมติ)</p>'
+    + '<button class="btn" onclick="setLoc(\'gps\')">อนุญาต</button><button class="btn sec" onclick="pickDistrict()">ไม่อนุญาต เลือกจุดเอง</button>');
+}
+function pickDistrict() {
+  modal('<b style="font-size:17px">เลือกจุดค้นหาในกรุงเทพฯ</b><p class="mut">เวอร์ชันสาธิตรองรับเฉพาะกรุงเทพมหานคร</p>'
+    + ['เขตปทุมวัน','เขตบางกะปิ','เขตลาดพร้าว','เขตบางนา'].map(d => '<button class="btn sec" onclick="setLoc(\'manual\',\''+d+'\')">'+d+'</button>').join(''));
+}
+function gpsFail() {
+  modal('<h2 style="font-size:19px;margin-top:4px">หาตำแหน่งไม่ได้</h2><p>สัญญาณ GPS อ่อน ลองใหม่ หรือเลือกจุดเอง</p>'
+    + '<button class="btn" onclick="setLoc(\'gps\')">ลองใหม่</button><button class="btn sec" onclick="pickDistrict()">เลือกจุดเอง</button>');
+}
+function setSim(x) { mapState.sim = x; if (!document.getElementById('v-map').classList.contains('on')) go('map'); else renderMap(); }
+function mapStates(n) {
+  const a = document.getElementById('mapArea'), b = document.getElementById('mapbanner'), e = document.getElementById('maperr'), em = document.getElementById('mapempty');
+  const sim = mapState.sim, ban = sim === 'offline' || sim === 'stale';
+  b.classList.toggle('hidden', !ban);
+  b.textContent = sim === 'offline' ? '📴 ออฟไลน์ แสดงข้อมูลที่บันทึกไว้ล่าสุด อาจไม่เป็นปัจจุบัน' : '⏳ ข้อมูลบางรายการเก่าเกิน 30 วัน ตรวจที่ต้นทางก่อนเสมอ';
+  a.classList.toggle('hasb', ban);
+  e.classList.toggle('hidden', sim !== 'error');
+  em.classList.toggle('hidden', !(n === 0 && sim !== 'error'));
+  const nx = RADII.find(r => r > mapState.r);
+  em.innerHTML = '<b>ไม่พบโอกาสในรัศมี '+mapState.r+' กม.</b><div class="mut" style="margin:4px 0 8px">ลองขยายรัศมีหรือเปลี่ยนหมวด</div>'
+    + (nx ? '<button class="btn sm" onclick="event.stopPropagation();mapState.r='+nx+';renderMap()">ขยายเป็น '+nx+' กม.</button>' : '<button class="btn sm" onclick="event.stopPropagation();openList()">ดูรายการที่ไม่ผูกสถานที่</button>');
+  document.getElementById('locline').textContent = '📍 '+(loc.state === 'ask' ? 'เลือกตำแหน่ง' : loc.label);
+}
+mapState.showScam = false; mapState.sim = null;
+const AGE = {j1:2,j2:5,j3:12,j4:3,j5:40,s1:1800,s2:1800,m1:20,m2:20,w1:7,w2:7,w3:10,w4:7,w5:4,x1:1};
+const EXP = {w3:'ปิดรับสมัคร 15 ธ.ค. (ตัวอย่าง)',j5:'ประกาศอาจหมดอายุแล้ว'};
+ITEMS.push({id:'x1',g:'job',t:'งานด่วน รายได้วันละ 3,000 (ต้องโอนค่ามัดจำ)',dx:-0.6,dy:0.9,tier:3,known:'ประกาศไม่ระบุแหล่งรายได้ และขอให้โอนเงินก่อน',scam:true,st:'mock',src:'ประกาศตัวอย่างน่าสงสัย (สมมติ)',date:'ตรวจล่าสุด: สมมติ',why:'ไม่แนะนำ',cond:['เรียกเก็บเงินล่วงหน้า','สัญญาผลตอบแทนสูงผิดปกติ']});
+ITEMS.forEach(i => { i.age = AGE[i.id]; i.exp = EXP[i.id]; });
+function freshHtml(it) {
+  const a = it.age; let c = '#166534', tx = 'ตรวจเมื่อ '+a+' วันก่อน';
+  if (a > 365) { c = '#b42318'; tx = 'ข้อมูลเก่ามาก (ประมาณ '+Math.round(a/365)+' ปี) ตรวจที่ต้นทางก่อน'; }
+  else if (a > 30) { c = '#b42318'; tx += ' อาจไม่เป็นปัจจุบัน ตรวจที่ต้นทางก่อน'; }
+  else if (a > 14) c = '#92400e';
+  return '<b>🕒</b> <span style="color:'+c+';font-weight:600">'+tx+'</span>'+(it.exp ? ' · '+it.exp : '');
+}
+function startChat() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }
+go('welcome');
+</script>
+</body>
+</html>
