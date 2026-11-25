@@ -776,23 +776,92 @@ const PERSONAS = {
 PERSONAS.p1.tasks = JSON.parse(JSON.stringify(tasks));
 let persona = PERSONAS.p1;
 function setPersona(k) {
+  if (!consent.accepted) { Object.assign(consent, { accepted:true, version:NOTICE_VERSION, at:new Date(), adult:true, p:{ core:true, location:true, ai:true, reminders:true } }); consent.history.push({ at:new Date(), version:NOTICE_VERSION, p:{ ...consent.p } }); }
   persona = PERSONAS[k]; tasks = JSON.parse(JSON.stringify(persona.tasks)); mapState.groups = new Set(['job','skill','sell','money']);
   returning = true; document.getElementById('usrToggle').textContent = '👤 ผู้ใช้: กลับมาใช้ มีงานค้าง (กดสลับ)'; closeSheet(); go('home');
 }
 function nearCount() { return ITEMS.filter(i => i.dx !== undefined && !i.scam && persona.groups.includes(i.g) && Math.hypot(i.dx, i.dy) <= 5).length; }
 
-let needConsent = true;
+/* ---------- PDPA: notice + granular, withdrawable consent (draft wording, needs legal review) ---------- */
+const NOTICE_VERSION = '1.0-draft';
+const PURPOSES = [
+  { id:'core', req:true, ic:'🔎', t:'ใช้ข้อมูลโปรไฟล์เพื่อหาโอกาสให้คุณ', s:'พื้นที่ ทักษะ เวลาว่าง เป้ารายได้ ช่วงอายุ จำเป็นต่อการใช้แอป' },
+  { id:'location', ic:'📍', t:'ใช้ตำแหน่งปัจจุบัน', s:'หาโอกาสใกล้ตัว ไม่เก็บประวัติการเดินทาง ไม่ยอมก็เลือกเขตเองได้' },
+  { id:'ai', ic:'🤖', t:'ส่งข้อมูลให้ AI ช่วยวิเคราะห์', s:'ส่งเฉพาะทักษะ พื้นที่ เป้าหมาย ไม่ส่งชื่อ ผู้ให้บริการ AI อาจอยู่ต่างประเทศ ไม่ยอมก็ใช้แบบเลือกเองได้' },
+  { id:'reminders', ic:'🔔', t:'แจ้งเตือนงานค้าง', s:'เตือนเมื่อมีขั้นที่ควรทำต่อ' }
+];
+const consent = { accepted:false, version:null, at:null, adult:false, p:{ core:true, location:false, ai:false, reminders:false }, history:[] };
+const draftC = { adult:false, p:{} };
+const pOn = id => consent.accepted && consent.p[id];
+function cRow(pp, val, fn) {
+  return '<div class="swrow" onclick="'+(pp.req ? '' : fn+'(\''+pp.id+'\')')+'" style="'+(pp.req?'cursor:default':'')+'"><div class="row" style="gap:10px;justify-content:flex-start;align-items:flex-start"><span style="font-size:18px">'+pp.ic+'</span><div><b>'+pp.t+'</b>'+(pp.req?' <span class="tag t-src" style="margin:0">จำเป็น</span>':' <span class="tag" style="margin:0;background:#eef2f7;color:#475569">เลือกได้</span>')+'<div class="mut">'+pp.s+'</div></div></div><span class="sw'+(val?' on':'')+'"'+(pp.req?' style="opacity:.5"':'')+'><i></i></span></div>';
+}
 function withConsent(fn) {
-  if (!needConsent) { fn(); return; }
+  if (consent.accepted) { fn(); return; }
   window._afterConsent = fn;
-  modal('<h2 style="font-size:19px;margin-top:4px">ข้อมูลของคุณ</h2>'
-    + '<ul style="padding-left:18px"><li>เก็บเท่าที่จำเป็น: พื้นที่ ทักษะ เวลาว่าง และเป้ารายได้</li><li>ไม่ขอเลขบัตรประชาชน รหัสผ่าน หรือ OTP</li><li>ลบข้อมูลของคุณได้ทุกเมื่อในหน้าตั้งค่า</li><li>เวอร์ชันสาธิตนี้ใช้ข้อมูลสมมติเท่านั้น</li></ul>'
-    + '<button class="btn" onclick="needConsent=false;closeModal();window._afterConsent()">ยอมรับและไปต่อ</button><button class="btn sec sm" onclick="closeModal()">ยังไม่ต้องการ</button>');
+  draftC.adult = false; draftC.p = { core:true, location:false, ai:true, reminders:true };
+  consentSheet();
+}
+function consentSheet() {
+  modal('<h2 style="font-size:19px;margin-top:4px">ก่อนเริ่ม: ข้อมูลของคุณ</h2>'
+    + '<p class="mut" style="margin-top:0">เลือกได้ว่าจะให้ใช้ข้อมูลเรื่องไหน เปลี่ยนใจหรือถอนได้ทุกเมื่อที่แท็บ ฉัน</p>'
+    + '<div class="card" style="padding:2px 12px">'+PURPOSES.map(pp => cRow(pp, draftC.p[pp.id], 'toggleDraft')).join('')+'</div>'
+    + '<div class="note" style="color:#334155;background:#f1f5f9">ไม่ขอเลขบัตรประชาชน รหัสผ่าน OTP หรือเลขบัญชี · เก็บไว้จนกว่าคุณจะลบ · <a class="link" onclick="showNotice()">อ่านประกาศความเป็นส่วนตัว</a></div>'
+    + '<label class="cmpchk" style="font-size:14px"><input type="checkbox" '+(draftC.adult?'checked':'')+' onchange="draftC.adult=this.checked;consentSheet()"> ฉันอายุ 20 ปีขึ้นไป หรือผู้ปกครองยินยอมแล้ว</label>'
+    + '<button class="btn" '+(draftC.adult?'':'disabled style="opacity:.45;cursor:not-allowed"')+' onclick="acceptConsent()">ยอมรับและไปต่อ</button>'
+    + '<button class="btn sec sm" onclick="closeModal();go(\'results\');toast(\'ดูได้โดยไม่บันทึกข้อมูลของคุณ\')">ดูโอกาสโดยไม่บันทึกข้อมูล</button>');
+}
+function toggleDraft(id) { draftC.p[id] = !draftC.p[id]; consentSheet(); }
+function acceptConsent() {
+  Object.assign(consent, { accepted:true, version:NOTICE_VERSION, at:new Date(), adult:true, p:{ ...draftC.p, core:true } });
+  consent.history.push({ at:new Date(), version:NOTICE_VERSION, p:{ ...consent.p } });
+  closeModal();
+  const fn = window._afterConsent;
+  if (fn === startChat && !consent.p.ai) { toast('ไม่ได้ยินยอมให้ใช้ AI จึงใช้แบบเลือกเอง'); go('manual'); return; }
+  fn && fn();
+}
+function manageConsent() {
+  if (!consent.accepted) { modal('<b style="font-size:17px">ยังไม่ได้ให้ความยินยอม</b><p>เมื่อเริ่มใช้งาน แอปจะถามก่อนทุกครั้ง</p><button class="btn" onclick="closeModal()">ปิด</button>'); return; }
+  modal('<div class="row"><b style="font-size:17px">จัดการความยินยอม</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="closeModal()">✕</span></div>'
+    + '<p class="mut">ฉบับ '+consent.version+' · ยอมรับเมื่อ '+consent.at.toLocaleString('th-TH')+'</p>'
+    + '<div class="card" style="padding:2px 12px">'+PURPOSES.map(pp => cRow(pp, consent.p[pp.id], 'toggleConsent')).join('')+'</div>'
+    + '<p class="mut">ถอนความยินยอมมีผลทันที ข้อที่จำเป็นถอนได้โดยลบข้อมูลทั้งหมด</p>'
+    + '<button class="btn sec sm" onclick="showConsentHistory()">ประวัติการให้ความยินยอม ('+consent.history.length+')</button>'
+    + '<button class="btn sec sm" style="color:#b42318;border-color:#fecaca" onclick="confirmDelete()">ถอนทั้งหมดและลบข้อมูล</button>');
+}
+function toggleConsent(id) {
+  consent.p[id] = !consent.p[id];
+  consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } });
+  if (id === 'location' && !consent.p.location && loc.state === 'gps') loc = { state:'ask', label:'' };
+  if (id === 'reminders') meSet.remind = consent.p.reminders;
+  toast(consent.p[id] ? 'ให้ความยินยอมแล้ว' : 'ถอนความยินยอมแล้ว มีผลทันที');
+  manageConsent(); renderMe();
+}
+function showConsentHistory() {
+  modal('<b style="font-size:17px">ประวัติการให้ความยินยอม</b><div class="card" style="margin-top:10px"><table><tr><th>เวลา</th><th>ฉบับ</th><th>ที่ยินยอม</th></tr>'
+    + consent.history.slice().reverse().map(h => '<tr><td>'+h.at.toLocaleTimeString('th-TH')+'</td><td>'+h.version+'</td><td>'+PURPOSES.filter(pp => h.p[pp.id]).map(pp => pp.ic).join(' ')+'</td></tr>').join('')
+    + '</table></div><button class="btn" onclick="manageConsent()">กลับ</button>');
+}
+function showNotice() {
+  modal('<div class="row"><b style="font-size:17px">ประกาศความเป็นส่วนตัว (ร่าง)</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="'+(consent.accepted?'closeModal()':'consentSheet()')+'">✕</span></div>'
+    + '<p class="mut">ฉบับ '+NOTICE_VERSION+' · ร่างเพื่อสาธิต ต้องให้ผู้รู้กฎหมายตรวจก่อนใช้จริง</p>'
+    + [['ใครเก็บข้อมูล', 'ทีม Money Anywhere (เวอร์ชันสาธิต) ช่องทางติดต่อ: ระบุก่อนเปิดใช้จริง'],
+       ['เก็บอะไร', 'พื้นที่ ทักษะ เวลาว่าง เป้ารายได้ ช่วงอายุ ความคืบหน้าที่คุณบันทึก ตำแหน่ง (ถ้ายินยอม) ไม่เก็บเลขบัตรประชาชน รหัสผ่าน OTP เลขบัญชี'],
+       ['ใช้ทำอะไร', 'หาและจัดลำดับโอกาส วางแผนรายได้ ติดตามความคืบหน้า แจ้งเตือน (ถ้ายินยอม) ไม่ขายหรือส่งต่อเพื่อการตลาด'],
+       ['ส่งให้ใคร', 'ผู้ให้บริการ AI (ถ้ายินยอม) ซึ่งอาจอยู่ต่างประเทศ ส่งเฉพาะข้อมูลที่จำเป็น ไม่ส่งชื่อ'],
+       ['เก็บนานแค่ไหน', 'จนกว่าคุณจะลบ หรือไม่ได้ใช้งานเกินระยะที่กำหนด (ต้องกำหนดก่อนใช้จริง)'],
+       ['สิทธิ์ของคุณ', 'ดู ขอสำเนา แก้ไข ลบ ถอนความยินยอม คัดค้านการใช้ และร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล']]
+      .map(r => '<div class="card" style="padding:10px 12px;margin-bottom:8px"><b>'+r[0]+'</b><div class="mut" style="margin-top:3px">'+r[1]+'</div></div>').join('')
+    + '<button class="btn" onclick="'+(consent.accepted?'closeModal()':'consentSheet()')+'">'+(consent.accepted?'ปิด':'กลับไปเลือก')+'</button>');
 }
 
 let loc = {state:'ask', label:''};
-function setLoc(state, label) { loc = {state, label: label || 'ตำแหน่งปัจจุบัน (สมมติ)'}; closeModal(); renderMap(); }
+function setLoc(state, label) {
+  if (state === 'gps' && consent.accepted && !consent.p.location) { consent.p.location = true; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } }); }
+  loc = {state, label: label || 'ตำแหน่งปัจจุบัน (สมมติ)'}; closeModal(); renderMap();
+}
 function askLoc() {
+  if (consent.accepted && !consent.p.location) { pickDistrict(); return; }
   modal('<h2 style="font-size:19px;margin-top:4px">ขอใช้ตำแหน่งของคุณ</h2><p>ใช้เพื่อหาโอกาสใกล้ตัวเท่านั้น ไม่เก็บประวัติการเดินทาง (เวอร์ชันสาธิตใช้ตำแหน่งสมมติ)</p>'
     + '<button class="btn" onclick="setLoc(\'gps\')">อนุญาต</button><button class="btn sec" onclick="pickDistrict()">ไม่อนุญาต เลือกจุดเอง</button>');
 }
@@ -1047,10 +1116,12 @@ function renderMe() {
     + '<button class="btn sec sm" onclick="go(\'manual\')">แก้ไขโปรไฟล์และทักษะ</button></div>';
   h += '<h3>การใช้งาน</h3><div class="card" style="padding:4px 14px">'
     + row('🔠', 'ตัวอักษรใหญ่', 'อ่านง่ายขึ้น ปุ่มใหญ่ขึ้น', 'toggleXL();renderMe()', swi(xl))
-    + row('🔔', 'เตือนงานค้าง', 'เตือนเมื่อมีขั้นที่ควรทำต่อ (จำลอง)', 'meSet.remind=!meSet.remind;renderMe()', swi(meSet.remind))
+    + row('🔔', 'เตือนงานค้าง', 'เตือนเมื่อมีขั้นที่ควรทำต่อ (จำลอง)', 'toggleConsent(\'reminders\')', swi(pOn('reminders')))
     + row('📍', 'ตำแหน่งค้นหา', loc.state === 'ask' ? 'ยังไม่ได้เลือก' : loc.label, 'pickDistrict()') + '</div>';
-  h += '<h3>ข้อมูลของฉัน</h3><div class="card" style="padding:4px 14px">'
-    + row('📄', 'ดูข้อมูลที่แอปเก็บ', 'พื้นที่ ทักษะ เวลาว่าง เป้ารายได้ ความคืบหน้า', 'showMyData()')
+  h += '<h3>ความเป็นส่วนตัวและข้อมูลของฉัน</h3><div class="card" style="padding:4px 14px">'
+    + row('🛡️', 'จัดการความยินยอม', consent.accepted ? PURPOSES.filter(pp => consent.p[pp.id]).map(pp => pp.ic).join(' ')+' ยินยอมอยู่' : 'ยังไม่ได้ให้ความยินยอม', 'manageConsent()')
+    + row('📜', 'ประกาศความเป็นส่วนตัว', 'ฉบับ '+NOTICE_VERSION, 'showNotice()')
+    + row('📄', 'ดูและขอสำเนาข้อมูล', 'ทุกอย่างที่แอปเก็บ รวมประวัติความยินยอม', 'showMyData()')
     + row('🗑️', 'ลบข้อมูลทั้งหมด', 'ลบโปรไฟล์และความคืบหน้าบนเครื่องนี้', 'confirmDelete()') + '</div>';
   h += '<h3>ช่วยเหลือ</h3><div class="card" style="padding:4px 14px">'
     + row('❓', 'วิธีใช้แอป', '3 ขั้นตอนง่ายๆ', 'showHelp()')
@@ -1061,19 +1132,29 @@ function renderMe() {
 }
 function showMyData() {
   modal('<b style="font-size:17px">ข้อมูลที่แอปเก็บ</b><div class="card" style="margin-top:10px"><table>'
-    + [['ชื่อที่แสดง', 'คุณ'+persona.name], ['พื้นที่', persona.chip], ['ทักษะ', skillPicked.join(', ')], ['งานที่บันทึก', tasks.length+' รายการ']].map(r => '<tr><td class="mut">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')
-    + '</table></div><p class="mut">ไม่เก็บเลขบัตรประชาชน รหัสผ่าน OTP หรือข้อมูลบัญชีธนาคาร</p><button class="btn" onclick="closeModal()">ปิด</button>');
+    + [['ชื่อที่แสดง', 'คุณ'+persona.name], ['พื้นที่', persona.chip], ['ทักษะ', skillPicked.join(', ')], ['งานที่บันทึก', tasks.length+' รายการ'], ['ความยินยอม', consent.accepted ? 'ฉบับ '+consent.version+': '+PURPOSES.filter(pp => consent.p[pp.id]).map(pp => pp.t).join(', ') : 'ยังไม่ได้ให้'], ['ตำแหน่ง', loc.state === 'gps' ? 'ใช้ตำแหน่งปัจจุบัน (ไม่เก็บประวัติ)' : loc.label || 'ยังไม่ได้เลือก']].map(r => '<tr><td class="mut">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')
+    + '</table></div><p class="mut">ไม่เก็บเลขบัตรประชาชน รหัสผ่าน OTP หรือข้อมูลบัญชีธนาคาร</p><button class="btn" onclick="toast(\'จำลอง: ส่งไฟล์ข้อมูลของคุณ (JSON)\')">ขอสำเนาข้อมูล</button><button class="btn sec sm" onclick="closeModal()">ปิด</button>');
 }
 function confirmDelete() {
   modal('<b style="font-size:17px">ลบข้อมูลทั้งหมด?</b><p>โปรไฟล์และความคืบหน้าบนเครื่องนี้จะหายไป และกู้คืนไม่ได้</p>'
-    + '<button class="btn" style="background:#b42318;box-shadow:none" onclick="tasks=[];closeModal();toast(\'ลบข้อมูลแล้ว (จำลอง)\');renderMe()">ลบข้อมูล</button><button class="btn sec" onclick="closeModal()">ยกเลิก</button>');
+    + '<button class="btn" style="background:#b42318;box-shadow:none" onclick="tasks=[];Object.assign(consent,{accepted:false,version:null,at:null,adult:false,p:{core:true,location:false,ai:false,reminders:false},history:[]});loc={state:\'ask\',label:\'\'};returning=false;closeModal();toast(\'ลบข้อมูลและถอนความยินยอมแล้ว (จำลอง)\');go(\'welcome\')">ลบข้อมูล</button><button class="btn sec" onclick="closeModal()">ยกเลิก</button>');
 }
 function showHelp() {
   modal('<b style="font-size:17px">ใช้แอปใน 3 ขั้น</b>'
     + '<div class="stepbox">1. บอกเราเกี่ยวกับคุณ (คุยกับ AI หรือเลือกเอง)</div><div class="stepbox">2. ดูโอกาสที่ตรงกับคุณ เป็นรายการหรือแผนที่</div><div class="stepbox">3. เลือกแล้วทำตามขั้นตอนใน "แผนของฉัน"</div>'
     + '<button class="btn" onclick="closeModal()">เข้าใจแล้ว</button>');
 }
-function startChat() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }
+function startChat() {
+  if (!consent.accepted) { withConsent(startChat); return; }
+  if (!consent.p.ai) {
+    modal('<b style="font-size:17px">ยังไม่ได้ยินยอมให้ใช้ AI</b><p>การคุยกับ AI ต้องส่งทักษะ พื้นที่ และเป้าหมายให้ผู้ให้บริการ AI (ไม่ส่งชื่อ)</p>'
+      + '<button class="btn" onclick="toggleConsentQuiet(\'ai\');closeModal();startChat()">ยินยอมและคุยกับ AI</button><button class="btn sec" onclick="go(\'manual\')">ใช้แบบเลือกเองแทน</button>');
+    return;
+  }
+  startChatNow();
+}
+function toggleConsentQuiet(id) { consent.p[id] = !consent.p[id]; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } }); }
+function startChatNow() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }
 go('welcome');
 </script>
 </body>

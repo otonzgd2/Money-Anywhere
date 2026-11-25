@@ -50,6 +50,17 @@ setTimeout(() => {
     check('skill offers custom add', !!d.querySelector('#skillDD .ddo.add'));
     w.eval("go('me')"); check('me tab renders', d.getElementById('meBody').innerHTML.includes('ลบข้อมูลทั้งหมด'));
     w.eval("go('tracker')"); check('tracker renders', d.querySelectorAll('#v-tracker .card').length > 0);
+    // PDPA consent
+    w.eval("Object.assign(consent,{accepted:false,p:{core:true,location:false,ai:false,reminders:false},history:[]}); go('welcome'); withConsent(startChat)");
+    check('consent sheet opens before first use', d.getElementById('msheet').innerHTML.includes('ก่อนเริ่ม'));
+    check('accept is disabled until age is confirmed', d.querySelector('#msheet .btn[disabled]') !== null);
+    w.eval("toggleDraft('ai'); draftC.adult=true; acceptConsent()");
+    check('declining AI sends the user to manual form', on('manual') && w.eval('consent.p.ai') === false);
+    w.eval("startChat()"); check('chat asks for AI consent when it was declined', d.getElementById('msheet').innerHTML.includes('ยังไม่ได้ยินยอมให้ใช้ AI'));
+    w.eval("go('me'); manageConsent(); toggleConsent('reminders')");
+    check('withdrawing a consent is recorded in history', w.eval('consent.history.length') === 2 && w.eval('consent.p.reminders') === false);
+    w.eval("consent.p.location=false; go('map'); askLoc()"); check('no location consent goes straight to district picker', d.getElementById('msheet').innerHTML.includes('เลือกจุดค้นหา'));
+    w.eval("showNotice()"); check('privacy notice lists user rights', d.getElementById('msheet').innerHTML.includes('สิทธิ์ของคุณ'));
   });
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));
   console.log(results.join('\n'));
