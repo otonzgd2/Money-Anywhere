@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "configVersion": "2026-11-26.1",
+  "minAppVersion": "0.1.0",
+  "featureFlags": { "moneyMap": true, "aiChat": true, "liveSources": true },
+
+  "tabs": [
+    { "id": "home", "label": "หน้าแรก", "icon": "home", "route": "home" },
+    { "id": "opp", "label": "โอกาส", "icon": "sparkle", "route": "opp.list", "activeFor": ["opp.map", "opp.detail", "plan.income"] },
+    { "id": "plans", "label": "แผนของฉัน", "icon": "list", "route": "my.plans", "activeFor": ["task.detail"] },
+    { "id": "me", "label": "ฉัน", "icon": "person", "route": "me", "activeFor": ["me.data", "help", "help.scam", "sources"] }
+  ],
+
+  "routes": {
+    "welcome": {
+      "title": "เงินฉันอยู่ไหน?", "showTabs": false,
+      "sections": [
+        { "type": "info_card", "id": "hero", "label": "หาเงินที่คุณอาจมีสิทธิ์ และโอกาสหารายได้" },
+        { "type": "nav_row", "label": "คุยกับ AI", "sub": "ตอบคำถามสั้นๆ ให้ AI ช่วยหา", "icon": "robot", "flag": "aiChat", "onTap": { "route": "intake.chat" } },
+        { "type": "nav_row", "label": "เลือกเอง", "sub": "เลือกหมวดและกรอกข้อมูลเอง", "icon": "compass", "onTap": { "route": "intake.manual" } }
+      ]
+    },
+    "home": {
+      "title": "หน้าแรก",
+      "sections": [
+        { "type": "greeting", "data": "profile.get" },
+        { "type": "next_step_card", "data": "task.list",
+          "actions": [
+            { "label": "ทำต่อ", "style": "primary", "route": "task.detail", "params": { "id": "$ctx.task.id" } },
+            { "label": "ไว้ทีหลัง", "style": "ghost", "action": "task.snooze", "params": { "id": "$ctx.task.id", "until": "tomorrow" }, "then": { "toast": "ตกลง จะเตือนพรุ่งนี้" } }
+          ] },
+        { "type": "nav_row", "label": "งานอื่นที่ทำอยู่", "data": "task.list", "when": "tasks.otherActive > 0", "onTap": { "route": "my.plans" } },
+        { "type": "count_card", "label": "โอกาสใหม่ใกล้คุณ", "data": "opportunity.search", "onTap": { "route": "opp.list" } },
+        { "type": "link", "label": "หรือคุยกับ AI เพื่อหาแบบละเอียด", "flag": "aiChat", "onTap": { "route": "intake.chat" } }
+      ]
+    },
+    "intake.chat": { "title": "คุยกับ AI", "showTabs": false, "sections": [ { "type": "chat", "data": "intake.chat", "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ] },
+    "intake.manual": { "title": "เลือกเอง", "sections": [ { "type": "profile_form", "data": "taxonomy.get", "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ] },
+    "opp.list": {
+      "title": "โอกาส",
+      "sections": [
+        { "type": "search_bar", "id": "q" },
+        { "type": "filter_button" },
+        { "type": "chip_group", "id": "group" },
+        { "type": "nav_row", "label": "เทียบรายได้ทุกทางเลือก", "icon": "chart", "onTap": { "route": "plan.income" } },
+        { "type": "opportunity_list", "data": "opportunity.search", "onTap": { "route": "opp.detail", "params": { "id": "$ctx.item.id" } } },
+        { "type": "view_toggle", "label": "ดูแผนที่", "flag": "moneyMap", "onTap": { "route": "opp.map" } }
+      ]
+    },
+    "opp.map": {
+      "title": "โอกาส",
+      "sections": [
+        { "type": "search_bar", "id": "q" },
+        { "type": "filter_button" },
+        { "type": "chip_group", "id": "group" },
+        { "type": "opportunity_map", "data": "opportunity.search", "onTap": { "route": "opp.detail", "params": { "id": "$ctx.item.id" } } },
+        { "type": "view_toggle", "label": "ดูรายการ", "onTap": { "route": "opp.list" } }
+      ]
+    },
+    "opp.detail": {
+      "title": "รายละเอียด", "params": ["id"],
+      "sections": [
+        { "type": "info_card", "data": "opportunity.get" },
+        { "type": "link", "label": "ดูประกาศต้นทาง", "onTap": { "route": "external", "params": { "url": "$ctx.item.provenance.sourceUrl" } } },
+        { "type": "link", "label": "บันทึกไว้ในแผนของฉัน", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.id" }, "then": { "toast": "บันทึกแล้ว" } } },
+        { "type": "link", "label": "รายงานประกาศนี้", "when": "item.suspicious", "onTap": { "action": "opportunity.report", "params": { "id": "$ctx.item.id", "reason": "suspicious" }, "then": { "toast": "ขอบคุณ ส่งรายงานแล้ว" } } }
+      ]
+    },
+    "plan.income": { "title": "แผนรายได้", "sections": [ { "type": "planner_list", "data": "plan.options", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.opportunityId" }, "then": { "route": "my.plans" } } } ] },
+    "my.plans": { "title": "แผนของฉัน", "sections": [ { "type": "task_list", "data": "task.list", "onTap": { "route": "task.detail", "params": { "id": "$ctx.item.id" } } } ] },
+    "task.detail": {
+      "title": "ขั้นตอน", "params": ["id"],
+      "sections": [
+        { "type": "checklist", "data": "task.get",
+          "actions": [
+            { "label": "ทำขั้นนี้เสร็จแล้ว", "style": "primary", "action": "task.step.complete", "params": { "id": "$ctx.task.id" }, "then": { "toast": "บันทึกแล้ว" } },
+            { "label": "ติดปัญหา / ไม่เข้าใจ", "style": "secondary", "action": "task.help", "params": { "id": "$ctx.task.id" } },
+            { "label": "ไว้ทีหลัง", "style": "secondary", "action": "task.snooze", "params": { "id": "$ctx.task.id", "until": "tomorrow" } }
+          ] }
+      ]
+    },
+    "me": {
+      "title": "ฉัน",
+      "sections": [
+        { "type": "profile_card", "data": "profile.get", "onTap": { "route": "intake.manual" } },
+        { "type": "settings_group", "label": "การใช้งาน", "items": [
+          { "type": "toggle_row", "label": "ตัวอักษรใหญ่", "setting": "largeText", "onTap": { "action": "settings.update" } },
+          { "type": "toggle_row", "label": "เตือนงานค้าง", "setting": "reminders", "onTap": { "action": "settings.update" } }
+        ] },
+        { "type": "settings_group", "label": "ข้อมูลของฉัน", "items": [
+          { "type": "nav_row", "label": "ดูข้อมูลที่แอปเก็บ", "onTap": { "route": "me.data" } },
+          { "type": "nav_row", "label": "ลบข้อมูลทั้งหมด", "onTap": { "action": "profile.delete", "then": { "route": "welcome" } } }
+        ] },
+        { "type": "settings_group", "label": "ช่วยเหลือ", "items": [
+          { "type": "nav_row", "label": "วิธีใช้แอป", "onTap": { "route": "help" } },
+          { "type": "nav_row", "label": "รู้ทันมิจฉาชีพ", "onTap": { "route": "help.scam" } },
+          { "type": "nav_row", "label": "แหล่งข้อมูลที่ใช้", "onTap": { "route": "sources" } }
+        ] }
+      ]
+    },
+    "me.data": { "title": "ข้อมูลของฉัน", "sections": [ { "type": "info_card", "data": "mydata.get" } ] },
+    "help": { "title": "วิธีใช้", "sections": [ { "type": "info_card", "label": "บอกเราเกี่ยวกับคุณ ดูโอกาส แล้วทำตามขั้นตอนในแผนของฉัน" } ] },
+    "help.scam": { "title": "รู้ทันมิจฉาชีพ", "sections": [ { "type": "info_card", "label": "ห้ามโอนเงินล่วงหน้า ห้ามให้รหัส OTP หรือรหัสผ่าน" } ] },
+    "sources": { "title": "แหล่งข้อมูล", "sections": [ { "type": "info_card", "data": "source.list" }, { "type": "link", "label": "ดึงข้อมูลสดใหม่", "onTap": { "action": "source.refresh", "params": { "provider": "all" } } } ] },
+    "external": { "title": "เปิดเว็บไซต์ต้นทาง", "showTabs": false, "params": ["url"], "sections": [] }
+  },
+
+  "actions": {
+    "config.get":           { "method": "GET",    "path": "/v1/app-config" },
+    "taxonomy.get":         { "method": "GET",    "path": "/v1/taxonomies", "provides": "taxonomies" },
+    "profile.get":          { "method": "GET",    "path": "/v1/me/profile", "provides": "profile" },
+    "profile.update":       { "method": "PUT",    "path": "/v1/me/profile", "invalidates": ["profile", "opportunities", "plans"] },
+    "profile.delete":       { "method": "DELETE", "path": "/v1/me/profile", "invalidates": ["profile", "tasks", "settings"], "confirm": "ลบโปรไฟล์และความคืบหน้าทั้งหมด กู้คืนไม่ได้" },
+    "consent.accept":       { "method": "POST",   "path": "/v1/me/consent" },
+    "settings.get":         { "method": "GET",    "path": "/v1/me/settings", "provides": "settings" },
+    "settings.update":      { "method": "PATCH",  "path": "/v1/me/settings", "invalidates": ["settings"] },
+    "mydata.get":           { "method": "GET",    "path": "/v1/me/data" },
+    "intake.chat":          { "method": "POST",   "path": "/v1/intake/chat" },
+    "opportunity.search":   { "method": "GET",    "path": "/v1/opportunities", "provides": "opportunities" },
+    "opportunity.get":      { "method": "GET",    "path": "/v1/opportunities/{id}" },
+    "opportunity.report":   { "method": "POST",   "path": "/v1/opportunities/{id}/reports" },
+    "match.rank":           { "method": "POST",   "path": "/v1/matches" },
+    "plan.options":         { "method": "GET",    "path": "/v1/plans/options", "provides": "plans" },
+    "task.list":            { "method": "GET",    "path": "/v1/tasks", "provides": "tasks" },
+    "task.get":             { "method": "GET",    "path": "/v1/tasks/{id}" },
+    "task.create":          { "method": "POST",   "path": "/v1/tasks", "invalidates": ["tasks"] },
+    "task.step.complete":   { "method": "POST",   "path": "/v1/tasks/{id}/steps/complete", "invalidates": ["tasks"], "undoAction": "task.undo" },
+    "task.undo":            { "method": "POST",   "path": "/v1/tasks/{id}/undo", "invalidates": ["tasks"] },
+    "task.block":           { "method": "POST",   "path": "/v1/tasks/{id}/block", "invalidates": ["tasks"] },
+    "task.snooze":          { "method": "POST",   "path": "/v1/tasks/{id}/snooze", "invalidates": ["tasks"] },
+    "task.help":            { "method": "POST",   "path": "/v1/tasks/{id}/help" },
+    "source.list":          { "method": "GET",    "path": "/v1/sources", "provides": "sources" },
+    "source.refresh":       { "method": "POST",   "path": "/v1/sources/{provider}/refresh", "invalidates": ["sources", "opportunities"] }
+  },
+
+  "filters": [
+    { "id": "group", "type": "chips", "label": "หมวด", "param": "group", "placement": "bar", "default": "all",
+      "options": [ { "value": "all", "label": "ทั้งหมด" }, { "value": "job", "label": "💼 งาน" }, { "value": "skill", "label": "🛠️ ทักษะ" }, { "value": "sell", "label": "🏪 ขายของ" }, { "value": "money", "label": "💰 เงิน/สิทธิ์" } ] },
+    { "id": "radius", "type": "segment", "label": "ระยะทางจากจุดค้นหา", "param": "radiusKm", "placement": "sheet", "default": 5,
+      "options": [ { "value": 1, "label": "1 กม." }, { "value": 3, "label": "3 กม." }, { "value": 5, "label": "5 กม." }, { "value": 10, "label": "10 กม." } ] },
+    { "id": "sort", "type": "segment", "label": "เรียงตาม", "param": "sort", "placement": "sheet", "default": "near",
+      "options": [ { "value": "near", "label": "ใกล้สุด" }, { "value": "money", "label": "เงินมากสุด" }, { "value": "fresh", "label": "อัปเดตล่าสุด" } ] },
+    { "id": "onlyMoney", "type": "toggle", "label": "เฉพาะที่ระบุจำนวนเงิน", "param": "onlyMoney", "placement": "sheet", "default": false },
+    { "id": "showSuspicious", "type": "toggle", "label": "แสดงประกาศน่าสงสัย", "param": "showSuspicious", "placement": "sheet", "default": false }
+  ]
+}

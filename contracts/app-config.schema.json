@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "app-config.schema.json",
+  "title": "Money Anywhere app config",
+  "description": "Server-driven layout. Screens are built from a fixed widget catalog in the app. Widgets reference actions and routes by id only, so moving a menu or button means editing this file, not the API or the app code.",
+  "type": "object",
+  "required": ["schemaVersion", "configVersion", "minAppVersion", "tabs", "routes", "actions", "filters"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "configVersion": { "type": "string" },
+    "minAppVersion": { "type": "string" },
+    "featureFlags": { "type": "object", "additionalProperties": { "type": "boolean" } },
+    "tabs": {
+      "type": "array", "minItems": 2, "maxItems": 5,
+      "items": {
+        "type": "object", "required": ["id", "label", "icon", "route"],
+        "properties": {
+          "id": { "type": "string" }, "label": { "type": "string" }, "icon": { "type": "string" },
+          "route": { "type": "string", "description": "Route id" },
+          "activeFor": { "type": "array", "items": { "type": "string" }, "description": "Other routes that highlight this tab" },
+          "flag": { "type": "string", "description": "Hide when this feature flag is false" }
+        }
+      }
+    },
+    "routes": {
+      "type": "object",
+      "description": "Route id -> screen definition",
+      "additionalProperties": {
+        "type": "object", "required": ["title", "sections"],
+        "properties": {
+          "title": { "type": "string" },
+          "showTabs": { "type": "boolean", "default": true },
+          "params": { "type": "array", "items": { "type": "string" } },
+          "sections": { "type": "array", "items": { "$ref": "#/$defs/widget" } }
+        }
+      }
+    },
+    "actions": {
+      "type": "object",
+      "description": "Action id -> how to call it. The only place that knows HTTP paths.",
+      "additionalProperties": {
+        "type": "object", "required": ["method", "path"],
+        "properties": {
+          "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+          "path": { "type": "string", "description": "OpenAPI path with {param} placeholders" },
+          "invalidates": { "type": "array", "items": { "type": "string" }, "description": "Data tags to refetch after success, e.g. tasks" },
+          "provides": { "type": "string", "description": "Data tag this action reads" },
+          "confirm": { "type": "string", "description": "Ask before running (destructive actions)" },
+          "undoAction": { "type": "string" }
+        }
+      }
+    },
+    "filters": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id", "type", "label", "param"],
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "enum": ["segment", "toggle", "chips", "link"] },
+          "label": { "type": "string" },
+          "param": { "type": "string", "description": "Query parameter of opportunity.search" },
+          "options": { "type": "array", "items": { "type": "object", "properties": { "value": {}, "label": { "type": "string" } } } },
+          "default": {},
+          "placement": { "enum": ["bar", "sheet"], "description": "bar = visible on screen, sheet = inside the filter sheet" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "binding": {
+      "type": "object",
+      "description": "What happens on tap. Exactly one of action or route.",
+      "properties": {
+        "action": { "type": "string" },
+        "route": { "type": "string" },
+        "params": { "type": "object", "description": "Values or $ctx.<path> references" },
+        "then": {
+          "type": "object",
+          "properties": {
+            "route": { "type": "string" },
+            "toast": { "type": "string" },
+            "openSheet": { "type": "string" }
+          }
+        }
+      }
+    },
+    "widget": {
+      "type": "object", "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["greeting", "next_step_card", "nav_row", "link", "count_card", "search_bar", "chip_group", "filter_button",
+                   "opportunity_list", "opportunity_map", "view_toggle", "planner_list", "task_list", "profile_card",
+                   "settings_group", "toggle_row", "chat", "profile_form", "info_card", "checklist"]
+        },
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "sub": { "type": "string" },
+        "icon": { "type": "string" },
+        "data": { "type": "string", "description": "Action id that provides the data" },
+        "onTap": { "$ref": "#/$defs/binding" },
+        "actions": { "type": "array", "items": { "allOf": [{ "$ref": "#/$defs/binding" }, { "type": "object", "properties": { "label": { "type": "string" }, "style": { "enum": ["primary", "secondary", "ghost", "danger"] } } }] } },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/widget" } },
+        "setting": { "type": "string", "description": "Settings key for toggle_row" },
+        "flag": { "type": "string" },
+        "when": { "type": "string", "description": "Show only when this condition holds, e.g. tasks.active > 0" }
+      }
+    }
+  }
+}

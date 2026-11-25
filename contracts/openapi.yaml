@@ -1,0 +1,410 @@
+openapi: 3.0.3
+info:
+  title: Money Anywhere API (draft)
+  version: 0.1.0
+  description: |
+    Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
+    Endpoints are organised by resource, never by screen. Screens find endpoints through the
+    action catalog in app-config, so moving a menu or button never changes this contract.
+    All amounts are THB. All user-facing text is Thai.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /v1/app-config:
+    get:
+      operationId: getAppConfig
+      summary: Navigation, screens, widgets, actions, filters and feature flags
+      parameters:
+        - { name: appVersion, in: query, required: true, schema: { type: string } }
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200': { description: Current config, content: { application/json: { schema: { $ref: 'app-config.schema.json' } } } }
+        '304': { description: Unchanged; keep cached config }
+
+  /v1/taxonomies:
+    get:
+      operationId: getTaxonomies
+      summary: Categories, map groups, skill groups, radius and sort options
+      responses:
+        '200': { description: Taxonomies, content: { application/json: { schema: { $ref: '#/components/schemas/Taxonomies' } } } }
+
+  /v1/me/profile:
+    get:
+      operationId: getProfile
+      responses:
+        '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+    put:
+      operationId: putProfile
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '422': { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteMyData
+      summary: Delete profile, tasks and settings for this device
+      responses:
+        '204': { description: Deleted }
+
+  /v1/me/consent:
+    post:
+      operationId: acceptConsent
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
+      responses:
+        '204': { description: Recorded }
+
+  /v1/me/settings:
+    get:
+      operationId: getSettings
+      responses:
+        '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+    patch:
+      operationId: patchSettings
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+
+  /v1/me/data:
+    get:
+      operationId: getMyData
+      summary: Everything the app stores about this device, for the "ข้อมูลของฉัน" screen
+      responses:
+        '200': { description: Data summary, content: { application/json: { schema: { $ref: '#/components/schemas/MyData' } } } }
+
+  /v1/intake/chat:
+    post:
+      operationId: chatTurn
+      summary: One AI intake turn. Returns the next question, quick replies, and the profile draft so far.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ChatTurnRequest' } } } }
+      responses:
+        '200': { description: Next turn, content: { application/json: { schema: { $ref: '#/components/schemas/ChatTurnResponse' } } } }
+        '503': { $ref: '#/components/responses/Error' }
+
+  /v1/opportunities:
+    get:
+      operationId: searchOpportunities
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: group, in: query, schema: { type: string, description: map group id or "all" } }
+        - { name: lat, in: query, schema: { type: number } }
+        - { name: lng, in: query, schema: { type: number } }
+        - { name: radiusKm, in: query, schema: { type: number } }
+        - { name: sort, in: query, schema: { type: string, enum: [near, money, fresh, match] } }
+        - { name: onlyMoney, in: query, schema: { type: boolean, default: false } }
+        - { name: showSuspicious, in: query, schema: { type: boolean, default: false } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 30, maximum: 100 } }
+      responses:
+        '200': { description: Results, content: { application/json: { schema: { $ref: '#/components/schemas/OpportunityPage' } } } }
+
+  /v1/opportunities/{id}:
+    get:
+      operationId: getOpportunity
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: Opportunity, content: { application/json: { schema: { $ref: '#/components/schemas/Opportunity' } } } }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/opportunities/{id}/reports:
+    post:
+      operationId: reportOpportunity
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses:
+        '204': { description: Recorded }
+
+  /v1/matches:
+    post:
+      operationId: rankMatches
+      summary: Live AI ranking and reasons over a server-provided candidate list (AC-02)
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MatchRequest' } } } }
+      responses:
+        '200': { description: Ranked, content: { application/json: { schema: { $ref: '#/components/schemas/MatchResponse' } } } }
+
+  /v1/plans/options:
+    get:
+      operationId: getPlanOptions
+      summary: Income planner options with deterministic net calculation
+      parameters:
+        - { name: opportunityIds, in: query, schema: { type: array, items: { type: string } }, style: form, explode: false }
+      responses:
+        '200': { description: Options, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PlanOption' } } } } }
+
+  /v1/tasks:
+    get:
+      operationId: listTasks
+      responses:
+        '200': { description: Tasks, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Task' } } } } }
+    post:
+      operationId: createTask
+      summary: Save an opportunity into "แผนของฉัน"
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [opportunityId], properties: { opportunityId: { type: string }, startAtStep: { type: integer, default: 0 } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+
+  /v1/tasks/{id}:
+    get:
+      operationId: getTask
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: Task, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+
+  /v1/tasks/{id}/steps/complete:
+    post:
+      operationId: completeStep
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+
+  /v1/tasks/{id}/undo:
+    post:
+      operationId: undoTaskEvent
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: Reverted, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+
+  /v1/tasks/{id}/block:
+    post:
+      operationId: blockTask
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, enum: [not_understood, missing_documents, site_broken, other] } } } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+
+  /v1/tasks/{id}/snooze:
+    post:
+      operationId: snoozeTask
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [until], properties: { until: { type: string, enum: [tomorrow, in_3_days, next_week, never] } } } } } }
+      responses:
+        '204': { description: Snoozed }
+
+  /v1/tasks/{id}/help:
+    post:
+      operationId: taskHelp
+      summary: AI explanation for the current step. Never applies on the user's behalf.
+      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '200': { description: Help text, content: { application/json: { schema: { type: object, required: [text, aiStatus], properties: { text: { type: string }, aiStatus: { $ref: '#/components/schemas/AiStatus' } } } } } }
+
+  /v1/sources:
+    get:
+      operationId: listSources
+      responses:
+        '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Source' } } } } }
+
+  /v1/sources/{provider}/refresh:
+    post:
+      operationId: refreshSource
+      parameters: [ { name: provider, in: path, required: true, schema: { type: string } } ]
+      responses:
+        '202': { description: Refresh started }
+
+components:
+  responses:
+    Error:
+      description: Error
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: { type: string, enum: [PROFILE_INCOMPLETE, NO_RESULTS, SOURCE_UNAVAILABLE, AI_UNAVAILABLE, STALE_DATA, NOT_FOUND, VALIDATION, INTERNAL] }
+        message: { type: string, description: Thai text safe to show the user }
+        retryable: { type: boolean }
+        missingFields: { type: array, items: { type: string } }
+
+    AiStatus:
+      type: string
+      enum: [ok, fallback_rules, unavailable]
+      description: fallback_rules means AI failed and a deterministic ranking was used (FR-08)
+
+    DataStatus: { type: string, enum: [live, curated, open_data, mock, blocked] }
+
+    Money:
+      type: object
+      required: [basis]
+      properties:
+        basis: { type: string, enum: [official, listing, none], description: Where the number came from. AI never fills this. }
+        min: { type: number }
+        max: { type: number }
+        unit: { type: string, description: e.g. "บาท/วัน" }
+        knownText: { type: string, description: What is known when basis is none }
+
+    Location:
+      type: object
+      required: [precision]
+      properties:
+        precision: { type: string, enum: [exact, city, none] }
+        text: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        distanceKm: { type: number, description: From the search point; set by search }
+
+    Provenance:
+      type: object
+      required: [provider, dataStatus, sourceUrl, fetchedAt, attribution]
+      properties:
+        provider: { type: string }
+        dataStatus: { $ref: '#/components/schemas/DataStatus' }
+        sourceUrl: { type: string, format: uri }
+        postedAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        fetchedAt: { type: string, format: date-time }
+        ageDays: { type: integer }
+        attribution: { type: string }
+
+    Opportunity:
+      type: object
+      required: [id, title, category, mapGroup, location, money, provenance, suspicious]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        organization: { type: string }
+        category: { type: string, description: One of the 10 requirement categories }
+        mapGroup: { type: string }
+        location: { $ref: '#/components/schemas/Location' }
+        money: { $ref: '#/components/schemas/Money' }
+        conditions: { type: array, items: { type: string } }
+        provenance: { $ref: '#/components/schemas/Provenance' }
+        suspicious: { type: boolean }
+        suspiciousReasons: { type: array, items: { type: string } }
+        checklistTemplateId: { type: string }
+
+    OpportunityPage:
+      type: object
+      required: [items, hiddenSuspicious, sources]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } }
+        nextCursor: { type: string }
+        hiddenSuspicious: { type: integer }
+        sources: { type: array, items: { $ref: '#/components/schemas/Source' } }
+
+    MatchRequest:
+      type: object
+      required: [opportunityIds]
+      properties:
+        opportunityIds: { type: array, items: { type: string }, maxItems: 50 }
+
+    MatchResponse:
+      type: object
+      required: [aiStatus, ranked]
+      properties:
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        aiInvocationId: { type: string, description: Evidence that live AI ran (AC-02) }
+        ranked:
+          type: array
+          items:
+            type: object
+            required: [opportunityId, fit, reason]
+            properties:
+              opportunityId: { type: string, description: Must be one of the requested ids; server drops anything else }
+              fit: { type: string, enum: [high, good, fair] }
+              reason: { type: string }
+              missingInfo: { type: array, items: { type: string } }
+
+    PlanOption:
+      type: object
+      required: [id, title, track, payDays, effort, risk, numberSource]
+      properties:
+        id: { type: string }
+        opportunityId: { type: string }
+        title: { type: string }
+        track: { type: string, enum: [A, B, C] }
+        grossPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+        costPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+        netPerMonth: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: Deterministic, gross minus cost }
+        unknownReason: { type: string }
+        payDays: { type: integer }
+        effort: { type: integer, minimum: 1, maximum: 3 }
+        risk: { type: string }
+        numberSource: { type: string, enum: [official, listing, estimate, none] }
+        assumptions: { type: array, items: { type: string } }
+
+    Task:
+      type: object
+      required: [id, title, steps, doneCount, status, reportedBy]
+      properties:
+        id: { type: string }
+        opportunityId: { type: string }
+        title: { type: string }
+        steps: { type: array, items: { type: string } }
+        doneCount: { type: integer }
+        status: { type: string, enum: [active, blocked, snoozed, finished] }
+        reportedBy: { type: string, enum: [user, external], description: Always user in the Demo (FR-06) }
+        dueText: { type: string }
+        lastEventId: { type: string, description: Used by undo }
+
+    Profile:
+      type: object
+      properties:
+        displayName: { type: string }
+        district: { type: string }
+        lat: { type: number }
+        lng: { type: number }
+        skills: { type: array, items: { type: string } }
+        hoursPerWeek: { type: string }
+        incomeGoalPerMonth: { type: number }
+        goals: { type: array, items: { type: string } }
+        constraints: { type: string }
+
+    Consent:
+      type: object
+      required: [version, accepted]
+      properties: { version: { type: string }, accepted: { type: boolean } }
+
+    Settings:
+      type: object
+      properties:
+        largeText: { type: boolean }
+        reminders: { type: boolean }
+        searchPoint: { type: object, properties: { label: { type: string }, lat: { type: number }, lng: { type: number } } }
+
+    MyData:
+      type: object
+      properties:
+        profile: { $ref: '#/components/schemas/Profile' }
+        taskCount: { type: integer }
+        storedFields: { type: array, items: { type: string } }
+
+    ChatTurnRequest:
+      type: object
+      required: [sessionId]
+      properties:
+        sessionId: { type: string }
+        message: { type: string }
+
+    ChatTurnResponse:
+      type: object
+      required: [aiStatus, done]
+      properties:
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        question: { type: string }
+        quickReplies: { type: array, items: { type: string } }
+        profileDraft: { $ref: '#/components/schemas/Profile' }
+        done: { type: boolean }
+
+    Source:
+      type: object
+      required: [provider, name, kind, state]
+      properties:
+        provider: { type: string }
+        name: { type: string }
+        kind: { type: string }
+        attribution: { type: string }
+        state: { type: string, enum: [ok, failed, loading, static] }
+        itemCount: { type: integer }
+        lastFetchedAt: { type: string, format: date-time }
+        error: { type: string }
+
+    Taxonomies:
+      type: object
+      properties:
+        categories: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, mapGroup: { type: string } } } }
+        mapGroups: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, icon: { type: string }, color: { type: string } } } }
+        skillGroups: { type: array, items: { type: object, properties: { name: { type: string }, skills: { type: array, items: { type: string } } } } }

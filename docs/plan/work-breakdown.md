@@ -75,6 +75,20 @@
 
 หลักฐานจาก TM.11 ที่ได้แล้ว (เรียกจริง): Greenhouse (Agoda) ตอบ JSON 335 ตำแหน่ง ที่ตั้งเป็นข้อความ ไม่มีพิกัดและเงินเดือน; Lever (Coda) ตอบ JSON ที่ตั้งเป็นข้อความเช่นกัน; ชุดข้อมูลโรงเรียนฝึกอาชีพมีไฟล์ JSON แต่ยังไม่ได้ตรวจเนื้อหา; Overpass ตอบ 502 หนึ่งครั้ง ยังไม่ยืนยัน
 
+## เฟส 1B: หลังบ้านแบบ dynamic (ข้อเสนอ R&D)
+
+อ้างอิง: `docs/design/backend.md`, สัญญาใน `contracts/`
+
+| ID | งาน | เจ้าของ | ขึ้นกับ | Evidence | สถานะ |
+|---|---|---|---|---|---|
+| TB.1 | วิเคราะห์และออกแบบหลังบ้านแยก resource / action catalog / layout config | AI | TM.18 | `docs/design/backend.md` | DONE |
+| TB.2 | OpenAPI ร่าง 25 operations ตาม resource | AI | TB.1 | `contracts/openapi.yaml` | DONE |
+| TB.3 | JSON Schema ของ app-config + ตัวอย่างที่ตรงกับ mock (4 แท็บ, 16 routes, 25 actions, 5 filters) | AI | TB.1 | `contracts/app-config.*.json` | DONE |
+| TB.4 | Validator ตรวจการอ้างอิงของ config กับ OpenAPI | AI | TB.2, TB.3 | `node contracts/validate-config.js` PASS, config ที่ย้ายปุ่ม PASS, config ที่ผิดจับได้ 2 จุด | DONE |
+| TB.5 | ตรวจ OpenAPI และ schema ด้วยเครื่องมือมาตรฐาน | AI | TB.2, TB.3 | ผลตรวจ | TODO |
+| TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | ADR (รวมกับ T2.7, TM.13) | TODO |
+| TB.7 | Mock server จาก OpenAPI ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.6 | server รันได้ | TODO |
+
 ## เฟส 2: Inception
 
 | ID | งาน | เจ้าของ | ขึ้นกับ | Evidence | สถานะ |
