@@ -30,3 +30,17 @@ aidlc/diagnostics/
 .kiro/steering/aidlc-active-memory.md
 .kiro/agents/aidlc-scoped-review-*.md
 # END AI-DLC:gitignore
+
+# Money Anywhere: secrets and build output
+.env
+.env.*
+!.env.example
+node_modules/
+*.jks
+*.keystore
+local.properties
+build/
+.gradle/
+.dart_tool/
+*.apk
+*.aab
