@@ -125,6 +125,27 @@
   .msheet { background:#fff; width:100%; border-radius:26px 26px 0 0; padding:10px 20px 22px; max-height:88%; overflow-y:auto; animation:up .22s ease; }
   @keyframes up { from { transform:translateY(40px); opacity:.4 } to { transform:none; opacity:1 } }
   .toast.undo { pointer-events:auto; }
+  /* opportunities tab: search, filter, view toggle */
+  .view { position:relative; }
+  .sbar { display:flex; gap:8px; padding:4px 14px 8px; }
+  .sin { flex:1; display:flex; align-items:center; gap:6px; background:#fff; border-radius:16px; padding:0 12px; box-shadow:0 2px 8px rgba(15,60,40,.08); }
+  .sin input { border:0; padding:11px 0; background:transparent; }
+  .fbtn { position:relative; background:#fff; border-radius:16px; padding:0 13px; display:flex; align-items:center; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(15,60,40,.08); white-space:nowrap; }
+  .fcnt { position:absolute; top:-5px; right:-5px; background:var(--p); color:#fff; font-size:10px; width:18px; height:18px; border-radius:50%; display:grid; place-items:center; }
+  .viewpill { position:absolute; left:50%; bottom:12px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:11px 20px; border-radius:24px; font-size:13.5px; font-weight:700; box-shadow:0 8px 20px rgba(0,0,0,.3); cursor:pointer; z-index:9; white-space:nowrap; }
+  .locpill { position:absolute; left:10px; bottom:10px; background:#fff; padding:6px 11px; border-radius:14px; font-size:11.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.18); cursor:pointer; z-index:6; max-width:42%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .scalebar { display:none; }
+  .attr { bottom:auto; top:auto; right:8px; bottom:56px; }
+  .searchhere { bottom:62px !important; }
+  .rcard.scam { border:1.5px solid #fecaca; }
+  .ramt { font-size:13px; white-space:nowrap; }
+  .swrow { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:12px 0; border-bottom:1px solid #eef3f0; cursor:pointer; }
+  .swrow:last-child { border:0; }
+  .sw { width:44px; height:26px; border-radius:14px; background:#cfd8d3; position:relative; flex:none; transition:.15s; }
+  .sw i { position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:.15s; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+  .sw.on { background:var(--p); }
+  .sw.on i { left:21px; }
+  .link { color:var(--pd); font-weight:700; font-size:13.5px; cursor:pointer; text-decoration:underline; }
   /* skill combobox */
   .combo { position:relative; background:#fff; border:1.5px solid #dbe5e0; border-radius:14px; padding:6px; }
   .combo:focus-within { border-color:var(--p); }
@@ -318,9 +339,13 @@
 
   <!-- 4 Results -->
   <div class="view" id="v-results">
-    <div class="top"><div class="ttl" style="font-size:20px">โอกาสสำหรับคุณ</div></div>
+    <div class="sbar"><div class="sin"><span>🔍</span><input class="qin" placeholder="ค้นหางาน สิทธิ์ ทักษะ" oninput="setQ(this.value)"></div><div class="fbtn" onclick="openFilter()">⚙️ ตัวกรอง<b class="fcnt hidden"></b></div></div>
+    <div class="fbar" id="fbarL"></div>
+    <div class="body" id="resBody"></div>
+    <div class="viewpill" onclick="go('map')">🗺️ ดูแผนที่</div>
+  </div>
+  <div class="view" id="v-results-old">
     <div class="body">
-      <div class="seg" style="margin-bottom:12px"><div class="on">📋 รายการ</div><div onclick="go('map')">🗺️ แผนที่</div></div>
       <p class="mut" style="margin-top:0">เรียงตามความตรงกับโปรไฟล์ ผลจาก AI ต้องตรวจสอบกับแหล่งทางการก่อนเสมอ</p>
       <div class="card click" onclick="go('detail')">
         <div class="row"><div class="row" style="justify-content:flex-start;gap:10px"><div class="badge bA">A</div><b>ตรวจสิทธิ์ภาษีคืน</b></div><span class="score">ตรงมาก</span></div>
@@ -347,11 +372,8 @@
 
   <!-- 4b Money Map -->
   <div class="view" id="v-map">
-    <div class="top"><div class="ttl" style="font-size:20px">โอกาสสำหรับคุณ</div></div>
-    <div style="padding:0 18px 10px;display:flex;gap:8px;align-items:center"><div class="seg" style="flex:1"><div onclick="go('results')">📋 รายการ</div><div class="on">🗺️ แผนที่</div></div><span class="chip2" id="locline" onclick="pickDistrict()" style="white-space:nowrap;max-width:150px;overflow:hidden;text-overflow:ellipsis"></span></div>
+    <div class="sbar"><div class="sin"><span>🔍</span><input class="qin" placeholder="ค้นหางาน สิทธิ์ ทักษะ" oninput="setQ(this.value)"></div><div class="fbtn" onclick="openFilter()">⚙️ ตัวกรอง<b class="fcnt hidden"></b></div></div>
     <div class="fbar" id="fbar"></div>
-    <div class="rbar"><span>รัศมี</span>
-      <div class="seg" id="rseg"><div data-r="1">1 กม.</div><div data-r="3">3 กม.</div><div data-r="5" class="on">5 กม.</div><div data-r="10">10 กม.</div></div></div>
     <div id="mapArea">
       <svg class="bg" viewBox="0 0 100 100" preserveAspectRatio="none">
         <rect width="100" height="100" fill="#e9efe8"/>
@@ -367,6 +389,8 @@
       <div class="mapbtns"><div onclick="event.stopPropagation();zoomR(-1)">＋</div><div onclick="event.stopPropagation();zoomR(1)">－</div><div onclick="event.stopPropagation();recenter()">📍</div></div>
       <div class="searchhere hidden" id="searchhere" onclick="event.stopPropagation();searchHere()">🔄 ค้นหาในพื้นที่นี้</div>
       <div class="scalebar" id="scalebar"></div>
+      <div class="locpill" id="locline" onclick="event.stopPropagation();pickDistrict()"></div>
+      <div class="viewpill" onclick="event.stopPropagation();go('results')">📋 ดูรายการ</div>
       <div class="attr">ภาพแผนที่จำลอง (จริงใช้ © OpenStreetMap)</div>
       <div class="mapbanner hidden" id="mapbanner"></div>
       <div id="mapempty" class="hidden"></div>
@@ -417,7 +441,7 @@
 
   <!-- 8 Tracker -->
   <div class="view" id="v-tracker">
-    <div class="top"><div class="ttl" style="font-size:20px">ความคืบหน้า</div></div>
+    <div class="top"><div class="ttl" style="font-size:20px">แผนของฉัน</div></div>
     <div class="body">
       <div class="card">
         <div class="row"><b>ตรวจสิทธิ์ภาษีคืน</b><span class="tag t-user" style="margin:0">ผู้ใช้แจ้ง</span></div>
@@ -454,21 +478,28 @@
   <div class="view" id="v-error-ai"><div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">ระบบขัดข้อง</div></div>
     <div class="body"><div class="bad">AI ใช้งานไม่ได้ชั่วคราว แอปจะไม่แสดงผลที่เดาขึ้นเอง</div><button class="btn" onclick="go('loading')">ลองใหม่</button><button class="btn sec" onclick="go('manual')">ใช้แบบเลือกเอง</button></div></div>
 
+  <!-- 10 Me -->
+  <div class="view" id="v-me">
+    <div class="top"><div class="ttl" style="font-size:20px">ฉัน</div></div>
+    <div class="body" id="meBody"></div>
+  </div>
+
   <div class="modal" id="modal" onclick="if(event.target===this)closeModal()"><div class="msheet" id="msheet"></div></div>
   <div class="toast" id="gtoast" style="z-index:60"></div>
 
   <div class="tabs" id="tabs">
     <div id="tab-home" onclick="goHome()"><span>🏠</span>หน้าแรก</div>
     <div id="tab-res" onclick="go('results')"><span>✨</span>โอกาส</div>
-    <div id="tab-trk" onclick="go('tracker')"><span>📈</span>ความคืบหน้า</div>
+    <div id="tab-trk" onclick="go('tracker')"><span>📋</span>แผนของฉัน</div>
+    <div id="tab-me" onclick="go('me')"><span>👤</span>ฉัน</div>
   </div>
 </div></div>
 
 <script>
 const screens = [
   ['g','เริ่มต้น'],['welcome','1 เลือกวิธี (ผู้ใช้ใหม่)'],['home','1b หน้าแรก (ผู้ใช้เดิม)'],['chat','2a คุยกับ AI'],['manual','2b เลือกเอง'],['loading','3 กำลังวิเคราะห์'],
-  ['g','ผลและการลงมือ'],['results','4 ผลลัพธ์ (รายการ)'],['map','4b แผนที่ Money Map'],['detail','5 รายละเอียดและแหล่งที่มา'],['planner','6 แผนรายได้'],
-  ['checklist','7 เช็คลิสต์ลงมือทำ'],['tracker','8 ติดตามความคืบหน้า'],['scam','9 สัญญาณหลอกลวง'],
+  ['g','ผลและการลงมือ'],['results','4 โอกาส: รายการ'],['map','4b โอกาส: แผนที่'],['detail','5 รายละเอียด (แบบเดิม)'],['planner','6 แผนรายได้'],
+  ['checklist','7 เช็คลิสต์ลงมือทำ'],['tracker','8 แผนของฉัน'],['scam','9 สัญญาณหลอกลวง'],['me','10 ฉัน (โปรไฟล์/ตั้งค่า)'],
   ['g','กรณีผิดปกติ'],['error-missing','E1 ข้อมูลไม่พอ'],['error-none','E2 ไม่พบผล'],['error-ai','E3 AI ล้มเหลว']
 ];
 const nav = document.getElementById('nav');
@@ -479,17 +510,21 @@ screens.forEach(([id,label]) => {
 });
 const noTabs = ['chat','loading','scam'];
 function go(id) {
+  closeModal();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
   document.getElementById('v-'+id).classList.add('on');
   if (id === 'map') { renderMap(); if (loc.state === 'ask') askLoc(); }
   if (id === 'home') renderHome();
   if (id === 'planner') renderPlanner();
+  if (id === 'results') renderResults();
+  if (id === 'me') renderMe();
+  if (id === 'map' || id === 'results') syncChips();
   if (id === 'tracker') renderTracker();
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'));
   const nb = document.getElementById('nav-'+id); if (nb) nb.classList.add('on');
   document.getElementById('tabs').classList.toggle('hidden', noTabs.includes(id));
   document.querySelectorAll('.tabs div').forEach(t => t.classList.remove('on'));
-  const t = {welcome:'tab-home',home:'tab-home',results:'tab-res',map:'tab-res',tracker:'tab-trk'}[id]; if (t) document.getElementById(t).classList.add('on');
+  const t = {welcome:'tab-home',home:'tab-home',results:'tab-res',map:'tab-res',planner:'tab-res',tracker:'tab-trk',checklist:'tab-trk',me:'tab-me'}[id]; if (t) document.getElementById(t).classList.add('on');
 }
 
 /* Scripted AI chat (mock): every reply is canned, no real AI is called. */
@@ -570,17 +605,18 @@ function searchHere() {
   a.addEventListener('touchstart', start, {passive:true}); a.addEventListener('touchmove', move, {passive:true}); a.addEventListener('touchend', end);
 })();
 const fbar = document.getElementById('fbar');
-const FCHIPS = [['all','ทั้งหมด'],['job','💼 งาน'],['skill','🛠️ ทักษะ'],['sell','🏪 ขายของ'],['money','💰 เงิน/สิทธิ์'],['$','💵 เฉพาะที่ระบุเงิน'],['!','⚠️ น่าสงสัย'],['src','🗂️ แหล่งข้อมูล']];
-FCHIPS.forEach(([k,l]) => { const s = document.createElement('span'); s.textContent = l; s.dataset.k = k; s.onclick = () => chipClick(k); fbar.appendChild(s); });
+const FCHIPS = [['all','ทั้งหมด'],['job','💼 งาน'],['skill','🛠️ ทักษะ'],['sell','🏪 ขายของ'],['money','💰 เงิน/สิทธิ์']];
+document.querySelectorAll('.fbar').forEach(bar => FCHIPS.forEach(([k,l]) => { const s = document.createElement('span'); s.textContent = l; s.dataset.k = k; s.onclick = () => chipClick(k); bar.appendChild(s); }));
 function chipClick(k) {
-  if (k === 'src') { openSources(); return; }
+  mapState.groups = k === 'all' ? new Set(['job','skill','sell','money']) : new Set([k]);
+  closeSheet(); refreshOpp(); return;
   if (k === 'all') { mapState.groups = new Set(['job','skill','sell','money']); mapState.onlyMoney = false; }
   else if (k === '$') mapState.onlyMoney = !mapState.onlyMoney;
   else if (k === '!') mapState.showScam = !mapState.showScam;
   else { if (mapState.groups.size === 4) mapState.groups = new Set([k]); else if (mapState.groups.has(k)) { mapState.groups.delete(k); if (!mapState.groups.size) mapState.groups = new Set(['job','skill','sell','money']); } else mapState.groups.add(k); }
   closeSheet(); renderMap();
 }
-document.getElementById('rseg').onclick = e => { const r = e.target.dataset.r; if (!r) return; mapState.r = +r; closeSheet(); renderMap(); };
+
 const dist = it => Math.hypot(it.dx, it.dy);
 function toast(m) { const t = document.getElementById('gtoast'); t.textContent = m; t.classList.remove('undo'); t.classList.add('on'); clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.remove('on'), 2200); }
 function closeSheet() { document.getElementById('sheet').classList.remove('open'); mapState.sel = null; document.querySelectorAll('.pin').forEach(p => p.classList.remove('sel')); }
@@ -592,10 +628,10 @@ function renderMap() {
   const vcx = -mapState.px/scale, vcy = -mapState.py/scale;
   document.getElementById('searchhere').classList.toggle('hidden', Math.hypot(vcx-mapState.sx, vcy-mapState.sy) <= mapState.r*0.25);
   document.getElementById('scalebar').textContent = 'รัศมี '+mapState.r+' กม.';
-  document.querySelectorAll('#fbar span').forEach(s => { const k = s.dataset.k; s.classList.toggle('on', k === 'all' ? mapState.groups.size === 4 && !mapState.onlyMoney : k === '$' ? mapState.onlyMoney : k === '!' ? mapState.showScam : mapState.groups.size < 4 && mapState.groups.has(k)); });
+  syncChips(); if (false) document.querySelectorAll('#fbar span').forEach(s => { const k = s.dataset.k; s.classList.toggle('on', k === 'all' ? mapState.groups.size === 4 && !mapState.onlyMoney : k === '$' ? mapState.onlyMoney : k === '!' ? mapState.showScam : mapState.groups.size < 4 && mapState.groups.has(k)); });
   document.querySelectorAll('#rseg div').forEach(d => d.classList.toggle('on', +d.dataset.r === mapState.r));
   const pins = document.getElementById('pins'); pins.innerHTML = '';
-  const ok = it => mapState.groups.has(it.g) && (!mapState.onlyMoney || it.tier < 3) && (!it.scam || mapState.showScam);
+  const ok = it => oppOk(it);
   const onMap = ITEMS.filter(i => i.dx !== undefined && ok(i) && Math.hypot(i.dx-mapState.sx, i.dy-mapState.sy) <= mapState.r);
   onMap.forEach(it => {
     const g = GROUPS[it.g]; const p = document.createElement('div'); p.className = 'pin'+(it.st==='mock'?' mock':''); p.dataset.id = it.id;
@@ -619,7 +655,7 @@ function openItem(id) {
     : '<div class="amtbox" style="background:'+t[2]+';color:'+t[1]+'"><div class="lab">'+t[0]+'</div><div style="font-size:19px;font-weight:800;margin:3px 0">ไม่ทราบจำนวนเงิน</div><div style="font-size:12px">สิ่งที่ทราบ: '+it.known+'</div>'
       + (it.aiEst ? '<button class="btn sec sm" style="margin-top:8px" onclick="document.getElementById(\'ai-'+it.id+'\').classList.remove(\'hidden\');this.remove()">ให้ AI ประมาณการ (ไม่ใช่ข้อมูลจริง)</button><div class="aiest hidden" id="ai-'+it.id+'">🤖 '+it.aiEst+'</div>' : '') + '</div>';
   document.getElementById('sheet').innerHTML =
-    '<div class="grab"></div><div class="row"><div class="row" style="gap:10px;justify-content:flex-start"><div class="badge" style="background:'+g.c+'">'+g.ic+'</div><b style="font-size:16px">'+it.t+'</b></div><span class="mut" style="cursor:pointer;font-size:20px" onclick="closeSheet()">✕</span></div>'
+    '<div class="grab"></div><div class="row"><div class="row" style="gap:10px;justify-content:flex-start"><div class="badge" style="background:'+g.c+'">'+g.ic+'</div><b style="font-size:16px">'+it.t+'</b></div><span class="mut" style="cursor:pointer;font-size:20px" onclick="closeSheet();closeModal()">✕</span></div>'
     + '<span class="tag '+s[1]+'">'+s[0]+'</span><span class="tag t-user" style="background:#e2e8f0;color:#334155">'+g.n+'</span>'
     + amountBox
     + '<p style="margin:4px 0"><b>📍</b> '+place+'</p>'
@@ -632,14 +668,14 @@ function openItem(id) {
     + (it.scam
       ? '<button class="btn" onclick="go(\'scam\')">ดูเหตุผลที่เตือน</button><button class="btn sec sm" onclick="toast(\'ขอบคุณ ส่งรายงานแล้ว (จำลอง)\')">รายงานประกาศนี้</button>'
       : '<button class="btn" onclick="sourceOpen(\''+it.id+'\')">ดูประกาศต้นทาง ↗</button><button class="btn sec sm" onclick="addPlan(\''+it.id+'\',1)">＋ บันทึกไว้ในความคืบหน้า</button>');
-  document.getElementById('sheet').classList.add('open');
+  showSheet();
 }
 function openList() {
-  const ok = it => mapState.groups.has(it.g) && (!mapState.onlyMoney || it.tier < 3) && (!it.scam || mapState.showScam);
+  const ok = it => oppOk(it);
   const rows = ITEMS.filter(i => i.dx === undefined && ok(i)).map(it => { const g = GROUPS[it.g];
     return '<div class="li" onclick="openItem(\''+it.id+'\')"><div class="ic" style="background:'+g.c+'">'+g.ic+'</div><div><b style="font-size:13.5px">'+it.t+'</b><div class="mut">'+(it.tier<3?TIER[it.tier][0]:'ไม่ระบุจำนวนเงิน')+'</div></div><div class="r" style="color:'+(it.tier<3?TIER[it.tier][1]:'#64748b')+'">'+(it.tier<3?it.short:'-')+'</div></div>'; }).join('');
   document.getElementById('sheet').innerHTML = '<div class="grab"></div><b style="font-size:16px">รายการที่ไม่ผูกสถานที่</b><p class="mut">สิทธิ์ เงินที่ต้องตรวจ และงานออนไลน์ ไม่มีตำแหน่งจริงจึงไม่ปักหมุด</p>'+rows;
-  document.getElementById('sheet').classList.add('open');
+  showSheet();
 }
 /* ---------- Progress tracking (all progress is user-reported in this mock) ---------- */
 let returning = false, xl = false;
@@ -665,19 +701,16 @@ function toastUndo(m, fn) {
 }
 function renderHome() {
   const n = nextTask(), active = tasks.filter(t => !finished(t));
-  let h = '<div class="row" style="margin:2px 0 10px"><div><div class="mut">ยินดีต้อนรับกลับ</div><b style="font-size:21px">สวัสดี คุณ'+persona.name+' 👋</b><div class="mut">'+persona.sub+'</div></div><span class="chip2" onclick="toggleXL()">'+(xl?'ตัวอักษรปกติ':'A+ ตัวใหญ่')+'</span></div>';
-  h += '<div class="chip2" onclick="go(\'manual\')" style="margin-bottom:14px">📍 '+persona.chip+' <b style="color:var(--pd)">แก้ไข</b></div>';
+  let h = '<div style="margin:2px 0 14px"><div class="mut">ยินดีต้อนรับกลับ</div><b style="font-size:22px">สวัสดี คุณ'+persona.name+' 👋</b></div>';
   if (n) {
     h += '<div class="next"><div class="lab">ขั้นต่อไปของคุณ</div><h2>'+esc(n.title)+'</h2><div style="font-size:14px;opacity:.95">ขั้นที่ '+(n.done+1)+' จาก '+n.steps.length+': '+esc(n.steps[n.done])+'</div>'
       + (n.due ? '<div style="font-size:12px;opacity:.85;margin-top:4px">⏰ '+esc(n.due)+'</div>' : '')
       + '<button class="btn" onclick="openUpd(\''+n.id+'\')">ทำต่อ</button><button class="btn ghost" onclick="snooze(\''+n.id+'\')">ไว้ทีหลัง</button></div>';
   } else h += '<div class="card"><b>🎉 ไม่มีงานค้าง</b><p class="mut" style="margin:6px 0 0">ครบทุกขั้นตามที่คุณแจ้งแล้ว ลองหาโอกาสใหม่ด้านล่าง</p></div>';
-  if (active.length > 1 || (active.length === 1 && !n)) {
-    h += '<h3>งานที่กำลังทำ</h3>' + active.map(t => '<div class="card click" onclick="openUpd(\''+t.id+'\')"><div class="row"><b>'+esc(t.title)+'</b>'+stTag(t)+'</div>'+segs(t)+'<div class="mut">'+t.done+' จาก '+t.steps.length+' ขั้น</div></div>').join('');
-  }
-  h += '<h3>มีโอกาสใหม่ใกล้คุณ</h3><div class="card click" onclick="go(\'map\')"><div class="row"><div><b>พบ '+nearCount()+' แห่งในรัศมี 5 กม.</b><div class="mut">ดูบนแผนที่</div></div><span style="font-size:26px">🗺️</span></div></div>';
-  h += '<h3>หาโอกาสเพิ่ม</h3><div class="row" style="gap:10px"><button class="btn sec sm" style="margin:0" onclick="startChat()">🤖 คุยกับ AI</button><button class="btn sec sm" style="margin:0" onclick="go(\'manual\')">🧭 เลือกเอง</button></div>';
-  h += '<p class="mut" style="margin-top:14px">ความคืบหน้าเป็นข้อมูลที่คุณแจ้งเอง ยังไม่ได้ยืนยันจากหน่วยงาน (DEMO / MOCK)</p>';
+  const others = active.filter(t => !n || t.id !== n.id).length;
+  if (others) h += '<div class="card click" onclick="go(\'tracker\')"><div class="row"><b>งานอื่นที่ทำอยู่ '+others+' รายการ</b><span class="mut" style="font-size:18px">›</span></div></div>';
+  h += '<div class="card click" onclick="go(\'results\')"><div class="row"><div><b>✨ โอกาสใหม่ใกล้คุณ '+nearCount()+' แห่ง</b><div class="mut">ดูเป็นรายการหรือแผนที่</div></div><span class="mut" style="font-size:18px">›</span></div></div>';
+  h += '<p style="text-align:center;margin:14px 0 0"><a class="link" onclick="startChat()">🤖 หรือคุยกับ AI เพื่อหาแบบละเอียด</a></p>';
   document.getElementById('homeBody').innerHTML = h;
 }
 function renderTracker() {
@@ -743,7 +776,7 @@ const PERSONAS = {
 PERSONAS.p1.tasks = JSON.parse(JSON.stringify(tasks));
 let persona = PERSONAS.p1;
 function setPersona(k) {
-  persona = PERSONAS[k]; tasks = JSON.parse(JSON.stringify(persona.tasks)); mapState.groups = new Set(persona.groups);
+  persona = PERSONAS[k]; tasks = JSON.parse(JSON.stringify(persona.tasks)); mapState.groups = new Set(['job','skill','sell','money']);
   returning = true; document.getElementById('usrToggle').textContent = '👤 ผู้ใช้: กลับมาใช้ มีงานค้าง (กดสลับ)'; closeSheet(); go('home');
 }
 function nearCount() { return ITEMS.filter(i => i.dx !== undefined && !i.scam && persona.groups.includes(i.g) && Math.hypot(i.dx, i.dy) <= 5).length; }
@@ -783,7 +816,7 @@ function mapStates(n) {
   const nx = RADII.find(r => r > mapState.r);
   em.innerHTML = '<b>ไม่พบโอกาสในรัศมี '+mapState.r+' กม.</b><div class="mut" style="margin:4px 0 8px">ลองขยายรัศมีหรือเปลี่ยนหมวด</div>'
     + (nx ? '<button class="btn sm" onclick="event.stopPropagation();mapState.r='+nx+';renderMap()">ขยายเป็น '+nx+' กม.</button>' : '<button class="btn sm" onclick="event.stopPropagation();openList()">ดูรายการที่ไม่ผูกสถานที่</button>');
-  document.getElementById('locline').textContent = '📍 '+(loc.state === 'ask' ? 'เลือกตำแหน่ง' : loc.label);
+  document.getElementById('locline').textContent = '📍 '+(loc.state === 'ask' ? 'เลือกตำแหน่ง' : loc.label)+' · '+mapState.r+' กม.';
 }
 mapState.showScam = false; mapState.sim = null;
 const AGE = {j1:2,j2:5,j3:12,j4:3,j5:40,s1:1800,s2:1800,m1:20,m2:20,w1:7,w2:7,w3:10,w4:7,w5:4,x1:1};
@@ -836,7 +869,7 @@ async function loadLive() {
       provState[k] = {s:'ok', n:bkk.length, total:all.length, at:new Date()};
     } catch (e) { provState[k] = {s:'fail', n:0, err:e.name === 'AbortError' ? 'หมดเวลา' : e.message}; }
   }));
-  if (document.getElementById('v-map').classList.contains('on')) renderMap();
+  refreshOpp();
 }
 function openSources() {
   const cnt = k => ITEMS.filter(i => i.prov === k).length;
@@ -845,11 +878,11 @@ function openSources() {
     if (s.s === 'fail') return '<span style="color:#b42318">✕ โหลดไม่สำเร็จ ('+esc(s.err)+') ในแอปจริงไม่มีปัญหา CORS แบบเบราว์เซอร์</span>';
     if (s.s === 'loading') return 'กำลังโหลด...';
     return cnt(k)+' รายการ'; };
-  document.getElementById('sheet').innerHTML = '<div class="grab"></div><div class="row"><b style="font-size:16px">แหล่งข้อมูลบนแผนที่</b><span class="mut" style="cursor:pointer;font-size:20px" onclick="closeSheet()">✕</span></div>'
+  document.getElementById('sheet').innerHTML = '<div class="grab"></div><div class="row"><b style="font-size:16px">แหล่งข้อมูลบนแผนที่</b><span class="mut" style="cursor:pointer;font-size:20px" onclick="closeSheet();closeModal()">✕</span></div>'
     + '<p class="mut">ทุกแหล่งถูกแปลงเป็นฟิลด์ชุดเดียวกัน แล้วลิงก์กลับไปดูที่ต้นทาง</p>'
     + Object.keys(PROVIDERS).map(k => '<div class="li" style="cursor:default"><div><b style="font-size:13.5px">'+PROVIDERS[k].n+'</b><div class="mut">'+PROVIDERS[k].kind+' · '+PROVIDERS[k].lic+'</div><div style="font-size:12px;margin-top:2px">'+stx(k)+'</div></div></div>').join('')
     + '<button class="btn sm" onclick="event.stopPropagation();loadLive().then(openSources);openSources()">🔄 ดึงข้อมูลสดใหม่</button>';
-  document.getElementById('sheet').classList.add('open');
+  showSheet();
 }
 
 /* ---------- Skill picker: one searchable dropdown with category headers ---------- */
@@ -950,6 +983,95 @@ function freshHtml(it) {
   else if (a > 30) { c = '#b42318'; tx += ' อาจไม่เป็นปัจจุบัน ตรวจที่ต้นทางก่อน'; }
   else if (a > 14) c = '#92400e';
   return '<b>🕒</b> <span style="color:'+c+';font-weight:600">'+tx+'</span>'+(it.exp ? ' · '+it.exp : '');
+}
+/* ---------- Opportunities tab: one data set, list + map views, one filter sheet ---------- */
+mapState.q = ''; mapState.sort = 'near';
+const DEFAULT_F = { r:5, sort:'near', onlyMoney:false, showScam:false };
+function matchQ(it) { const q = mapState.q.trim(); return !q || (it.t + ' ' + (it.org || '') + ' ' + GROUPS[it.g].n).includes(q); }
+function oppOk(it) { return mapState.groups.has(it.g) && (!mapState.onlyMoney || it.tier < 3) && (!it.scam || mapState.showScam) && matchQ(it); }
+function dFrom(it) { return it.dx === undefined ? null : Math.hypot(it.dx - mapState.sx, it.dy - mapState.sy); }
+function moneyMax(it) { return it.tier < 3 ? +String(it.amt).split('-').pop().replace(/,/g,'') : -1; }
+function oppList() {
+  const xs = ITEMS.filter(it => oppOk(it) && (dFrom(it) === null || dFrom(it) <= mapState.r));
+  const key = { near: it => dFrom(it) === null ? 1e9 : dFrom(it), money: it => -moneyMax(it), fresh: it => it.age == null ? 1e9 : it.age }[mapState.sort];
+  return xs.sort((a, b) => key(a) - key(b));
+}
+function fCount() { return ['r','sort','onlyMoney','showScam'].filter(k => mapState[k] !== DEFAULT_F[k]).length; }
+function syncChips() {
+  document.querySelectorAll('.fbar span').forEach(s => { const k = s.dataset.k; s.classList.toggle('on', k === 'all' ? mapState.groups.size === 4 : mapState.groups.size === 1 && mapState.groups.has(k)); });
+  const n = fCount(); document.querySelectorAll('.fcnt').forEach(b => { b.textContent = n; b.classList.toggle('hidden', !n); });
+  document.querySelectorAll('.qin').forEach(i => { if (i.value !== mapState.q) i.value = mapState.q; });
+}
+function refreshOpp() { syncChips(); if (document.getElementById('v-map').classList.contains('on')) renderMap(); else renderResults(); }
+function setQ(v) { mapState.q = v; refreshOpp(); }
+function showSheet() {
+  const s = document.getElementById('sheet');
+  if (document.getElementById('v-map').classList.contains('on')) { s.classList.add('open'); return; }
+  const h = s.innerHTML.replace('<div class="grab"></div>', ''); s.innerHTML = ''; s.classList.remove('open'); modal(h);
+}
+const SORTL = { near:'ใกล้สุด', money:'เงินมากสุด', fresh:'อัปเดตล่าสุด' };
+function renderResults() {
+  const xs = oppList(), hiddenScam = ITEMS.filter(i => i.scam && !mapState.showScam).length;
+  let h = '<div class="row" style="margin:0 0 8px"><span class="mut">พบ '+xs.length+' รายการ · เรียงตาม'+SORTL[mapState.sort]+'</span></div>';
+  h += '<div class="card click" onclick="go(\'planner\')" style="background:#f0fdf4"><div class="row"><b>📊 เทียบรายได้ทุกทางเลือก</b><span class="mut" style="font-size:18px">›</span></div></div>';
+  if (!xs.length) h += '<div class="card" style="text-align:center"><b>ไม่พบโอกาสที่ตรงเงื่อนไข</b><p class="mut">ลองล้างคำค้น ขยายระยะทาง หรือเลือก "ทั้งหมด"</p><button class="btn sm" onclick="Object.assign(mapState, DEFAULT_F, {q:\'\'});mapState.groups=new Set([\'job\',\'skill\',\'sell\',\'money\']);refreshOpp()">ล้างตัวกรองทั้งหมด</button></div>';
+  h += xs.map(it => { const g = GROUPS[it.g], d = dFrom(it), s = STATUS[it.st];
+    return '<div class="card click rcard'+(it.scam?' scam':'')+'" onclick="openItem(\''+it.id+'\')"><div class="row" style="align-items:flex-start"><div class="row" style="gap:10px;justify-content:flex-start;align-items:flex-start"><div class="badge" style="background:'+(it.scam?'#b42318':g.c)+'">'+(it.scam?'⚠️':g.ic)+'</div><div><b>'+esc(it.t)+'</b><div class="mut">'+(d === null ? 'ไม่ผูกสถานที่' : '📍 '+d.toFixed(1)+' กม.')+(it.age != null ? ' · 🕒 '+(it.age > 365 ? 'ข้อมูลเก่ามาก' : it.age+' วันก่อน') : '')+'</div></div></div>'
+      + '<b class="ramt" style="color:'+(it.tier < 3 ? TIER[it.tier][1] : '#64748b')+'">'+(it.tier < 3 ? it.short : 'ไม่ระบุเงิน')+'</b></div><span class="tag '+s[1]+'">'+s[0]+'</span></div>'; }).join('');
+  if (hiddenScam && !mapState.showScam) h += '<p class="mut" style="text-align:center">ซ่อนประกาศน่าสงสัยไว้ '+hiddenScam+' รายการ ดูได้ใน ⚙️ ตัวกรอง</p>';
+  h += '<div style="height:56px"></div>';
+  document.getElementById('resBody').innerHTML = h;
+}
+function setF(k, v) { mapState[k] = v; closeSheet(); refreshOpp(); openFilter(); }
+function openFilter() {
+  const seg = (k, opts) => '<div class="seg">'+opts.map(([v,l]) => '<div class="'+(mapState[k] === v ? 'on' : '')+'" onclick="setF(\''+k+'\','+(typeof v === 'number' ? v : '\''+v+'\'')+')">'+l+'</div>').join('')+'</div>';
+  const sw = (k, l, sub) => '<div class="swrow" onclick="setF(\''+k+'\','+!mapState[k]+')"><div><b>'+l+'</b><div class="mut">'+sub+'</div></div><span class="sw'+(mapState[k]?' on':'')+'"><i></i></span></div>';
+  const nScam = ITEMS.filter(i => i.scam).length;
+  modal('<div class="row"><b style="font-size:18px">ตัวกรอง</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="closeModal()">✕</span></div>'
+    + '<h3>ระยะทางจากจุดค้นหา</h3>' + seg('r', RADII.map(r => [r, r+' กม.']))
+    + '<h3>เรียงตาม</h3>' + seg('sort', Object.entries(SORTL))
+    + '<h3>ตัวเลือกเพิ่มเติม</h3>' + sw('onlyMoney', '💵 เฉพาะที่ระบุจำนวนเงิน', 'ซ่อนรายการที่ไม่ทราบตัวเงิน')
+    + sw('showScam', '⚠️ แสดงประกาศน่าสงสัย', 'ปกติซ่อนไว้ '+nScam+' รายการเพื่อความปลอดภัย')
+    + '<div class="swrow" onclick="closeModal();openSources()"><div><b>🗂️ แหล่งข้อมูลที่ใช้</b><div class="mut">สถานะการดึงข้อมูลของแต่ละเจ้า</div></div><span class="mut" style="font-size:18px">›</span></div>'
+    + '<button class="btn" onclick="closeModal()">ดูผล '+oppList().length+' รายการ</button>'
+    + (fCount() ? '<button class="btn sec sm" onclick="Object.assign(mapState, DEFAULT_F);closeSheet();refreshOpp();openFilter()">ล้างตัวกรอง</button>' : ''));
+}
+
+/* ---------- Me tab: profile and settings ---------- */
+const meSet = { remind:true };
+function renderMe() {
+  const row = (ic, l, sub, act, right) => '<div class="swrow" onclick="'+act+'"><div class="row" style="gap:12px;justify-content:flex-start"><span style="font-size:20px">'+ic+'</span><div><b>'+l+'</b>'+(sub ? '<div class="mut">'+sub+'</div>' : '')+'</div></div>'+(right || '<span class="mut" style="font-size:18px">›</span>')+'</div>';
+  const swi = on => '<span class="sw'+(on?' on':'')+'"><i></i></span>';
+  let h = '<div class="card"><div class="row" style="gap:12px;justify-content:flex-start"><div class="badge" style="width:52px;height:52px;border-radius:18px;font-size:22px;background:var(--p)">👤</div><div><b style="font-size:17px">คุณ'+persona.name+'</b><div class="mut">'+persona.sub+'</div></div></div>'
+    + '<div class="mut" style="margin-top:10px">📍 '+persona.chip+'</div><div class="mut">🛠️ '+skillPicked.join(', ')+'</div>'
+    + '<button class="btn sec sm" onclick="go(\'manual\')">แก้ไขโปรไฟล์และทักษะ</button></div>';
+  h += '<h3>การใช้งาน</h3><div class="card" style="padding:4px 14px">'
+    + row('🔠', 'ตัวอักษรใหญ่', 'อ่านง่ายขึ้น ปุ่มใหญ่ขึ้น', 'toggleXL();renderMe()', swi(xl))
+    + row('🔔', 'เตือนงานค้าง', 'เตือนเมื่อมีขั้นที่ควรทำต่อ (จำลอง)', 'meSet.remind=!meSet.remind;renderMe()', swi(meSet.remind))
+    + row('📍', 'ตำแหน่งค้นหา', loc.state === 'ask' ? 'ยังไม่ได้เลือก' : loc.label, 'pickDistrict()') + '</div>';
+  h += '<h3>ข้อมูลของฉัน</h3><div class="card" style="padding:4px 14px">'
+    + row('📄', 'ดูข้อมูลที่แอปเก็บ', 'พื้นที่ ทักษะ เวลาว่าง เป้ารายได้ ความคืบหน้า', 'showMyData()')
+    + row('🗑️', 'ลบข้อมูลทั้งหมด', 'ลบโปรไฟล์และความคืบหน้าบนเครื่องนี้', 'confirmDelete()') + '</div>';
+  h += '<h3>ช่วยเหลือ</h3><div class="card" style="padding:4px 14px">'
+    + row('❓', 'วิธีใช้แอป', '3 ขั้นตอนง่ายๆ', 'showHelp()')
+    + row('⚠️', 'รู้ทันมิจฉาชีพ', 'สัญญาณที่ควรระวัง', 'go(\'scam\')')
+    + row('🗂️', 'แหล่งข้อมูลที่ใช้', 'ที่มาและสถานะของข้อมูล', 'openSources()')
+    + row('ℹ️', 'เกี่ยวกับเวอร์ชันนี้', 'DEMO / MOCK ไม่ใช่บริการจริง', 'toast(\'เวอร์ชันสาธิต ข้อมูลส่วนใหญ่เป็นข้อมูลจำลอง\')') + '</div>';
+  document.getElementById('meBody').innerHTML = h;
+}
+function showMyData() {
+  modal('<b style="font-size:17px">ข้อมูลที่แอปเก็บ</b><div class="card" style="margin-top:10px"><table>'
+    + [['ชื่อที่แสดง', 'คุณ'+persona.name], ['พื้นที่', persona.chip], ['ทักษะ', skillPicked.join(', ')], ['งานที่บันทึก', tasks.length+' รายการ']].map(r => '<tr><td class="mut">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')
+    + '</table></div><p class="mut">ไม่เก็บเลขบัตรประชาชน รหัสผ่าน OTP หรือข้อมูลบัญชีธนาคาร</p><button class="btn" onclick="closeModal()">ปิด</button>');
+}
+function confirmDelete() {
+  modal('<b style="font-size:17px">ลบข้อมูลทั้งหมด?</b><p>โปรไฟล์และความคืบหน้าบนเครื่องนี้จะหายไป และกู้คืนไม่ได้</p>'
+    + '<button class="btn" style="background:#b42318;box-shadow:none" onclick="tasks=[];closeModal();toast(\'ลบข้อมูลแล้ว (จำลอง)\');renderMe()">ลบข้อมูล</button><button class="btn sec" onclick="closeModal()">ยกเลิก</button>');
+}
+function showHelp() {
+  modal('<b style="font-size:17px">ใช้แอปใน 3 ขั้น</b>'
+    + '<div class="stepbox">1. บอกเราเกี่ยวกับคุณ (คุยกับ AI หรือเลือกเอง)</div><div class="stepbox">2. ดูโอกาสที่ตรงกับคุณ เป็นรายการหรือแผนที่</div><div class="stepbox">3. เลือกแล้วทำตามขั้นตอนใน "แผนของฉัน"</div>'
+    + '<button class="btn" onclick="closeModal()">เข้าใจแล้ว</button>');
 }
 function startChat() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }
 go('welcome');
