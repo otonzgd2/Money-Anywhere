@@ -175,6 +175,22 @@
   .cmpt { font-size:12px; margin:10px 0; }
   .cmpt th { font-size:12px; color:var(--ink); }
   .cmpt td.win { background:#dcfce7; color:#166534; font-weight:700; }
+  /* where is my money */
+  .mcard { background:linear-gradient(145deg,#ecfdf5,#fff); border:1.5px solid #a7f3d0; }
+  .mcard small { font-size:13px; font-weight:600; color:var(--mut); }
+  .mhero { background:linear-gradient(145deg,#0e9f6e,#047857); color:#fff; }
+  .mpill { display:inline-block; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:10px; }
+  .askbox { background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:14px; padding:12px; margin-top:8px; font-size:13.5px; }
+  .askbox .chips span { background:#fff; }
+  .rstep { display:flex; gap:12px; padding:10px 0; position:relative; }
+  .rstep:not(:last-of-type):before { content:""; position:absolute; left:15px; top:42px; bottom:-6px; width:2px; background:#dde7e2; }
+  .rnum { width:32px; height:32px; border-radius:50%; background:#e5eee9; color:var(--pd); display:grid; place-items:center; font-weight:800; flex:none; }
+  .rstep.done .rnum { background:var(--p); color:#fff; }
+  .rbody { flex:1; min-width:0; }
+  .rbody > b { display:block; font-size:15px; margin:5px 0 4px; }
+  .rr { font-size:13.5px; padding:2px 0; }
+  .chan { display:flex; gap:10px; align-items:center; background:#fff; border:1.5px solid #e3ebe7; border-radius:14px; padding:10px 12px; margin-top:8px; cursor:pointer; }
+  .chan > div { flex:1; }
   .mapbtns { position:absolute; right:10px; top:10px; display:flex; flex-direction:column; gap:8px; z-index:6; }
   .mapbtns div { width:40px; height:40px; border-radius:50%; background:#fff; display:grid; place-items:center; font-size:18px; font-weight:700; box-shadow:0 3px 10px rgba(0,0,0,.2); cursor:pointer; }
   .searchhere { position:absolute; left:50%; bottom:44px; transform:translateX(-50%); background:var(--ink); color:#fff; padding:9px 16px; border-radius:20px; font-size:13px; font-weight:700; box-shadow:0 6px 16px rgba(0,0,0,.3); cursor:pointer; z-index:6; white-space:nowrap; }
@@ -253,6 +269,7 @@
     <button onclick="go('map');gpsFail()" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">GPS ล้ม</button>
     <button onclick="setSim(null)" style="padding:6px 9px;border:0;border-radius:8px;cursor:pointer;font-size:12px">ปกติ</button>
   </div>
+  <button id="govToggle" onclick="toggleGov()" style="width:100%;margin-top:10px;padding:9px;border:0;border-radius:10px;background:#475569;color:#fff;cursor:pointer;font-size:12.5px">🏛️ โหมดเชื่อมรัฐ (ThaID): ซ่อน</button>
   <button id="usrToggle" onclick="toggleUser()" style="width:100%;margin-top:10px;padding:9px;border:0;border-radius:10px;background:#0f1f1a;color:#fff;cursor:pointer;font-size:12.5px">👤 ผู้ใช้: ครั้งแรก (กดสลับเป็นผู้ใช้เดิม)</button>
   <div class="legend">
     <span class="tag t-src">มีแหล่งที่มา</span> ข้อเท็จจริงที่อ้างอิงได้<br>
@@ -478,6 +495,16 @@
   <div class="view" id="v-error-ai"><div class="top"><div class="back" onclick="go('welcome')">‹</div><div class="ttl">ระบบขัดข้อง</div></div>
     <div class="body"><div class="bad">AI ใช้งานไม่ได้ชั่วคราว แอปจะไม่แสดงผลที่เดาขึ้นเอง</div><button class="btn" onclick="go('loading')">ลองใหม่</button><button class="btn sec" onclick="go('manual')">ใช้แบบเลือกเอง</button></div></div>
 
+  <!-- 11 Money overview / 12 Money route -->
+  <div class="view" id="v-money">
+    <div class="top"><div class="back" onclick="goHome()">‹</div><div class="ttl">เงินของฉัน</div></div>
+    <div class="body" id="moneyBody"></div>
+  </div>
+  <div class="view" id="v-route">
+    <div class="top"><div class="back" onclick="go('money')">‹</div><div class="ttl">เส้นทางรับเงิน</div></div>
+    <div class="body" id="routeBody"></div>
+  </div>
+
   <!-- 10 Me -->
   <div class="view" id="v-me">
     <div class="top"><div class="ttl" style="font-size:20px">ฉัน</div></div>
@@ -500,6 +527,7 @@ const screens = [
   ['g','เริ่มต้น'],['welcome','1 เลือกวิธี (ผู้ใช้ใหม่)'],['home','1b หน้าแรก (ผู้ใช้เดิม)'],['chat','2a คุยกับ AI'],['manual','2b เลือกเอง'],['loading','3 กำลังวิเคราะห์'],
   ['g','ผลและการลงมือ'],['results','4 โอกาส: รายการ'],['map','4b โอกาส: แผนที่'],['detail','5 รายละเอียด (แบบเดิม)'],['planner','6 แผนรายได้'],
   ['checklist','7 เช็คลิสต์ลงมือทำ'],['tracker','8 แผนของฉัน'],['scam','9 สัญญาณหลอกลวง'],['me','10 ฉัน (โปรไฟล์/ตั้งค่า)'],
+  ['g','เงินอยู่ไหน'],['money','11 เงินของฉัน'],['route','12 เส้นทางรับเงิน'],
   ['g','กรณีผิดปกติ'],['error-missing','E1 ข้อมูลไม่พอ'],['error-none','E2 ไม่พบผล'],['error-ai','E3 AI ล้มเหลว']
 ];
 const nav = document.getElementById('nav');
@@ -518,13 +546,15 @@ function go(id) {
   if (id === 'planner') renderPlanner();
   if (id === 'results') renderResults();
   if (id === 'me') renderMe();
+  if (id === 'money') renderMoney();
+  if (id === 'route') renderRoute();
   if (id === 'map' || id === 'results') syncChips();
   if (id === 'tracker') renderTracker();
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'));
   const nb = document.getElementById('nav-'+id); if (nb) nb.classList.add('on');
   document.getElementById('tabs').classList.toggle('hidden', noTabs.includes(id));
   document.querySelectorAll('.tabs div').forEach(t => t.classList.remove('on'));
-  const t = {welcome:'tab-home',home:'tab-home',results:'tab-res',map:'tab-res',planner:'tab-res',tracker:'tab-trk',checklist:'tab-trk',me:'tab-me'}[id]; if (t) document.getElementById(t).classList.add('on');
+  const t = {welcome:'tab-home',home:'tab-home',results:'tab-res',map:'tab-res',planner:'tab-res',tracker:'tab-trk',checklist:'tab-trk',me:'tab-me',money:'tab-home',route:'tab-home'}[id]; if (t) document.getElementById(t).classList.add('on');
 }
 
 /* Scripted AI chat (mock): every reply is canned, no real AI is called. */
@@ -702,6 +732,7 @@ function toastUndo(m, fn) {
 function renderHome() {
   const n = nextTask(), active = tasks.filter(t => !finished(t));
   let h = '<div style="margin:2px 0 14px"><div class="mut">ยินดีต้อนรับกลับ</div><b style="font-size:22px">สวัสดี คุณ'+persona.name+' 👋</b></div>';
+  h += moneyCard();
   if (n) {
     h += '<div class="next"><div class="lab">ขั้นต่อไปของคุณ</div><h2>'+esc(n.title)+'</h2><div style="font-size:14px;opacity:.95">ขั้นที่ '+(n.done+1)+' จาก '+n.steps.length+': '+esc(n.steps[n.done])+'</div>'
       + (n.due ? '<div style="font-size:12px;opacity:.85;margin-top:4px">⏰ '+esc(n.due)+'</div>' : '')
@@ -777,6 +808,7 @@ PERSONAS.p1.tasks = JSON.parse(JSON.stringify(tasks));
 let persona = PERSONAS.p1;
 function setPersona(k) {
   if (!consent.accepted) { Object.assign(consent, { accepted:true, version:NOTICE_VERSION, at:new Date(), adult:true, p:{ core:true, location:true, ai:true, reminders:true } }); consent.history.push({ at:new Date(), version:NOTICE_VERSION, p:{ ...consent.p } }); }
+  facts = { ...PERSONA_FACTS[k] };
   persona = PERSONAS[k]; tasks = JSON.parse(JSON.stringify(persona.tasks)); mapState.groups = new Set(['job','skill','sell','money']);
   returning = true; document.getElementById('usrToggle').textContent = '👤 ผู้ใช้: กลับมาใช้ มีงานค้าง (กดสลับ)'; closeSheet(); go('home');
 }
@@ -788,7 +820,8 @@ const PURPOSES = [
   { id:'core', req:true, ic:'🔎', t:'ใช้ข้อมูลโปรไฟล์เพื่อหาโอกาสให้คุณ', s:'พื้นที่ ทักษะ เวลาว่าง เป้ารายได้ ช่วงอายุ จำเป็นต่อการใช้แอป' },
   { id:'location', ic:'📍', t:'ใช้ตำแหน่งปัจจุบัน', s:'หาโอกาสใกล้ตัว ไม่เก็บประวัติการเดินทาง ไม่ยอมก็เลือกเขตเองได้' },
   { id:'ai', ic:'🤖', t:'ส่งข้อมูลให้ AI ช่วยวิเคราะห์', s:'ส่งเฉพาะทักษะ พื้นที่ เป้าหมาย ไม่ส่งชื่อ ผู้ให้บริการ AI อาจอยู่ต่างประเทศ ไม่ยอมก็ใช้แบบเลือกเองได้' },
-  { id:'reminders', ic:'🔔', t:'แจ้งเตือนงานค้าง', s:'เตือนเมื่อมีขั้นที่ควรทำต่อ' }
+  { id:'reminders', ic:'🔔', t:'แจ้งเตือนงานค้าง', s:'เตือนเมื่อมีขั้นที่ควรทำต่อ' },
+  { id:'gov', gov:true, ic:'🏛️', t:'อ่านข้อมูลสิทธิ์จากหน่วยงานผ่าน ThaID', s:'อ่านสถานะสิทธิ์และยอดรอรับเท่านั้น ไม่เก็บรูปใบหน้าหรือรหัส ยกเลิกได้ทุกเมื่อ' }
 ];
 const consent = { accepted:false, version:null, at:null, adult:false, p:{ core:true, location:false, ai:false, reminders:false }, history:[] };
 const draftC = { adult:false, p:{} };
@@ -805,7 +838,7 @@ function withConsent(fn) {
 function consentSheet() {
   modal('<h2 style="font-size:19px;margin-top:4px">ก่อนเริ่ม: ข้อมูลของคุณ</h2>'
     + '<p class="mut" style="margin-top:0">เลือกได้ว่าจะให้ใช้ข้อมูลเรื่องไหน เปลี่ยนใจหรือถอนได้ทุกเมื่อที่แท็บ ฉัน</p>'
-    + '<div class="card" style="padding:2px 12px">'+PURPOSES.map(pp => cRow(pp, draftC.p[pp.id], 'toggleDraft')).join('')+'</div>'
+    + '<div class="card" style="padding:2px 12px">'+PURPOSES.filter(pp => !pp.gov).map(pp => cRow(pp, draftC.p[pp.id], 'toggleDraft')).join('')+'</div>'
     + '<div class="note" style="color:#334155;background:#f1f5f9">ไม่ขอเลขบัตรประชาชน รหัสผ่าน OTP หรือเลขบัญชี · เก็บไว้จนกว่าคุณจะลบ · <a class="link" onclick="showNotice()">อ่านประกาศความเป็นส่วนตัว</a></div>'
     + '<label class="cmpchk" style="font-size:14px"><input type="checkbox" '+(draftC.adult?'checked':'')+' onchange="draftC.adult=this.checked;consentSheet()"> ฉันอายุ 20 ปีขึ้นไป หรือผู้ปกครองยินยอมแล้ว</label>'
     + '<button class="btn" '+(draftC.adult?'':'disabled style="opacity:.45;cursor:not-allowed"')+' onclick="acceptConsent()">ยอมรับและไปต่อ</button>'
@@ -824,7 +857,7 @@ function manageConsent() {
   if (!consent.accepted) { modal('<b style="font-size:17px">ยังไม่ได้ให้ความยินยอม</b><p>เมื่อเริ่มใช้งาน แอปจะถามก่อนทุกครั้ง</p><button class="btn" onclick="closeModal()">ปิด</button>'); return; }
   modal('<div class="row"><b style="font-size:17px">จัดการความยินยอม</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="closeModal()">✕</span></div>'
     + '<p class="mut">ฉบับ '+consent.version+' · ยอมรับเมื่อ '+consent.at.toLocaleString('th-TH')+'</p>'
-    + '<div class="card" style="padding:2px 12px">'+PURPOSES.map(pp => cRow(pp, consent.p[pp.id], 'toggleConsent')).join('')+'</div>'
+    + '<div class="card" style="padding:2px 12px">'+PURPOSES.filter(pp => !pp.gov || gov.flag).map(pp => cRow(pp, consent.p[pp.id], 'toggleConsent')).join('')+'</div>'
     + '<p class="mut">ถอนความยินยอมมีผลทันที ข้อที่จำเป็นถอนได้โดยลบข้อมูลทั้งหมด</p>'
     + '<button class="btn sec sm" onclick="showConsentHistory()">ประวัติการให้ความยินยอม ('+consent.history.length+')</button>'
     + '<button class="btn sec sm" style="color:#b42318;border-color:#fecaca" onclick="confirmDelete()">ถอนทั้งหมดและลบข้อมูล</button>');
@@ -834,6 +867,7 @@ function toggleConsent(id) {
   consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } });
   if (id === 'location' && !consent.p.location && loc.state === 'gps') loc = { state:'ask', label:'' };
   if (id === 'reminders') meSet.remind = consent.p.reminders;
+  if (id === 'gov') { if (consent.p.gov) { consent.p.gov = false; consent.history.pop(); manageConsent(); connectThaid(); return; } gov.connected = false; }
   toast(consent.p[id] ? 'ให้ความยินยอมแล้ว' : 'ถอนความยินยอมแล้ว มีผลทันที');
   manageConsent(); renderMe();
 }
@@ -1118,6 +1152,8 @@ function renderMe() {
     + row('🔠', 'ตัวอักษรใหญ่', 'อ่านง่ายขึ้น ปุ่มใหญ่ขึ้น', 'toggleXL();renderMe()', swi(xl))
     + row('🔔', 'เตือนงานค้าง', 'เตือนเมื่อมีขั้นที่ควรทำต่อ (จำลอง)', 'toggleConsent(\'reminders\')', swi(pOn('reminders')))
     + row('📍', 'ตำแหน่งค้นหา', loc.state === 'ask' ? 'ยังไม่ได้เลือก' : loc.label, 'pickDistrict()') + '</div>';
+  if (gov.flag) h += '<h3>บัญชีที่เชื่อมต่อ</h3><div class="card" style="padding:4px 14px">'
+    + row('🏛️', 'ThaID', gov.connected ? 'เชื่อมแล้ว (DEMO / MOCK) · กดเพื่อยกเลิก' : 'ไม่บังคับ เชื่อมเพื่อดูยอดจริงจากหน่วยงาน', gov.connected ? 'disconnectThaid()' : 'connectThaid()', gov.connected ? '<span class="tag t-src" style="margin:0">เชื่อมแล้ว</span>' : '') + '</div>';
   h += '<h3>ความเป็นส่วนตัวและข้อมูลของฉัน</h3><div class="card" style="padding:4px 14px">'
     + row('🛡️', 'จัดการความยินยอม', consent.accepted ? PURPOSES.filter(pp => consent.p[pp.id]).map(pp => pp.ic).join(' ')+' ยินยอมอยู่' : 'ยังไม่ได้ให้ความยินยอม', 'manageConsent()')
     + row('📜', 'ประกาศความเป็นส่วนตัว', 'ฉบับ '+NOTICE_VERSION, 'showNotice()')
@@ -1152,6 +1188,163 @@ function startChat() {
     return;
   }
   startChatNow();
+}
+/* ---------- Where is my money: overview + end-to-end claim route ---------- */
+const gov = { flag:false, connected:false };
+const AGE_BANDS = ['ต่ำกว่า 60', '60-69', '70-79', '80-89', '90 ขึ้นไป'];
+const PERSONA_FACTS = {
+  p1:{ ageBand:'60-69', govPension:false, work:'ไม่ได้ทำงาน', taxWithheld:false },
+  p2:{ ageBand:'ต่ำกว่า 60', govPension:false, work:'เพิ่งตกงาน', ss33:true, wage:12000, unpaidDays:5, dailyWage:400 },
+  p3:{ ageBand:'ต่ำกว่า 60', govPension:false, work:'ทำงานอิสระ', ss33:false, taxWithheld:true }
+};
+let facts = { ...PERSONA_FACTS.p1 };
+const ASK = {
+  ageBand:{ q:'คุณอายุเท่าไหร่', opts:AGE_BANDS },
+  govPension:{ q:'ได้รับบำนาญจากรัฐอยู่ไหม', opts:['ไม่ได้รับ','ได้รับ'], map:v => v === 'ได้รับ' },
+  work:{ q:'ตอนนี้ทำงานอยู่ไหม', opts:['ทำงานประจำ','เพิ่งตกงาน','ทำงานอิสระ','ไม่ได้ทำงาน'] },
+  ss33:{ q:'งานล่าสุดหักเงินประกันสังคมไหม', opts:['หัก','ไม่หัก'], map:v => v === 'หัก' },
+  taxWithheld:{ q:'ปีนี้เคยถูกหักภาษี ณ ที่จ่ายไหม', opts:['เคย','ไม่เคย'], map:v => v === 'เคย' },
+  unpaidDays:{ q:'มีวันทำงานที่ยังไม่ได้ค่าจ้างกี่วัน', num:true },
+  dailyWage:{ q:'ค่าจ้างต่อวันเท่าไหร่ (บาท)', num:true },
+  wage:{ q:'เงินเดือนล่าสุดเท่าไหร่ (บาท)', num:true }
+};
+const MONEY = [
+  { id:'old', ic:'👵', t:'เบี้ยยังชีพผู้สูงอายุ', kind:'monthly', payer:'สำนักงานเขต (กรุงเทพฯ)', payHow:'โอนเข้าบัญชีหรือพร้อมเพย์ที่แจ้งไว้ ทุกเดือน',
+    check:f => { if (!f.ageBand) return { st:'need', ask:'ageBand', r:[] }; const ok1 = f.ageBand !== 'ต่ำกว่า 60', r = [[ok1, 'อายุ 60 ปีขึ้นไป']];
+      if (f.govPension === undefined) return { st:'need', ask:'govPension', r }; r.push([!f.govPension, 'ไม่ได้รับบำนาญจากรัฐ']); return { st: ok1 && !f.govPension ? 'likely' : 'unlikely', r }; },
+    amount:f => { const v = { '60-69':600, '70-79':700, '80-89':800, '90 ขึ้นไป':1000 }[f.ageBand]; return v ? { basis:'rate', v, unit:'บาท/เดือน', note:'อัตราตัวอย่างตามช่วงอายุ ต้องตรวจกับประกาศล่าสุด' } : { basis:'none', note:'ขึ้นกับช่วงอายุ' }; },
+    docs:['บัตรประชาชน', 'ทะเบียนบ้าน', 'สมุดบัญชีธนาคาร หรือพร้อมเพย์ผูกเลขบัตร'],
+    channels:[{ ic:'🏢', t:'ลงทะเบียนที่สำนักงานเขต', s:'สำนักงานเขตตัวอย่าง · ห่าง 2.1 กม. · จ.-ศ. 08:30-16:30 (ตัวอย่าง)', map:true }, { ic:'📞', t:'โทรถามก่อนไป', s:'เบอร์สำนักงานเขต (ตัวอย่าง)' }],
+    after:'เงินเริ่มจ่ายตามรอบของหน่วยงานหลังลงทะเบียน (ตัวอย่าง)', ifNo:'ถามเหตุผลที่สำนักงานเขต แล้วยื่นใหม่เมื่อคุณสมบัติครบ',
+    govData:{ v:600, text:'ลงทะเบียนแล้ว จ่ายทุกเดือน' } },
+  { id:'unemp', ic:'🧾', t:'เงินทดแทนกรณีว่างงาน (ประกันสังคม)', kind:'monthly', payer:'สำนักงานประกันสังคม', payHow:'โอนเข้าบัญชีที่แจ้งไว้ หลังรายงานตัวแต่ละเดือน',
+    check:f => { if (!f.work) return { st:'need', ask:'work', r:[] }; const un = f.work === 'เพิ่งตกงาน', r = [[un, 'เพิ่งออกจากงาน']];
+      if (!un) return { st:'unlikely', r }; if (f.ss33 === undefined) return { st:'need', ask:'ss33', r }; r.push([f.ss33, 'งานเดิมหักประกันสังคม']); return { st: f.ss33 ? 'likely' : 'unlikely', r }; },
+    amount:f => f.wage ? { basis:'calc', v:Math.round(Math.min(f.wage, 15000) * 0.5), unit:'บาท/เดือน', note:'เงินเดือน '+f.wage.toLocaleString('th-TH')+' × 50% (สัดส่วนตัวอย่าง ต้องตรวจกับประกาศ)' } : { basis:'none', note:'ใส่เงินเดือนล่าสุดเพื่อคำนวณ', ask:'wage' },
+    docs:['บัตรประชาชน', 'หนังสือรับรองการออกจากงาน (ถ้ามี)', 'สมุดบัญชีธนาคาร'],
+    channels:[{ ic:'💻', t:'ขึ้นทะเบียนว่างงานออนไลน์', s:'เว็บไซต์ทางการ (ตัวอย่าง) ทำภายในกำหนดหลังออกจากงาน', link:true }, { ic:'🏢', t:'ไปสำนักงานประกันสังคม', s:'สาขาใกล้บ้าน (ตัวอย่าง)', map:true }],
+    after:'รายงานตัวตามนัดทุกเดือน เงินโอนหลังรายงานตัว (ตัวอย่าง)', ifNo:'ขอทราบเหตุผล และยื่นอุทธรณ์ตามขั้นตอนของหน่วยงาน' },
+  { id:'tax', ic:'🧮', t:'เงินคืนภาษี', kind:'once', payer:'กรมสรรพากร', payHow:'โอนเข้าพร้อมเพย์ที่ผูกเลขบัตรประชาชน',
+    check:f => { if (f.taxWithheld === undefined) return { st:'need', ask:'taxWithheld', r:[] }; return { st: f.taxWithheld ? 'check' : 'unlikely', r:[[f.taxWithheld, 'เคยถูกหักภาษี ณ ที่จ่าย'], [null, 'ยอดคืนจริงขึ้นกับรายได้และค่าลดหย่อนทั้งปี']] }; },
+    amount:() => ({ basis:'none', note:'ดูยอดที่ถูกหักในหนังสือรับรองการหักภาษี (50 ทวิ) แล้วยื่นแบบเพื่อรู้ยอดคืนจริง' }),
+    docs:['หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)', 'หลักฐานค่าลดหย่อน', 'พร้อมเพย์ผูกเลขบัตรประชาชน'],
+    channels:[{ ic:'💻', t:'ยื่นแบบภาษีออนไลน์', s:'เว็บไซต์ทางการ (ตัวอย่าง)', link:true }],
+    after:'ติดตามสถานะคืนเงินที่เว็บไซต์ทางการ', ifNo:'ถ้าถูกขอเอกสารเพิ่ม ส่งตามที่แจ้งภายในกำหนด',
+    govData:{ v:1850, text:'มียอดคืนภาษีรอโอน' } },
+  { id:'owed', ic:'💼', t:'ค่าจ้างค้างจ่าย', kind:'once', payer:'นายจ้างเดิม', payHow:'นายจ้างจ่ายตรง หรือตามคำสั่งเจ้าหน้าที่',
+    check:f => { if (f.unpaidDays === undefined) return { st:'need', ask:'unpaidDays', r:[] }; return { st: f.unpaidDays > 0 ? 'likely' : 'unlikely', r:[[f.unpaidDays > 0, 'มีวันทำงานที่ยังไม่ได้ค่าจ้าง']] }; },
+    amount:f => f.unpaidDays > 0 && f.dailyWage ? { basis:'calc', v:f.unpaidDays * f.dailyWage, unit:'บาท', note:f.unpaidDays+' วัน × '+f.dailyWage+' บาท ตามที่คุณแจ้ง' } : { basis:'none', note:'ใส่ค่าจ้างต่อวันเพื่อคำนวณ', ask:'dailyWage' },
+    docs:['หลักฐานการทำงาน (สัญญา ข้อความ รูปถ่าย)', 'สลิปหรือหลักฐานการโอนครั้งก่อน', 'บัตรประชาชน'],
+    channels:[{ ic:'💬', t:'ทวงกับนายจ้างก่อน', s:'ใช้ข้อความตัวอย่างที่แอปเตรียมให้', letter:true }, { ic:'🏢', t:'ยื่นคำร้องที่หน่วยงานคุ้มครองแรงงาน', s:'สำนักงานพื้นที่ใกล้บ้าน (ตัวอย่าง)', map:true }],
+    after:'เจ้าหน้าที่นัดคุยหรือออกคำสั่งให้นายจ้างจ่าย (ตัวอย่าง)', ifNo:'ปรึกษาหน่วยงานเรื่องขั้นตอนถัดไป' }
+];
+const MST = {
+  verified:['✅ ยืนยันจากหน่วยงาน', '#14532d', '#bbf7d0'], likely:['🟢 น่าจะมีสิทธิ์', '#166534', '#dcfce7'],
+  check:['🟡 ต้องเช็คยอดจริง', '#92400e', '#fef3c7'], need:['❔ ตอบอีกข้อเดียว', '#1e40af', '#dbeafe'], unlikely:['⚪ ไม่น่ามีสิทธิ์', '#475569', '#e2e8f0']
+};
+const docHave = {};
+let routeId = 'old';
+function mEval(m) {
+  if (gov.connected && m.govData) return { st:'verified', r:[[true, 'ข้อมูลจากหน่วยงานผ่าน ThaID (DEMO / MOCK)']], a:{ basis:'verified', v:m.govData.v, unit:m.kind === 'monthly' ? 'บาท/เดือน' : 'บาท', note:m.govData.text+' (DEMO / MOCK)' } };
+  const c = m.check(facts); return { ...c, a:m.amount(facts) };
+}
+function moneyTotals() {
+  let month = 0, once = 0, verified = true, n = 0;
+  MONEY.forEach(m => { const e = mEval(m); if (!['likely', 'verified'].includes(e.st) || !e.a.v) return; n++; if (e.st !== 'verified') verified = false; m.kind === 'monthly' ? month += e.a.v : once += e.a.v; });
+  return { month, once, verified: verified && n > 0, n, pending: MONEY.filter(m => ['need', 'check'].includes(mEval(m).st)).length };
+}
+const baht = v => '฿' + v.toLocaleString('th-TH');
+function moneyCard() {
+  const t = moneyTotals();
+  return '<div class="card click mcard" onclick="go(\'money\')"><div class="lab" style="margin:0">💰 เงินที่คุณอาจได้</div>'
+    + '<div class="row" style="align-items:flex-end"><div><span class="big" style="font-size:24px">'+(t.month ? baht(t.month)+'<small>/เดือน</small>' : '-')+'</span>'+(t.once ? '<div class="mut">+ '+baht(t.once)+' ครั้งเดียว</div>' : '')+'</div><span class="mut" style="font-size:18px">›</span></div>'
+    + '<div class="mut">'+(t.verified ? 'ยืนยันจากหน่วยงาน (DEMO / MOCK)' : 'ประมาณจากเกณฑ์ ยังไม่ยืนยัน')+(t.pending ? ' · อีก '+t.pending+' รายการต้องเช็ค' : '')+'</div></div>';
+}
+function renderMoney() {
+  const t = moneyTotals();
+  let h = '<div class="card mhero"><div class="lab" style="color:#d1fae5;margin:0">เงินที่คุณอาจได้</div><div style="font-size:30px;font-weight:800">'+(t.month ? baht(t.month)+'<small style="font-size:14px">/เดือน</small>' : '฿0')+'</div>'
+    + (t.once ? '<div>+ '+baht(t.once)+' ครั้งเดียว</div>' : '') + '<div style="font-size:12px;opacity:.9;margin-top:4px">'+(t.verified ? 'ยืนยันจากหน่วยงาน (DEMO / MOCK)' : 'ประมาณจากเกณฑ์และอัตราตัวอย่าง ยังไม่ใช่การยืนยันสิทธิ์')+'</div></div>';
+  if (gov.flag && !gov.connected) h += '<div class="card click" onclick="connectThaid()" style="border:1.5px dashed #94a3b8"><div class="row"><div><b>🏛️ ดูยอดจริงจากหน่วยงาน</b><div class="mut">เชื่อม ThaID (ไม่บังคับ) ไม่เชื่อมก็ใช้แอปได้ครบ</div></div><span class="mut" style="font-size:18px">›</span></div></div>';
+  const order = ['verified', 'likely', 'check', 'need', 'unlikely'];
+  order.forEach(st => {
+    const xs = MONEY.filter(m => mEval(m).st === st); if (!xs.length) return;
+    h += '<h3>'+MST[st][0]+' <span class="mut">'+xs.length+'</span></h3>';
+    h += xs.map(m => { const e = mEval(m);
+      return '<div class="card click" onclick="openRoute(\''+m.id+'\')"><div class="row"><div class="row" style="gap:10px;justify-content:flex-start"><span style="font-size:24px">'+m.ic+'</span><div><b>'+m.t+'</b><div class="mut">จ่ายโดย '+m.payer+'</div></div></div>'
+        + '<b style="white-space:nowrap;color:'+MST[st][1]+'">'+(e.a.v ? baht(e.a.v) : 'ไม่ทราบยอด')+'</b></div>'
+        + '<div class="row" style="margin-top:8px"><span class="mpill" style="background:'+MST[st][2]+';color:'+MST[st][1]+'">'+(st === 'need' ? ASK[e.ask].q : MST[st][0])+'</span><span class="link">'+(st === 'unlikely' ? 'ดูเหตุผล' : 'ไปรับเงิน ›')+'</span></div></div>'; }).join('');
+  });
+  h += '<p class="mut">รายการ เกณฑ์ อัตรา และช่องทางทั้งหมดเป็นตัวอย่าง (DEMO / MOCK) ต้องตรวจกับหน่วยงานก่อนใช้จริง แอปไม่รับประกันว่าจะได้เงิน</p>';
+  document.getElementById('moneyBody').innerHTML = h;
+}
+function openRoute(id) { routeId = id; go('route'); }
+function answerFact(k, raw) {
+  const a = ASK[k]; facts[k] = a.num ? Math.max(0, +raw || 0) : a.map ? a.map(raw) : raw;
+  renderRoute(); toast('คิดใหม่จากคำตอบของคุณแล้ว');
+}
+function askBox(k) {
+  const a = ASK[k];
+  return '<div class="askbox"><b>'+a.q+'</b>'+(a.num
+    ? '<div class="row" style="margin-top:8px;gap:8px"><input id="ask-'+k+'" type="number" min="0" inputmode="numeric" style="flex:1"><button class="btn sm" style="margin:0;width:auto;padding:10px 16px" onclick="answerFact(\''+k+'\',document.getElementById(\'ask-'+k+'\').value)">ตกลง</button></div>'
+    : '<div class="chips" style="margin-top:8px">'+a.opts.map(o => '<span onclick="answerFact(\''+k+'\',\''+o+'\')">'+o+'</span>').join('')+'</div>')+'</div>';
+}
+function renderRoute() {
+  const m = MONEY.find(x => x.id === routeId), e = mEval(m), st = MST[e.st];
+  const have = docHave[m.id] || (docHave[m.id] = new Set());
+  const stepN = (n, t, body, done) => '<div class="rstep'+(done ? ' done' : '')+'"><div class="rnum">'+(done ? '✓' : n)+'</div><div class="rbody"><b>'+t+'</b>'+body+'</div></div>';
+  let h = '<div class="row" style="gap:12px;justify-content:flex-start;margin-bottom:6px"><span style="font-size:34px">'+m.ic+'</span><div><h2 style="margin:0;font-size:20px">'+m.t+'</h2><span class="mpill" style="background:'+st[2]+';color:'+st[1]+'">'+st[0]+'</span> <span class="tag t-mock">DEMO / MOCK</span></div></div>';
+  const amt = e.a.v
+    ? '<div class="amtbox" style="background:'+(e.st === 'verified' ? '#dcfce7' : '#dbeafe')+';color:'+(e.st === 'verified' ? '#14532d' : '#1e40af')+'"><div class="lab">'+({ verified:'ยืนยันจากหน่วยงาน', rate:'อัตราตามประกาศ (ยังไม่ยืนยันสิทธิ์)', calc:'คำนวณจากข้อมูลที่คุณแจ้ง' }[e.a.basis])+'</div><div class="val">'+baht(e.a.v)+'</div><div style="font-size:12px">'+(e.a.unit || '')+' · '+e.a.note+'</div></div>'
+    : '<div class="amtbox" style="background:#e2e8f0;color:#334155"><div class="lab">ยังไม่ทราบยอด</div><div style="font-size:13px;margin-top:3px">'+e.a.note+'</div></div>' + (e.a.ask && facts[e.a.ask] === undefined ? askBox(e.a.ask) : '');
+  h += stepN(1, 'เงินอยู่ที่ไหน และได้เท่าไหร่', '<div class="mut">จ่ายโดย '+m.payer+' · '+m.payHow+'</div>'+amt, false);
+  const reasons = (e.r || []).map(([ok, t]) => '<div class="rr">'+(ok === null ? '❔' : ok ? '✅' : '❌')+' '+t+'</div>').join('');
+  h += stepN(2, 'คุณน่าจะมีสิทธิ์ไหม', reasons + (e.st === 'need' ? askBox(e.ask) : '') + (gov.flag && !gov.connected && m.govData ? '<div class="link" style="margin-top:6px" onclick="connectThaid()">🏛️ เช็คยอดจริงด้วย ThaID (ไม่บังคับ)</div>' : ''), e.st === 'likely' || e.st === 'verified');
+  if (e.st === 'unlikely') {
+    h += '<div class="note">ตามข้อมูลที่ให้มา ไม่น่าจะมีสิทธิ์ ถ้าข้อมูลเปลี่ยน กดตอบใหม่ได้ หรือสอบถามหน่วยงานโดยตรง</div><button class="btn sec sm" onclick="resetFacts(\''+m.id+'\')">ตอบคำถามใหม่</button>';
+  } else {
+    h += stepN(3, 'เตรียมเอกสาร ('+have.size+'/'+m.docs.length+')', m.docs.map((d, i) => '<label class="chk"><input type="checkbox" '+(have.has(i) ? 'checked' : '')+' onchange="toggleDoc(\''+m.id+'\','+i+')"> '+d+'</label>').join(''), have.size === m.docs.length);
+    h += stepN(4, 'ไปยื่นที่ไหน', m.channels.map((c, i) => '<div class="chan" onclick="useChannel(\''+m.id+'\','+i+')"><span style="font-size:20px">'+c.ic+'</span><div><b>'+c.t+'</b><div class="mut">'+c.s+'</div></div><span class="link">'+(c.link ? 'เปิด ↗' : c.map ? 'นำทาง' : c.letter ? 'ดูข้อความ' : 'โทร')+'</span></div>').join(''), false);
+    h += stepN(5, 'หลังยื่น', '<div class="mut">💸 '+m.payHow+'</div><div class="mut">⏱️ '+m.after+'</div><div class="mut">↩️ ถ้าไม่ผ่าน: '+m.ifNo+'</div>', false);
+    h += '<button class="btn" onclick="startClaim(\''+m.id+'\')">เริ่มรับเงิน: บันทึกเป็นแผนทีละขั้น</button>';
+  }
+  h += '<p class="mut" style="margin-top:12px">ขั้นตอน เกณฑ์ อัตรา และสถานที่เป็นตัวอย่าง ต้องตรวจกับหน่วยงานก่อนใช้จริง แอปไม่ยื่นแทนคุณและไม่รับประกันว่าจะได้เงิน</p>';
+  document.getElementById('routeBody').innerHTML = h;
+}
+function resetFacts(id) { const m = MONEY.find(x => x.id === id); ({ old:['ageBand', 'govPension'], unemp:['work', 'ss33', 'wage'], tax:['taxWithheld'], owed:['unpaidDays', 'dailyWage'] })[id].forEach(k => delete facts[k]); renderRoute(); }
+function toggleDoc(id, i) { const s = docHave[id]; s.has(i) ? s.delete(i) : s.add(i); renderRoute(); }
+function useChannel(id, i) {
+  const m = MONEY.find(x => x.id === id), c = m.channels[i];
+  if (c.letter) {
+    modal('<b style="font-size:17px">ข้อความตัวอย่างถึงนายจ้าง</b><div class="stepbox" style="white-space:pre-line">เรียน คุณนายจ้าง\nดิฉัน/ผมทำงานวันที่ ...  รวม '+(facts.unpaidDays || '...')+' วัน ยังไม่ได้รับค่าจ้าง '+(facts.unpaidDays && facts.dailyWage ? baht(facts.unpaidDays * facts.dailyWage) : '...')+'\nรบกวนโอนเข้าบัญชี ... ภายในวันที่ ...\nขอบคุณครับ/ค่ะ</div><p class="mut">แก้ข้อความได้ก่อนส่ง เก็บหลักฐานการส่งไว้ด้วย</p><button class="btn" onclick="closeModal();toast(\'คัดลอกข้อความแล้ว (จำลอง)\')">คัดลอกข้อความ</button>');
+    return;
+  }
+  toast(c.link ? 'จำลอง: เปิดเว็บไซต์ทางการ' : c.map ? 'จำลอง: เปิดแผนที่นำทาง' : 'จำลอง: โทรออก');
+}
+function startClaim(id) {
+  const m = MONEY.find(x => x.id === id);
+  let t = tasks.find(x => x.src === 'money_' + id);
+  if (!t) { t = { id:'t' + Date.now(), src:'money_' + id, title:m.t, steps:['เตรียมเอกสาร', m.channels[0].t, 'ติดตามผล', 'ได้รับเงิน (ผู้ใช้แจ้ง)'], done:(docHave[id] && docHave[id].size === m.docs.length) ? 1 : 0, due:'' }; tasks.push(t); }
+  refresh(); toast('บันทึกเป็นแผนแล้ว'); go('tracker');
+}
+function toggleGov() {
+  gov.flag = !gov.flag; if (!gov.flag) { gov.connected = false; consent.p.gov = false; }
+  document.getElementById('govToggle').textContent = '🏛️ โหมดเชื่อมรัฐ (ThaID): ' + (gov.flag ? 'แสดง' : 'ซ่อน');
+  const cur = document.querySelector('.view.on').id.slice(2); go(cur);
+}
+function connectThaid() {
+  if (!consent.accepted) { withConsent(connectThaid); return; }
+  modal('<h2 style="font-size:19px;margin-top:4px">🏛️ เชื่อมต่อ ThaID</h2><div class="bad" style="margin-top:0">โหมดสาธิต: ยังไม่ได้เชื่อมระบบจริง ข้อมูลที่จะเห็นเป็น DEMO / MOCK</div>'
+    + '<p>แอปจะขออ่านจากหน่วยงานเฉพาะ:</p><ul style="padding-left:18px"><li>สถานะการลงทะเบียนสวัสดิการ</li><li>ยอดเงินที่รอรับ</li></ul>'
+    + '<p class="mut">ไม่เก็บรูปใบหน้า รหัสผ่าน หรือ PIN ของ ThaID ยกเลิกการเชื่อมได้ทุกเมื่อที่แท็บ ฉัน ไม่เชื่อมก็ใช้แอปได้ครบ</p>'
+    + '<button class="btn" onclick="doConnect()">ยินยอมและไปยืนยันตัวตนในแอป ThaID</button><button class="btn sec sm" onclick="closeModal()">ไม่ใช่ตอนนี้</button>');
+}
+function doConnect() {
+  gov.connected = true; consent.p.gov = true; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } });
+  closeModal(); toast('จำลอง: เชื่อม ThaID สำเร็จ'); go('money');
+}
+function disconnectThaid() {
+  gov.connected = false; consent.p.gov = false; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } });
+  toast('ยกเลิกการเชื่อมและลบข้อมูลจากหน่วยงานแล้ว'); renderMe();
 }
 function toggleConsentQuiet(id) { consent.p[id] = !consent.p[id]; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } }); }
 function startChatNow() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }

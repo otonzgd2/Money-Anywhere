@@ -67,6 +67,7 @@ The Owner chose speed to a working Demo over process guards (requested in chat).
 <!-- Format: DECIDED: [decision] (Stage [slug], [date]) -->
 
 DECIDED: Use Flutter for the mobile app; do not re-compare frameworks in design. (Owner decision in chat)
+DECIDED: One app. Government connection (ThaID or the Tang Rat app) is an optional mode behind a feature flag, hidden by default. Without it the app must still tell users where their money is and guide them end to end to claim it (eligibility pre-check from public criteria, amount from published rates or user input, documents, where to file, what happens after). The app must not be a link list like Tang Rat. (Owner decision in chat)
 
 ## Scope Overrides
 

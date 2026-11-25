@@ -61,6 +61,21 @@ setTimeout(() => {
     check('withdrawing a consent is recorded in history', w.eval('consent.history.length') === 2 && w.eval('consent.p.reminders') === false);
     w.eval("consent.p.location=false; go('map'); askLoc()"); check('no location consent goes straight to district picker', d.getElementById('msheet').innerHTML.includes('เลือกจุดค้นหา'));
     w.eval("showNotice()"); check('privacy notice lists user rights', d.getElementById('msheet').innerHTML.includes('สิทธิ์ของคุณ'));
+    // Where is my money
+    w.eval("setPersona('p1'); go('home')"); check('home shows money summary first', !!d.querySelector('#homeBody .mcard') && d.querySelector('#homeBody .mcard').textContent.includes('฿600'));
+    w.eval("go('money')"); check('money page groups by status', d.getElementById('moneyBody').innerHTML.includes('น่าจะมีสิทธิ์'));
+    check('ThaID hidden when the flag is off', !d.getElementById('moneyBody').innerHTML.includes('ThaID'));
+    w.eval("openRoute('tax')"); check('route asks the one missing question', d.getElementById('routeBody').innerHTML.includes('เคยถูกหักภาษี'));
+    w.eval("answerFact('taxWithheld','เคย')"); check('answer re-evaluates to check-amount', d.getElementById('routeBody').innerHTML.includes('ต้องเช็คยอดจริง') && d.getElementById('routeBody').innerHTML.includes('50 ทวิ'));
+    w.eval("setPersona('p2'); openRoute('owed')"); check('owed wages computed from user input', d.getElementById('routeBody').innerHTML.includes('฿2,000'));
+    w.eval("useChannel('owed',0)"); check('employer letter template', d.getElementById('msheet').innerHTML.includes('ยังไม่ได้รับค่าจ้าง'));
+    w.eval("openRoute('old')"); check('not eligible shows reasons, no claim button', d.getElementById('routeBody').innerHTML.includes('ไม่น่าจะมีสิทธิ์') && !d.getElementById('routeBody').innerHTML.includes('เริ่มรับเงิน'));
+    w.eval("openRoute('unemp'); startClaim('unemp')"); check('start claim creates a plan and opens tracker', on('tracker') && w.eval("tasks.some(t => t.src === 'money_unemp')"));
+    w.eval("toggleGov(); go('money')"); check('ThaID entry appears when flag is on', d.getElementById('moneyBody').innerHTML.includes('เชื่อม ThaID'));
+    w.eval("connectThaid()"); check('ThaID connect is clearly marked as demo', d.getElementById('msheet').innerHTML.includes('ยังไม่ได้เชื่อมระบบจริง'));
+    w.eval("doConnect()"); check('connected shows verified items labelled mock', d.getElementById('moneyBody').innerHTML.includes('ยืนยันจากหน่วยงาน') && w.eval('consent.p.gov') === true);
+    w.eval("go('me')"); check('me tab shows ThaID account', d.getElementById('meBody').innerHTML.includes('บัญชีที่เชื่อมต่อ'));
+    w.eval("disconnectThaid(); toggleGov(); go('money')"); check('flag off hides ThaID again', !d.getElementById('moneyBody').innerHTML.includes('ThaID') && w.eval('gov.connected') === false);
   });
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));
   console.log(results.join('\n'));

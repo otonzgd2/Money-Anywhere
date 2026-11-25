@@ -96,8 +96,11 @@
 | TB.15 | P0 ที่ทำใน mock ได้: health+commit (A6), ช่องทางทางการ (A7), กฎตรวจสิทธิ์ (A1), คำนวณแผน (A3), ไอเดียทักษะ+AI โปรไฟล์ (A2, A4) | AI | TB.14 | contract test | TODO |
 | TB.16 | P0 ที่รอ TB.6: DB ถาวร (B1), host สำหรับมือถือ (B2), AI จริง (A5) | AI+OWNER | TB.6 | server ที่มือถือเรียกได้ | TODO |
 | TF.1 | หน้าบ้าน PDPA: ประกาศ, ยินยอมแยกข้อ, ถอนได้, ประวัติ, ยืนยันอายุ, ปฏิเสธแล้วใช้บางส่วนได้ | AI | - | mock + smoke test 30/30 | DONE |
-| TF.2 | Owner ตัดสินแนวทาง "แอปเดียว สองโหมด" และกฎตรวจสิทธิ์เบื้องต้น | OWNER | - | `docs/design/gov-integration-and-pdpa.md` ข้อ 6 | TODO |
-| TF.3 | แก้ API ตามหน้าบ้าน: consent แยกข้อ, privacy notice, AI เช็คความยินยอม, noticeVersion | AI | TF.1 | contract test | TODO |
+| TF.2 | Owner ตัดสิน: แอปเดียว, โหมดเชื่อมรัฐซ่อนหลัง flag, ต้องบอกเงินอยู่ไหนและพาไปเอาให้จบ | OWNER | - | `project.md` Decided | DONE |
+| TF.4 | หน้าบ้าน "เงินอยู่ไหน": การ์ดยอดรวม, หน้าเงินของฉัน, เส้นทางรับเงิน 5 ขั้น, ThaID ซ่อน/แสดง | AI | TF.2 | mock + smoke test 44/44 | DONE |
+| TF.5 | หาเกณฑ์ อัตรา เอกสาร ช่องทางจริงของ 4 รายการเงินพร้อมแหล่งอ้างอิง | P1-P3 | TF.4 | ไฟล์อ้างอิง | TODO |
+| TF.6 | Owner ปรับ requirements ข้อ 9 ให้ตรงกับการตัดสินใจ | OWNER | TF.2 | requirements.md | TODO |
+| TF.3 | แก้ API ตามหน้าบ้าน: consent แยกข้อ (รวม gov), privacy notice, AI เช็คความยินยอม, noticeVersion, money/eligibility/claim route, gov port + flag | AI | TF.1, TF.4 | contract test | TODO |
 | TB.17 | P1: scheduler, คุมค่า AI, log/หลักฐาน, env, Dart client, ผลลัพธ์งาน, ตรวจลิงก์, dedupe, คำแนะนำเมื่อไม่พบผล, personas | AI | TB.16 | contract test | TODO |
 | TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | ADR (รวมกับ T2.7, TM.13) | TODO |
 | TB.7 | Mock server ครบทุก operation ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.2 | `npm run mock`; LIVE=1 ดึง Greenhouse 220 และ Lever 6 ตำแหน่งในกรุงเทพฯ (ทดสอบจริงแล้ว) | DONE |
