@@ -1,4 +1,17 @@
-# API Review (v0.1 → v0.2)
+# API Review
+
+## v0.3 (เพิ่มตามหน้าบ้าน: เงินอยู่ไหน, PDPA, ThaID ซ่อน, ผู้ช่วย AI)
+- **PDPA:** `GET /v1/privacy/notice`, `GET/POST /v1/me/consents` แยกวัตถุประสงค์ core/location/ai/reminders/gov มีเลขฉบับ ยืนยันอายุ ถอนมีผลทันที server ตอบ 403 `CONSENT_REQUIRED` เมื่อจะบันทึกโดยไม่ได้ยินยอม AI ไม่ยินยอมใช้กฎและตอบ `skipped_no_consent`
+- **รวมที่ซ้ำ:** `settings.reminders` ซ้ำกับความยินยอมข้อ reminders ตัดออก เหลือที่ความยินยอมที่เดียว
+- **เงินอยู่ไหน:** `GET /v1/money`, `GET/PATCH /v1/money/{id}`, `GET/PATCH /v1/me/facts` กฎเป็นข้อมูลใน `moneyPrograms` มีเวอร์ชัน
+- **เริ่มรับเงินใช้เส้นเดิม:** `POST /v1/tasks` รับ `moneyId` ได้ ไม่สร้าง endpoint ใหม่
+- **ผลลัพธ์:** event `report_outcome` บน `/v1/tasks/{id}/events` เดิม
+- **ThaID:** `/v1/me/gov-link`, `/callback` หลัง feature flag ปิดแล้วตอบ 404 `FEATURE_DISABLED`
+- **ผู้ช่วย AI:** `/v1/ai/conversations*` เครื่องมืออ่านทำทันที เครื่องมือเขียนต้องยืนยัน, `/v1/me/memory*`
+- **อื่นๆ:** `GET /v1/health` (commit), `GET /v1/plans/ideas`, `suggestions` เมื่อไม่พบผล, `POST /v1/demo/personas/{id}`, explanation รับ `subjectType: money`
+- **แยกไว้ตั้งใจ:** facts แยกจาก profile เพราะ profile ใช้จับคู่โอกาส ส่วน facts ใช้ตรวจสิทธิ์และเป็นข้อมูลที่อ่อนไหวกว่า ถามทีละข้อ ลบทีละข้อได้
+
+## v0.1 → v0.2
 
 ตรวจทานสัญญา API ทั้งชุด ตอบ 4 คำถาม: ถูกต้องไหม, ตามมาตรฐานไหม, มีเส้นซ้ำไหม, รองรับระบบภายนอกไหม
 ผลทดสอบหลังแก้: `npm test` ใน `contracts/` ผ่านทั้งหมด (OpenAPI 3.0.3 valid, config ตรง schema, 27/27 operations ถูกเรียกจริง)

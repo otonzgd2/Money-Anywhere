@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -9,30 +9,45 @@ info:
       through the action catalog in app-config, so moving a menu or button never changes this contract.
     - State changes that are not plain field edits are recorded as events (POST .../events), not verb paths.
     - Every request from the app carries X-Device-Id (no login in the Demo). Integration endpoints use X-Api-Key.
+    - Writes that store personal data need the matching consent purpose (core, ai, gov). Otherwise 403 CONSENT_REQUIRED.
     - Every response carries X-Request-Id. Errors always use the Error object.
     - Lists use limit + cursor. Writes that a double tap could repeat accept Idempotency-Key.
+    - Money amounts never come from AI. They come from published rates, user input, or a government adapter.
     - All amounts are THB. All user-facing text is Thai.
 servers:
   - url: http://localhost:8080
     description: Local mock server (contracts/mock-server.js)
 
 tags:
+  - { name: System, description: "สถานะ server และหลักฐาน commit" }
   - { name: Config, description: "โครงแอปและรายการตัวเลือก" }
-  - { name: Me, description: "โปรไฟล์ ความยินยอม การตั้งค่า ส่งออกและลบข้อมูล" }
+  - { name: Privacy, description: "ประกาศความเป็นส่วนตัวและความยินยอม (PDPA)" }
+  - { name: Me, description: "โปรไฟล์ ข้อมูลสถานการณ์ การตั้งค่า สิ่งที่ AI จำ ส่งออกและลบข้อมูล" }
+  - { name: Gov, description: "โหมดเชื่อมรัฐ (ThaID) ซ่อนหลัง feature flag" }
   - { name: Intake, description: "สร้างโปรไฟล์ด้วยการคุยถามทีละข้อ" }
+  - { name: Money, description: "เงินอยู่ไหน ได้เท่าไหร่ และเส้นทางรับเงิน" }
   - { name: Opportunity, description: "ค้นหา รายละเอียด และรายงานโอกาส" }
-  - { name: AI, description: "AI จัดอันดับและอธิบาย ใช้ adapter เดียวกัน มี fallback" }
-  - { name: Planner, description: "แผนรายได้แบบคำนวณตรง" }
-  - { name: Tasks, description: "แผนของฉัน ความคืบหน้าเป็น event" }
+  - { name: AI, description: "AI จัดอันดับ อธิบาย และผู้ช่วยที่ใช้เครื่องมือ มี fallback" }
+  - { name: Planner, description: "แผนรายได้และไอเดียจากทักษะ คำนวณตรง" }
+  - { name: Tasks, description: "แผนของฉัน ความคืบหน้าและผลลัพธ์เป็น event" }
   - { name: Sources, description: "แหล่งข้อมูลและการดึงข้อมูล" }
   - { name: Integrations, description: "ช่องทางให้ระบบภายนอกส่งข้อมูลเข้า" }
+  - { name: Demo, description: "ผู้ใช้ตัวอย่างสำหรับสาธิต ปิดได้ด้วย DEMO_MODE=0" }
 
 paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      tags: [System]
+      summary: "สถานะ server เวอร์ชัน commit และผู้ให้บริการ AI (หลักฐาน AC-05)"
+      responses:
+        '200': { description: Health, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+
   /v1/app-config:
     get:
       operationId: getAppConfig
       tags: [Config]
-      summary: "โหลดโครงเมนู หน้าจอ ปุ่ม ตัวกรอง และ feature flag"
+      summary: "โหลดโครงเมนู หน้าจอ ปุ่ม ตัวกรอง feature flag และฉบับประกาศความเป็นส่วนตัว"
       parameters:
         - { name: appVersion, in: query, required: true, schema: { type: string } }
         - { name: If-None-Match, in: header, required: false, schema: { type: string } }
@@ -44,15 +59,43 @@ paths:
     get:
       operationId: getTaxonomies
       tags: [Config]
-      summary: "รายการหมวด กลุ่มแผนที่ กลุ่มทักษะ และเขต"
+      summary: "หมวด กลุ่มแผนที่ กลุ่มทักษะ เขต และคำถามข้อมูลสถานการณ์"
       responses:
         '200': { description: Taxonomies, content: { application/json: { schema: { $ref: '#/components/schemas/Taxonomies' } } } }
+
+  /v1/privacy/notice:
+    get:
+      operationId: getPrivacyNotice
+      tags: [Privacy]
+      summary: "ประกาศความเป็นส่วนตัวฉบับปัจจุบันและวัตถุประสงค์ที่ขอความยินยอม"
+      responses:
+        '200': { description: Notice, content: { application/json: { schema: { $ref: '#/components/schemas/PrivacyNotice' } } } }
+
+  /v1/me/consents:
+    get:
+      operationId: getConsents
+      tags: [Privacy]
+      summary: "ความยินยอมปัจจุบัน ต้องขอใหม่ไหม และประวัติทั้งหมด"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '200': { description: Consent state, content: { application/json: { schema: { $ref: '#/components/schemas/ConsentState' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: createConsent
+      tags: [Privacy]
+      summary: "ให้หรือถอนความยินยอมรายวัตถุประสงค์ มีผลทันที (ถอน ai ลบสิ่งที่ AI จำ, ถอน gov ยกเลิกการเชื่อมรัฐ)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ConsentRequest' } } } }
+      responses:
+        '201': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 
   /v1/me:
     delete:
       operationId: deleteMe
       tags: [Me]
-      summary: "ลบข้อมูลทั้งหมดของเครื่องนี้ (โปรไฟล์ งาน การตั้งค่า ความยินยอม)"
+      summary: "ลบข้อมูลทั้งหมดของเครื่องนี้ และถอนความยินยอมทั้งหมด"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
         '204': { description: Deleted }
@@ -71,30 +114,41 @@ paths:
     put:
       operationId: putProfile
       tags: [Me]
-      summary: "บันทึกโปรไฟล์ทั้งชุด ถ้าส่งเขตมาไม่มีพิกัด server หาพิกัดให้"
+      summary: "บันทึกโปรไฟล์ทั้งชุด ถ้าส่งเขตมาไม่มีพิกัด server หาพิกัดให้ (ต้องยินยอม core)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
         '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 
-  /v1/me/consents:
-    post:
-      operationId: createConsent
+  /v1/me/facts:
+    get:
+      operationId: getFacts
       tags: [Me]
-      summary: "บันทึกการยอมรับเรื่องข้อมูลส่วนตัว (เก็บทุกเวอร์ชัน)"
+      summary: "ข้อมูลสถานการณ์ที่ใช้ตรวจสิทธิ์ (อายุ สถานะงาน ฯลฯ)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
       responses:
-        '201': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
+        '200': { description: Facts, content: { application/json: { schema: { $ref: '#/components/schemas/Facts' } } } }
         '400': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: patchFacts
+      tags: [Me]
+      summary: "ตอบคำถามสถานการณ์ทีละข้อ ส่ง null เพื่อลบคำตอบ (ต้องยินยอม core)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Facts' } } } }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Facts' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 
   /v1/me/settings:
     get:
       operationId: getSettings
       tags: [Me]
-      summary: "ดูการตั้งค่า"
+      summary: "ดูการตั้งค่าการแสดงผล"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
         '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
@@ -102,12 +156,44 @@ paths:
     patch:
       operationId: patchSettings
       tags: [Me]
-      summary: "แก้การตั้งค่าบางฟิลด์"
+      summary: "แก้การตั้งค่าการแสดงผล (การแจ้งเตือนอยู่ที่ความยินยอม reminders)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
         '400': { $ref: '#/components/responses/Error' }
+
+  /v1/me/memory:
+    get:
+      operationId: listMemory
+      tags: [Me]
+      summary: "สิ่งที่ AI จำเกี่ยวกับฉัน (ดูได้ ลบได้)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '200': { description: Memory, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: addMemory
+      tags: [Me]
+      summary: "ผู้ใช้เพิ่มเรื่องที่อยากให้ AI รู้เอง"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 200 } } } } } }
+      responses:
+        '201': { description: Added, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryItem' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/me/memory/{id}:
+    delete:
+      operationId: deleteMemory
+      tags: [Me]
+      summary: "ลบสิ่งที่ AI จำหนึ่งรายการ"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
 
   /v1/me/export:
     get:
@@ -119,21 +205,66 @@ paths:
         '200': { description: Export, content: { application/json: { schema: { $ref: '#/components/schemas/MyData' } } } }
         '400': { $ref: '#/components/responses/Error' }
 
+  /v1/me/gov-link:
+    get:
+      operationId: getGovLink
+      tags: [Gov]
+      summary: "สถานะการเชื่อม ThaID (404 เมื่อโหมดนี้ปิด)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '200': { description: Status, content: { application/json: { schema: { $ref: '#/components/schemas/GovLink' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    post:
+      operationId: startGovLink
+      tags: [Gov]
+      summary: "เริ่มเชื่อม ThaID ได้ authUrl ไปยืนยันตัวตน (ต้องยินยอม gov)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '201': { description: Started, content: { application/json: { schema: { $ref: '#/components/schemas/GovLink' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      operationId: deleteGovLink
+      tags: [Gov]
+      summary: "ยกเลิกการเชื่อมและลบข้อมูลจากหน่วยงาน"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '204': { description: Removed }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /v1/me/gov-link/callback:
+    post:
+      operationId: finishGovLink
+      tags: [Gov]
+      summary: "รับผลยืนยันตัวตนกลับจาก ThaID"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [state, code], properties: { state: { type: string }, code: { type: string } } } } } }
+      responses:
+        '200': { description: Connected, content: { application/json: { schema: { $ref: '#/components/schemas/GovLink' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
   /v1/intake/sessions:
     post:
       operationId: createIntakeSession
       tags: [Intake]
-      summary: "เริ่มการคุย ได้คำถามแรก"
+      summary: "เริ่มการคุย ได้คำถามแรก (ต้องยินยอม core)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
         '201': { description: Session with first question, content: { application/json: { schema: { $ref: '#/components/schemas/IntakeTurn' } } } }
         '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
 
   /v1/intake/sessions/{id}/messages:
     post:
       operationId: postIntakeMessage
       tags: [Intake]
-      summary: "ตอบหนึ่งข้อ ได้คำถามถัดไปและโปรไฟล์ร่าง"
+      summary: "ตอบหนึ่งข้อ ได้คำถามถัดไปและโปรไฟล์ร่าง (AI ช่วยแปลงคำตอบถ้ายินยอม)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string } } } } } }
       responses:
@@ -142,11 +273,44 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 
+  /v1/money:
+    get:
+      operationId: getMoneyOverview
+      tags: [Money]
+      summary: "เงินที่ฉันอาจได้ ยอดรวม และสถานะแต่ละรายการ"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '200': { description: Overview, content: { application/json: { schema: { $ref: '#/components/schemas/MoneyOverview' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/money/{id}:
+    get:
+      operationId: getMoneyRoute
+      tags: [Money]
+      summary: "เส้นทางรับเงิน: อยู่ที่ไหน ได้เท่าไหร่ มีสิทธิ์ไหม เอกสาร ยื่นที่ไหน หลังยื่น"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: Route, content: { application/json: { schema: { $ref: '#/components/schemas/MoneyRoute' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      operationId: patchMoneyRoute
+      tags: [Money]
+      summary: "ติ๊กเอกสารที่เตรียมแล้ว (ต้องยินยอม core)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [documentsReady], properties: { documentsReady: { type: array, items: { type: integer } } } } } } }
+      responses:
+        '200': { description: Updated route, content: { application/json: { schema: { $ref: '#/components/schemas/MoneyRoute' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
   /v1/opportunities:
     get:
       operationId: searchOpportunities
       tags: [Opportunity]
-      summary: "ค้นหาโอกาสตามหมวด คำค้น ระยะทาง และการเรียง"
+      summary: "ค้นหาโอกาสตามหมวด คำค้น ระยะทาง และการเรียง (ไม่ต้องยินยอมก็ดูได้)"
       parameters:
         - { $ref: '#/components/parameters/DeviceId' }
         - { name: q, in: query, schema: { type: string } }
@@ -190,7 +354,7 @@ paths:
     post:
       operationId: createRanking
       tags: [AI]
-      summary: "ให้ AI จัดอันดับและให้เหตุผล จากรายการที่ส่งมาเท่านั้น"
+      summary: "ให้ AI จัดอันดับและให้เหตุผล จากรายการที่ส่งมาเท่านั้น (ไม่ยินยอมใช้กฎแทน)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RankingRequest' } } } }
       responses:
@@ -201,7 +365,7 @@ paths:
     post:
       operationId: createExplanation
       tags: [AI]
-      summary: "ให้ AI อธิบายขั้นตอนของงาน หรือเงื่อนไขของโอกาส เป็นภาษาง่าย"
+      summary: "อธิบายขั้นตอนของงาน เงื่อนไขของโอกาส หรือรายการเงิน เป็นภาษาง่าย"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExplanationRequest' } } } }
       responses:
@@ -209,16 +373,66 @@ paths:
         '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
+  /v1/ai/conversations:
+    post:
+      operationId: createConversation
+      tags: [AI]
+      summary: "เริ่มคุยกับผู้ช่วย AI ที่รู้ข้อมูลของฉัน (ต้องยินยอม ai)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '201': { description: Started, content: { application/json: { schema: { $ref: '#/components/schemas/Conversation' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /v1/ai/conversations/{id}/messages:
+    post:
+      operationId: postConversationMessage
+      tags: [AI]
+      summary: "ถามผู้ช่วย ได้คำตอบ เครื่องมือที่ใช้ งานที่รอผู้ใช้ยืนยัน และสิ่งที่จำไว้"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 1000 } } } } } }
+      responses:
+        '200': { description: Agent turn, content: { application/json: { schema: { $ref: '#/components/schemas/AgentTurn' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/ai/conversations/{id}/actions/{actionId}:
+    post:
+      operationId: decideConversationAction
+      tags: [AI]
+      summary: "ผู้ใช้ยืนยันหรือปฏิเสธสิ่งที่ผู้ช่วยเสนอให้ทำ"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' }, { name: actionId, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [decision], properties: { decision: { type: string, enum: [confirm, reject] } } } } } }
+      responses:
+        '200': { description: Result, content: { application/json: { schema: { $ref: '#/components/schemas/ActionResult' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
   /v1/plans/options:
     get:
       operationId: getPlanOptions
       tags: [Planner]
-      summary: "ทางเลือกรายได้พร้อมเงินเหลือต่อเดือน (คำนวณตรง ไม่ใช้ AI)"
+      summary: "ทางเลือกรายได้ คิดจากค่าจ้างในประกาศและเวลาว่างของฉัน (คำนวณตรง ไม่ใช้ AI)"
       parameters:
         - { $ref: '#/components/parameters/DeviceId' }
         - { name: opportunityIds, in: query, schema: { type: array, items: { type: string } }, style: form, explode: false }
       responses:
         '200': { description: Options, content: { application/json: { schema: { $ref: '#/components/schemas/PlanOptionList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/plans/ideas:
+    get:
+      operationId: getPlanIdeas
+      tags: [Planner]
+      summary: "ไอเดียรายได้จากทักษะของฉัน AI เลือกและเรียงจากรายการที่ทีมคัดไว้ ตัวเลขเป็นค่าประมาณจากรายการ"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '200': { description: Ideas, content: { application/json: { schema: { $ref: '#/components/schemas/IdeaList' } } } }
         '400': { $ref: '#/components/responses/Error' }
 
   /v1/tasks:
@@ -233,12 +447,13 @@ paths:
     post:
       operationId: createTask
       tags: [Tasks]
-      summary: "บันทึกโอกาสเข้าแผนของฉัน (ซ้ำได้ ไม่สร้างใหม่)"
+      summary: "บันทึกโอกาส หรือเริ่มรับเงินรายการหนึ่ง เข้าแผนของฉัน (ซ้ำได้ ไม่สร้างใหม่)"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [opportunityId], properties: { opportunityId: { type: string } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TaskCreate' } } } }
       responses:
         '201': { description: Created or existing, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
         '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
   /v1/tasks/{id}:
@@ -274,12 +489,13 @@ paths:
     post:
       operationId: createTaskEvent
       tags: [Tasks]
-      summary: "บันทึกการกระทำกับงาน: ทำขั้นเสร็จ เลิกทำ ติดปัญหา เลื่อน กลับมาทำต่อ"
+      summary: "บันทึกการกระทำกับงาน: ทำขั้นเสร็จ เลิกทำ ติดปัญหา เลื่อน กลับมาทำต่อ แจ้งผลลัพธ์"
       parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' }, { $ref: '#/components/parameters/IdempotencyKey' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TaskEventRequest' } } } }
       responses:
         '201': { description: Applied, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
         '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
         '409': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
@@ -327,6 +543,17 @@ paths:
         '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
 
+  /v1/demo/personas/{id}:
+    post:
+      operationId: loadDemoPersona
+      tags: [Demo]
+      summary: "โหลดผู้ใช้ตัวอย่าง (โปรไฟล์ ข้อมูลสถานการณ์ งาน ความยินยอม) ให้เครื่องนี้ สำหรับ AC-01"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: Loaded, content: { application/json: { schema: { $ref: '#/components/schemas/DemoResult' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
 components:
   parameters:
     DeviceId: { name: X-Device-Id, in: header, required: true, schema: { type: string, minLength: 8 }, description: "Anonymous per-install id. No login in the Demo." }
@@ -342,6 +569,18 @@ components:
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
 
   schemas:
+    Health:
+      type: object
+      required: [status, version, commit, startedAt, ai, features]
+      properties:
+        status: { type: string, enum: [ok] }
+        version: { type: string }
+        commit: { type: string, description: "Source revision the server runs. Attach to test evidence (AC-05)." }
+        startedAt: { type: string, format: date-time }
+        ai: { type: object, properties: { provider: { type: string }, agent: { type: string } } }
+        features: { type: object, properties: { govConnected: { type: boolean }, demo: { type: boolean } } }
+        sources: { type: array, items: { type: object, properties: { provider: { type: string }, state: { type: string } } } }
+
     AppConfig:
       type: object
       description: "Full structure in contracts/app-config.schema.json (JSON Schema 2020-12)"
@@ -351,6 +590,7 @@ components:
         schemaVersion: { type: integer }
         configVersion: { type: string }
         minAppVersion: { type: string }
+        noticeVersion: { type: string, description: "Ask for consent again when the stored consent has another version" }
         featureFlags: { type: object, additionalProperties: { type: boolean } }
         tabs: { type: array, items: { type: object } }
         routes: { type: object }
@@ -361,17 +601,174 @@ components:
       type: object
       required: [code, message, status, retryable, requestId]
       properties:
-        code: { type: string, enum: [PROFILE_INCOMPLETE, NO_RESULTS, SOURCE_UNAVAILABLE, AI_UNAVAILABLE, STALE_DATA, NOT_FOUND, VALIDATION, MISSING_DEVICE, UNAUTHORIZED, CONFLICT, INTERNAL] }
+        code: { type: string, enum: [PROFILE_INCOMPLETE, NO_RESULTS, SOURCE_UNAVAILABLE, AI_UNAVAILABLE, STALE_DATA, NOT_FOUND, VALIDATION, MISSING_DEVICE, UNAUTHORIZED, CONFLICT, CONSENT_REQUIRED, FEATURE_DISABLED, INTERNAL] }
         message: { type: string, description: "Thai text safe to show the user" }
         status: { type: integer, description: "Same as the HTTP status" }
         retryable: { type: boolean }
         requestId: { type: string, description: "Same as the X-Request-Id header, for support" }
-        missingFields: { type: array, items: { type: string } }
+        missingFields: { type: array, items: { type: string }, description: "Missing fields, or the consent purpose that is needed" }
 
     AiStatus:
       type: string
-      enum: [ok, fallback_rules, unavailable]
-      description: "fallback_rules = the AI provider failed or is not configured and deterministic rules were used (FR-08)"
+      enum: [ok, fallback_rules, skipped_no_consent, unavailable]
+      description: "fallback_rules = provider failed or not configured. skipped_no_consent = user did not consent to AI, rules were used."
+
+    PrivacyNotice:
+      type: object
+      required: [version, sections, purposes]
+      properties:
+        version: { type: string }
+        note: { type: string }
+        sections: { type: array, items: { type: object, required: [title, text], properties: { title: { type: string }, text: { type: string } } } }
+        purposes: { type: array, items: { $ref: '#/components/schemas/Purpose' } }
+
+    Purpose:
+      type: object
+      required: [id, required, title, description]
+      properties:
+        id: { type: string, enum: [core, location, ai, reminders, gov] }
+        required: { type: boolean }
+        title: { type: string }
+        description: { type: string }
+
+    ConsentRequest:
+      type: object
+      required: [noticeVersion, ageConfirmed, purposes]
+      properties:
+        noticeVersion: { type: string }
+        ageConfirmed: { type: boolean, description: "20 or older, or a guardian consented" }
+        purposes: { type: object, additionalProperties: { type: boolean } }
+
+    Consent:
+      type: object
+      required: [id, noticeVersion, ageConfirmed, purposes, at]
+      properties:
+        id: { type: string }
+        noticeVersion: { type: string }
+        ageConfirmed: { type: boolean }
+        purposes: { type: object, additionalProperties: { type: boolean } }
+        at: { type: string, format: date-time }
+
+    ConsentState:
+      type: object
+      required: [noticeVersion, needsRenewal, items]
+      properties:
+        current: { $ref: '#/components/schemas/Consent' }
+        noticeVersion: { type: string }
+        needsRenewal: { type: boolean }
+        items: { type: array, items: { $ref: '#/components/schemas/Consent' } }
+
+    Facts:
+      type: object
+      description: "Answers used by the eligibility rules. Definitions in /v1/taxonomies facts."
+      properties:
+        ageBand: { type: string, nullable: true }
+        govPension: { type: boolean, nullable: true }
+        work: { type: string, nullable: true }
+        ss33: { type: boolean, nullable: true }
+        taxWithheld: { type: boolean, nullable: true }
+        unpaidDays: { type: number, nullable: true }
+        dailyWage: { type: number, nullable: true }
+        wage: { type: number, nullable: true }
+
+    MemoryItem:
+      type: object
+      required: [id, text, source, at]
+      properties:
+        id: { type: string }
+        text: { type: string }
+        source: { type: string, enum: [ai, user] }
+        at: { type: string, format: date-time }
+
+    MemoryList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/MemoryItem' } } }
+
+    GovLink:
+      type: object
+      required: [status, provider, mock]
+      properties:
+        status: { type: string, enum: [not_connected, pending, connected] }
+        provider: { type: string }
+        mock: { type: boolean, description: "true until a real adapter exists. The app must show DEMO / MOCK." }
+        authUrl: { type: string, format: uri }
+        state: { type: string }
+        connectedAt: { type: string, format: date-time }
+
+    MoneyAmount:
+      type: object
+      required: [basis, note]
+      properties:
+        basis: { type: string, enum: [verified, rate, calc, none], description: "verified = government adapter, rate = published rate, calc = from user input, none = unknown" }
+        value: { type: number }
+        unit: { type: string }
+        note: { type: string }
+
+    MoneyQuestion:
+      type: object
+      required: [fact, question, type]
+      properties:
+        fact: { type: string }
+        question: { type: string }
+        type: { type: string, enum: [enum, bool, number] }
+        options: { type: array, items: { type: string } }
+
+    MoneyItem:
+      type: object
+      required: [id, title, kind, payer, status, amount, reasons, rulesVersion, dataStatus]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        icon: { type: string }
+        kind: { type: string, enum: [monthly, once] }
+        payer: { type: string }
+        status: { type: string, enum: [verified, likely, check, need, unlikely] }
+        amount: { $ref: '#/components/schemas/MoneyAmount' }
+        reasons: { type: array, items: { type: object, required: [text], properties: { ok: { type: boolean, nullable: true }, text: { type: string } } } }
+        nextQuestion: { $ref: '#/components/schemas/MoneyQuestion' }
+        rulesVersion: { type: string }
+        dataStatus: { type: string, enum: [live, mock] }
+
+    MoneyOverview:
+      type: object
+      required: [summary, items, govLink]
+      properties:
+        summary:
+          type: object
+          required: [monthly, once, allVerified, counted, pending]
+          properties:
+            monthly: { type: number }
+            once: { type: number }
+            allVerified: { type: boolean }
+            counted: { type: integer }
+            pending: { type: integer }
+        items: { type: array, items: { $ref: '#/components/schemas/MoneyItem' } }
+        govLink: { type: string, enum: [disabled, not_connected, pending, connected] }
+
+    MoneyRoute:
+      allOf:
+        - { $ref: '#/components/schemas/MoneyItem' }
+        - type: object
+          required: [documents, channels, after, ifNo, claimable, sourceNote]
+          properties:
+            documents: { type: array, items: { type: object, required: [index, text, ready], properties: { index: { type: integer }, text: { type: string }, ready: { type: boolean } } } }
+            channels: { type: array, items: { $ref: '#/components/schemas/Channel' } }
+            after: { type: string }
+            ifNo: { type: string }
+            letterTemplate: { type: string }
+            claimable: { type: boolean }
+            sourceNote: { type: string }
+
+    Channel:
+      type: object
+      required: [kind, title, detail]
+      properties:
+        icon: { type: string }
+        kind: { type: string, enum: [online, office, phone, letter] }
+        title: { type: string }
+        detail: { type: string }
+        url: { type: string, format: uri }
 
     DataStatus: { type: string, enum: [live, curated, open_data, mock, blocked] }
 
@@ -467,6 +864,14 @@ components:
         externalId: { type: string }
         data: { $ref: '#/components/schemas/OpportunityInput' }
 
+    Suggestion:
+      type: object
+      required: [type, label]
+      properties:
+        type: { type: string, enum: [expand_radius, clear_query, all_groups, include_unknown_money] }
+        label: { type: string }
+        radiusKm: { type: number }
+
     OpportunityPage:
       type: object
       required: [items, hiddenSuspicious]
@@ -474,6 +879,7 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } }
         nextCursor: { type: string }
         hiddenSuspicious: { type: integer }
+        suggestions: { type: array, items: { $ref: '#/components/schemas/Suggestion' }, description: "Only when there are no results (FR-08)" }
         sourceWarnings: { type: array, items: { type: string }, description: "Providers whose last fetch failed. Details in /v1/sources." }
 
     RankingRequest:
@@ -503,7 +909,7 @@ components:
       type: object
       required: [subjectType, subjectId]
       properties:
-        subjectType: { type: string, enum: [task_step, opportunity] }
+        subjectType: { type: string, enum: [task_step, opportunity, money] }
         subjectId: { type: string }
 
     Explanation:
@@ -513,6 +919,41 @@ components:
         aiStatus: { $ref: '#/components/schemas/AiStatus' }
         aiInvocationId: { type: string }
         text: { type: string }
+
+    Conversation:
+      type: object
+      required: [conversationId, greeting]
+      properties:
+        conversationId: { type: string }
+        greeting: { type: string }
+        quickReplies: { type: array, items: { type: string } }
+
+    AgentTurn:
+      type: object
+      required: [aiStatus, reply, toolCalls, pendingActions, memoryAdded]
+      properties:
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        aiInvocationId: { type: string }
+        reply: { type: string, description: "Money figures not found in tool results are removed" }
+        toolCalls: { type: array, items: { type: object, required: [tool], properties: { tool: { type: string } } }, description: "Read tools the agent used, for transparency" }
+        pendingActions: { type: array, items: { $ref: '#/components/schemas/PendingAction' } }
+        memoryAdded: { type: array, items: { $ref: '#/components/schemas/MemoryItem' } }
+        quickReplies: { type: array, items: { type: string } }
+
+    PendingAction:
+      type: object
+      required: [id, tool, label]
+      properties:
+        id: { type: string }
+        tool: { type: string, enum: [create_task, snooze_task, complete_step, update_facts] }
+        label: { type: string, description: "What will happen, in Thai, shown on the confirm button" }
+
+    ActionResult:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [done, rejected] }
+        result: { type: object, additionalProperties: true }
 
     PlanOption:
       type: object
@@ -531,13 +972,37 @@ components:
         risk: { type: string }
         numberSource: { type: string, enum: [official, listing, estimate, none] }
         assumptions: { type: array, items: { type: string } }
+        matchedSkills: { type: array, items: { type: string } }
 
     PlanOptionList:
       type: object
       required: [items]
       properties: { items: { type: array, items: { $ref: '#/components/schemas/PlanOption' } } }
 
+    IdeaList:
+      type: object
+      required: [aiStatus, items]
+      properties:
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        items: { type: array, items: { $ref: '#/components/schemas/PlanOption' } }
+
     TaskStatus: { type: string, enum: [active, blocked, snoozed, finished] }
+
+    TaskCreate:
+      type: object
+      description: "Exactly one of opportunityId or moneyId"
+      properties:
+        opportunityId: { type: string }
+        moneyId: { type: string }
+
+    Outcome:
+      type: object
+      required: [result, reportedBy, at]
+      properties:
+        result: { type: string, enum: [received, not_received, rejected, other] }
+        amountReported: { type: number, description: "What the user says they received. Never shown as verified." }
+        reportedBy: { type: string, enum: [user] }
+        at: { type: string, format: date-time }
 
     Task:
       type: object
@@ -545,6 +1010,7 @@ components:
       properties:
         id: { type: string }
         opportunityId: { type: string }
+        moneyId: { type: string }
         title: { type: string }
         steps: { type: array, items: { type: string } }
         doneCount: { type: integer }
@@ -552,6 +1018,7 @@ components:
         reportedBy: { type: string, enum: [user, external], description: "Always user in the Demo (FR-06)" }
         dueText: { type: string }
         blockReason: { type: string }
+        outcome: { $ref: '#/components/schemas/Outcome' }
 
     TaskList:
       type: object
@@ -562,9 +1029,11 @@ components:
       type: object
       required: [type]
       properties:
-        type: { type: string, enum: [complete_step, undo, block, snooze, resume] }
+        type: { type: string, enum: [complete_step, undo, block, snooze, resume, report_outcome] }
         reason: { type: string, enum: [not_understood, missing_documents, site_broken, other], description: "For block" }
         until: { type: string, enum: [tomorrow, in_3_days, next_week, never], description: "For snooze" }
+        result: { type: string, enum: [received, not_received, rejected, other], description: "For report_outcome" }
+        amountReported: { type: number, description: "For report_outcome" }
 
     TaskEvent:
       type: object
@@ -593,26 +1062,24 @@ components:
         goals: { type: array, items: { type: string } }
         constraints: { type: string }
 
-    Consent:
-      type: object
-      required: [version, accepted]
-      properties: { version: { type: string }, accepted: { type: boolean }, at: { type: string, format: date-time } }
-
     Settings:
       type: object
       properties:
         largeText: { type: boolean }
-        reminders: { type: boolean }
 
     MyData:
       type: object
-      required: [profile, settings, tasks, consents, storedFields]
+      required: [profile, facts, settings, tasks, consents, memory, govLink, storedFields]
       properties:
         profile: { $ref: '#/components/schemas/Profile' }
+        facts: { $ref: '#/components/schemas/Facts' }
         settings: { $ref: '#/components/schemas/Settings' }
         tasks: { type: array, items: { $ref: '#/components/schemas/Task' } }
         consents: { type: array, items: { $ref: '#/components/schemas/Consent' } }
+        memory: { type: array, items: { $ref: '#/components/schemas/MemoryItem' } }
+        govLink: { type: object, properties: { status: { type: string }, provider: { type: string }, connectedAt: { type: string } } }
         storedFields: { type: array, items: { type: string } }
+        notStored: { type: array, items: { type: string } }
 
     IntakeTurn:
       type: object
@@ -644,11 +1111,23 @@ components:
       required: [items]
       properties: { items: { type: array, items: { $ref: '#/components/schemas/Source' } } }
 
+    DemoResult:
+      type: object
+      required: [persona, label, profile, facts, taskCount, dataStatus]
+      properties:
+        persona: { type: string }
+        label: { type: string }
+        profile: { $ref: '#/components/schemas/Profile' }
+        facts: { $ref: '#/components/schemas/Facts' }
+        taskCount: { type: integer }
+        dataStatus: { type: string, enum: [mock] }
+
     Taxonomies:
       type: object
-      required: [categories, mapGroups, skillGroups, districts]
+      required: [categories, mapGroups, skillGroups, districts, facts]
       properties:
         categories: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, mapGroup: { type: string } } } }
         mapGroups: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, icon: { type: string }, color: { type: string } } } }
         skillGroups: { type: array, items: { type: object, properties: { name: { type: string }, skills: { type: array, items: { type: string } } } } }
         districts: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, lat: { type: number }, lng: { type: number } } } }
+        facts: { type: object, additionalProperties: { type: object, properties: { question: { type: string }, type: { type: string }, options: { type: array, items: { type: string } } } } }

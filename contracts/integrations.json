@@ -4,13 +4,35 @@
     {
       "id": "ai", "direction": "out", "name": "AI provider", "purpose": "จัดอันดับโอกาสและอธิบายเป็นภาษาง่าย",
       "interface": "rank(profile, candidates) -> {aiStatus, ranked[]} ; explain(subject) -> {aiStatus, text}",
-      "usedBy": ["createRanking", "createExplanation"],
+      "usedBy": ["createRanking", "createExplanation", "getPlanIdeas", "postIntakeMessage"],
       "adapters": [
         { "id": "rules", "status": "implemented", "note": "ไม่ใช้ AI ใช้กฎตายตัว เป็น fallback เสมอ" },
         { "id": "openai_compatible", "status": "implemented_untested_live", "note": "เรียก /chat/completions แบบ OpenAI-compatible ทดสอบกับ LLM จำลองแล้ว ยังไม่ได้ทดสอบกับผู้ให้บริการจริง" }
       ],
       "env": ["AI_BASE_URL", "AI_API_KEY", "AI_MODEL"],
-      "guardrails": ["ส่งให้ AI เฉพาะรายการที่ server กรองแล้ว", "ตัด id ที่ไม่อยู่ในรายการ", "ตัดตัวเลขเงินออกจากเหตุผล", "หมดเวลา 8 วินาทีแล้วใช้กฎแทน", "บันทึก aiInvocationId"]
+      "guardrails": ["เรียกเฉพาะเมื่อผู้ใช้ยินยอมข้อ ai ไม่ยินยอมใช้กฎและตอบ skipped_no_consent", "ส่งให้ AI เฉพาะรายการที่ server กรองแล้ว", "ตัด id ที่ไม่อยู่ในรายการ", "ตัดตัวเลขเงินออกจากเหตุผล", "หมดเวลา 8 วินาทีแล้วใช้กฎแทน", "บันทึก aiInvocationId"]
+    },
+    {
+      "id": "ai_agent", "direction": "out", "name": "ผู้ช่วย AI (agent)", "purpose": "ตอบคำถามจากข้อมูลของผู้ใช้คนนั้น เสนอสิ่งที่ทำต่อ และจำความชอบ",
+      "interface": "respond({text, history, memory, profile, tools}) -> {aiStatus, reply, toolCalls, pending, memory}",
+      "usedBy": ["createConversation", "postConversationMessage", "decideConversationAction"],
+      "adapters": [
+        { "id": "rules", "status": "implemented", "note": "จับคำถามด้วยคำสำคัญ ใช้เครื่องมือชุดเดียวกัน ใช้เป็น fallback" },
+        { "id": "openai_compatible_tools", "status": "implemented_untested_live", "note": "ใช้ tool calling สูงสุด 4 รอบ ทดสอบกับ LLM จำลองแล้ว ยังไม่ทดสอบกับผู้ให้บริการจริง" }
+      ],
+      "env": ["AI_BASE_URL", "AI_API_KEY", "AI_MODEL"],
+      "guardrails": ["ต้องยินยอมข้อ ai", "เห็นเฉพาะข้อมูลของผู้ใช้คนนั้นผ่านเครื่องมือ ไม่ส่งชื่อ", "เครื่องมืออ่านทำได้ทันที เครื่องมือเขียนต้องให้ผู้ใช้กดยืนยัน", "เครื่องมือที่ไม่อยู่ในรายการถูกปฏิเสธ (ลบข้อมูล เปลี่ยนความยินยอม ส่งออกนอกแอป ทำไม่ได้)", "ตัวเลขเงินในคำตอบต้องมีในผลของเครื่องมือ ไม่งั้นถูกตัด", "สิ่งที่จำแสดงให้ผู้ใช้เห็นและลบได้ ถอนความยินยอมแล้วลบทั้งหมด", "ประวัติแชทไม่เก็บถาวร"]
+    },
+    {
+      "id": "gov_identity", "direction": "out", "name": "เชื่อมรัฐ (ThaID / ทางรัฐ)", "purpose": "ยืนยันตัวตนและอ่านสถานะสิทธิ์/ยอดรอรับจากหน่วยงาน (โหมดซ่อน)",
+      "interface": "start(deviceId) -> {authUrl, state} ; finish(state, code) -> {status, data}",
+      "usedBy": ["getGovLink", "startGovLink", "finishGovLink", "deleteGovLink", "getMoneyOverview"],
+      "adapters": [
+        { "id": "thaid_mock", "status": "implemented", "note": "ข้อมูลตัวอย่าง ติดป้าย mock ทุกจุด" },
+        { "id": "thaid", "status": "planned", "note": "ต้องมีข้อตกลงกับผู้ให้บริการยืนยันตัวตนและเจ้าของข้อมูล, DPIA, งานความปลอดภัย และแก้ requirements ข้อ 9" }
+      ],
+      "env": ["GOV_CONNECTED"],
+      "guardrails": ["ปิดเป็นค่าเริ่มต้น ปิดแล้ว endpoint ตอบ 404 FEATURE_DISABLED", "ต้องยินยอมข้อ gov ถอนแล้วตัดการเชื่อมทันที", "ไม่เก็บรูปใบหน้า รหัส หรือ PIN", "สถานะ verified มาจาก adapter นี้เท่านั้น"]
     },
     {
       "id": "opportunity_source", "direction": "out", "name": "แหล่งโอกาส (ดึง)", "purpose": "ดึงประกาศจากผู้ให้บริการแล้วแปลงเป็นฟิลด์กลาง",
@@ -67,7 +89,7 @@
     }
   ],
   "deferred": [
-    "เชื่อมฐานข้อมูลสิทธิ์รายบุคคลของรัฐ (requirements ข้อ 9)",
+    "เชื่อมฐานข้อมูลสิทธิ์รายบุคคลของรัฐจริง (ตอนนี้มีแค่ adapter จำลองในโหมดซ่อน, requirements ข้อ 9)",
     "ยื่นสมัครหรือทำธุรกรรมแทนผู้ใช้อัตโนมัติ",
     "โอนเงิน",
     "รับสถานะยืนยันจากหน่วยงานภายนอกเข้างานในแผน (reportedBy: external) ออกแบบช่องไว้แล้วใน Task แต่ยังไม่เปิดใช้"

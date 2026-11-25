@@ -81,7 +81,8 @@ const used = new Set();
 JSON.stringify(cfg.routes, (k, v) => { if ((k === 'action' || k === 'data') && typeof v === 'string') used.add(v); if (k === 'undoAction') used.add(v); return v; });
 Object.values(cfg.actions).forEach(a => a.undoAction && used.add(a.undoAction));
 JSON.stringify(cfg.routes, (k, v) => { if (k === 'openSheet' && typeof v === 'string') used.add(v); return v; });
-const unused = [...actions].filter(a => !used.has(a) && a !== 'config.get');
+const NOT_ON_SCREEN = ['config.get', 'demo.load', 'system.health', 'gov.finish']; // app start, demo tooling, support, ThaID deep-link return
+const unused = [...actions].filter(a => !used.has(a) && !NOT_ON_SCREEN.includes(a));
 
 console.log('config: ' + path.basename(cfgPath) + ' v' + cfg.configVersion);
 console.log('tabs ' + cfg.tabs.length + ', routes ' + routes.size + ', actions ' + actions.size + ', api operations ' + apiOps.size + ', filters ' + cfg.filters.length);

@@ -1,29 +1,32 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-11-27.1",
+  "configVersion": "2026-11-28.1",
   "minAppVersion": "0.1.0",
-  "featureFlags": { "moneyMap": true, "aiChat": true, "liveSources": true },
+  "featureFlags": { "moneyMap": true, "aiChat": true, "aiAssistant": true, "liveSources": true, "govConnected": false },
 
   "tabs": [
-    { "id": "home", "label": "หน้าแรก", "icon": "home", "route": "home" },
+    { "id": "home", "label": "หน้าแรก", "icon": "home", "route": "home", "activeFor": ["money", "money.route", "assistant"] },
     { "id": "opp", "label": "โอกาส", "icon": "sparkle", "route": "opp.list", "activeFor": ["opp.map", "opp.detail", "plan.income"] },
     { "id": "plans", "label": "แผนของฉัน", "icon": "list", "route": "my.plans", "activeFor": ["task.detail"] },
-    { "id": "me", "label": "ฉัน", "icon": "person", "route": "me", "activeFor": ["me.data", "help", "help.scam", "sources"] }
+    { "id": "me", "label": "ฉัน", "icon": "person", "route": "me", "activeFor": ["me.data", "me.memory", "me.privacy", "help", "help.scam", "sources"] }
   ],
 
   "routes": {
     "welcome": {
       "title": "เงินฉันอยู่ไหน?", "showTabs": false,
       "sections": [
-        { "type": "info_card", "id": "hero", "label": "หาเงินที่คุณอาจมีสิทธิ์ และโอกาสหารายได้" },
-        { "type": "nav_row", "label": "คุยกับ AI", "sub": "ตอบคำถามสั้นๆ ให้ AI ช่วยหา", "icon": "robot", "flag": "aiChat", "onTap": { "action": "consent.accept", "params": { "version": "1", "accepted": true }, "then": { "route": "intake.chat" } } },
-        { "type": "nav_row", "label": "เลือกเอง", "sub": "เลือกหมวดและกรอกข้อมูลเอง", "icon": "compass", "onTap": { "action": "consent.accept", "params": { "version": "1", "accepted": true }, "then": { "route": "intake.manual" } } }
+        { "type": "info_card", "id": "hero", "label": "หาเงินที่คุณอาจมีสิทธิ์ และพาไปรับให้จบ" },
+        { "type": "consent_manager", "data": "privacy.notice", "onTap": { "action": "consent.update", "then": { "route": "intake.chat" } } },
+        { "type": "nav_row", "label": "คุยกับ AI", "sub": "ตอบคำถามสั้นๆ ให้ AI ช่วยหา", "icon": "robot", "flag": "aiChat", "onTap": { "route": "intake.chat" } },
+        { "type": "nav_row", "label": "เลือกเอง", "sub": "เลือกหมวดและกรอกข้อมูลเอง", "icon": "compass", "onTap": { "route": "intake.manual" } },
+        { "type": "link", "label": "ดูโอกาสโดยไม่บันทึกข้อมูล", "onTap": { "route": "opp.list" } }
       ]
     },
     "home": {
       "title": "หน้าแรก",
       "sections": [
         { "type": "greeting", "data": "profile.get" },
+        { "type": "money_card", "data": "money.overview", "onTap": { "route": "money" } },
         { "type": "next_step_card", "data": "task.list",
           "actions": [
             { "label": "ทำต่อ", "style": "primary", "route": "task.detail", "params": { "id": "$ctx.task.id" } },
@@ -31,16 +34,46 @@
           ] },
         { "type": "nav_row", "label": "งานอื่นที่ทำอยู่", "data": "task.list", "when": "tasks.otherActive > 0", "onTap": { "route": "my.plans" } },
         { "type": "count_card", "label": "โอกาสใหม่ใกล้คุณ", "data": "opportunity.search", "onTap": { "route": "opp.list" } },
-        { "type": "link", "label": "หรือคุยกับ AI เพื่อหาแบบละเอียด", "flag": "aiChat", "onTap": { "route": "intake.chat" } }
+        { "type": "link", "label": "ถาม AI เรื่องเงินของฉัน", "flag": "aiAssistant", "onTap": { "route": "assistant" } }
       ]
+    },
+    "money": {
+      "title": "เงินของฉัน",
+      "sections": [
+        { "type": "money_list", "data": "money.overview", "onTap": { "route": "money.route", "params": { "id": "$ctx.item.id" } } },
+        { "type": "nav_row", "label": "ดูยอดจริงจากหน่วยงาน (ThaID)", "flag": "govConnected", "when": "govLink != connected", "onTap": { "action": "gov.start", "then": { "route": "external" } } }
+      ]
+    },
+    "money.route": {
+      "title": "เส้นทางรับเงิน", "params": ["id"],
+      "sections": [
+        { "type": "money_route", "data": "money.route",
+          "actions": [
+            { "label": "ตอบคำถาม", "style": "secondary", "action": "facts.update" },
+            { "label": "ติ๊กเอกสาร", "style": "secondary", "action": "money.documents", "params": { "id": "$ctx.item.id" } },
+            { "label": "อธิบายแบบง่าย", "style": "secondary", "action": "ai.explain.money", "params": { "subjectId": "$ctx.item.id" } },
+            { "label": "เริ่มรับเงิน", "style": "primary", "action": "task.create", "params": { "moneyId": "$ctx.item.id" }, "then": { "route": "my.plans" } }
+          ] },
+        { "type": "link", "label": "ถาม AI เรื่องเงินก้อนนี้", "flag": "aiAssistant", "onTap": { "route": "assistant" } }
+      ]
+    },
+    "assistant": {
+      "title": "ถาม AI", "showTabs": false,
+      "sections": [ { "type": "assistant_chat", "data": "assistant.start",
+        "actions": [
+          { "label": "ส่ง", "style": "primary", "action": "assistant.send", "params": { "id": "$ctx.conversation.conversationId" } },
+          { "label": "ยืนยัน", "style": "primary", "action": "assistant.decide", "params": { "id": "$ctx.conversation.conversationId", "actionId": "$ctx.pending.id", "decision": "confirm" } },
+          { "label": "ไม่ใช่", "style": "ghost", "action": "assistant.decide", "params": { "id": "$ctx.conversation.conversationId", "actionId": "$ctx.pending.id", "decision": "reject" } },
+          { "label": "ลบสิ่งที่จำไว้", "style": "ghost", "action": "memory.delete", "params": { "id": "$ctx.memory.id" } }
+        ] } ]
     },
     "intake.chat": {
       "title": "คุยกับ AI", "showTabs": false,
       "sections": [ { "type": "chat", "data": "intake.start",
         "actions": [ { "label": "ส่งคำตอบ", "style": "primary", "action": "intake.reply", "params": { "id": "$ctx.session.sessionId" } } ],
-        "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ]
+        "onTap": { "action": "profile.update", "then": { "route": "home" } } } ]
     },
-    "intake.manual": { "title": "เลือกเอง", "sections": [ { "type": "profile_form", "data": "taxonomy.get", "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ] },
+    "intake.manual": { "title": "เลือกเอง", "sections": [ { "type": "profile_form", "data": "taxonomy.get", "onTap": { "action": "profile.update", "then": { "route": "home" } } } ] },
     "opp.list": {
       "title": "โอกาส",
       "sections": [
@@ -73,7 +106,13 @@
         { "type": "link", "label": "รายงานประกาศนี้", "onTap": { "action": "opportunity.report", "params": { "id": "$ctx.item.id", "reason": "suspicious" }, "then": { "toast": "ขอบคุณ ส่งรายงานแล้ว" } } }
       ]
     },
-    "plan.income": { "title": "แผนรายได้", "sections": [ { "type": "planner_list", "data": "plan.options", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.opportunityId" }, "then": { "route": "my.plans" } } } ] },
+    "plan.income": {
+      "title": "แผนรายได้",
+      "sections": [
+        { "type": "planner_list", "data": "plan.options", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.opportunityId" }, "then": { "route": "my.plans" } } },
+        { "type": "planner_list", "label": "ไอเดียจากทักษะของคุณ", "data": "plan.ideas" }
+      ]
+    },
     "my.plans": { "title": "แผนของฉัน", "sections": [ { "type": "task_list", "data": "task.list", "onTap": { "route": "task.detail", "params": { "id": "$ctx.item.id" } } } ] },
     "task.detail": {
       "title": "ขั้นตอน", "params": ["id"],
@@ -85,6 +124,7 @@
             { "label": "ให้ AI อธิบายขั้นนี้", "style": "secondary", "action": "ai.explain.step", "params": { "subjectId": "$ctx.task.id" } },
             { "label": "ไว้ทีหลัง", "style": "secondary", "action": "task.snooze", "params": { "id": "$ctx.task.id", "until": "tomorrow" } },
             { "label": "กลับมาทำต่อ", "style": "secondary", "action": "task.resume", "params": { "id": "$ctx.task.id" } },
+            { "label": "แจ้งผล: ได้รับเงินแล้ว", "style": "secondary", "action": "task.outcome", "params": { "id": "$ctx.task.id", "result": "received" } },
             { "label": "เอาออกจากแผน", "style": "danger", "action": "task.delete", "params": { "id": "$ctx.task.id" }, "then": { "route": "my.plans" } }
           ] },
         { "type": "info_card", "label": "ประวัติการทำ", "data": "task.history" }
@@ -94,12 +134,17 @@
       "title": "ฉัน",
       "sections": [
         { "type": "profile_card", "data": "profile.get", "onTap": { "route": "intake.manual" } },
-        { "type": "settings_group", "label": "การใช้งาน", "data": "settings.get", "items": [
-          { "type": "toggle_row", "label": "ตัวอักษรใหญ่", "setting": "largeText", "onTap": { "action": "settings.update" } },
-          { "type": "toggle_row", "label": "เตือนงานค้าง", "setting": "reminders", "onTap": { "action": "settings.update" } }
+        { "type": "settings_group", "label": "บัญชีที่เชื่อมต่อ", "flag": "govConnected", "data": "gov.status", "items": [
+          { "type": "nav_row", "label": "ThaID", "onTap": { "action": "gov.start", "then": { "route": "external" } } },
+          { "type": "nav_row", "label": "ยกเลิกการเชื่อม ThaID", "when": "govLink == connected", "onTap": { "action": "gov.delete" } }
         ] },
-        { "type": "settings_group", "label": "ข้อมูลของฉัน", "items": [
-          { "type": "nav_row", "label": "ดูข้อมูลที่แอปเก็บ", "onTap": { "route": "me.data" } },
+        { "type": "settings_group", "label": "การใช้งาน", "data": "settings.get", "items": [
+          { "type": "toggle_row", "label": "ตัวอักษรใหญ่", "setting": "largeText", "onTap": { "action": "settings.update" } }
+        ] },
+        { "type": "settings_group", "label": "ความเป็นส่วนตัวและข้อมูลของฉัน", "items": [
+          { "type": "nav_row", "label": "จัดการความยินยอม", "onTap": { "route": "me.privacy" } },
+          { "type": "nav_row", "label": "AI จำอะไรเกี่ยวกับฉัน", "flag": "aiAssistant", "onTap": { "route": "me.memory" } },
+          { "type": "nav_row", "label": "ดูและขอสำเนาข้อมูล", "onTap": { "route": "me.data" } },
           { "type": "nav_row", "label": "ลบข้อมูลทั้งหมด", "onTap": { "action": "me.delete", "then": { "route": "welcome" } } }
         ] },
         { "type": "settings_group", "label": "ช่วยเหลือ", "items": [
@@ -109,8 +154,20 @@
         ] }
       ]
     },
+    "me.privacy": {
+      "title": "ความยินยอม",
+      "sections": [
+        { "type": "consent_manager", "data": "consent.list", "onTap": { "action": "consent.update" } },
+        { "type": "privacy_notice", "data": "privacy.notice" }
+      ]
+    },
+    "me.memory": {
+      "title": "AI จำอะไรเกี่ยวกับฉัน",
+      "sections": [ { "type": "memory_list", "data": "memory.list",
+        "actions": [ { "label": "เพิ่มเรื่องที่อยากให้ AI รู้", "style": "secondary", "action": "memory.add" }, { "label": "ลบ", "style": "danger", "action": "memory.delete", "params": { "id": "$ctx.memory.id" } } ] } ]
+    },
     "me.data": { "title": "ข้อมูลของฉัน", "sections": [ { "type": "info_card", "data": "me.export" } ] },
-    "help": { "title": "วิธีใช้", "sections": [ { "type": "info_card", "label": "บอกเราเกี่ยวกับคุณ ดูโอกาส แล้วทำตามขั้นตอนในแผนของฉัน" } ] },
+    "help": { "title": "วิธีใช้", "sections": [ { "type": "info_card", "label": "ดูเงินที่คุณอาจได้ ทำตามเส้นทางรับเงิน แล้วติดตามในแผนของฉัน" } ] },
     "help.scam": { "title": "รู้ทันมิจฉาชีพ", "sections": [ { "type": "info_card", "label": "ห้ามโอนเงินล่วงหน้า ห้ามให้รหัส OTP หรือรหัสผ่าน" } ] },
     "sources": { "title": "แหล่งข้อมูล", "sections": [ { "type": "info_card", "data": "source.list" }, { "type": "link", "label": "ดึงข้อมูลสดใหม่", "onTap": { "action": "source.refresh", "params": { "provider": "all" } } } ] },
     "external": { "title": "เปิดเว็บไซต์ต้นทาง", "showTabs": false, "params": ["url"], "sections": [] }
@@ -118,23 +175,42 @@
 
   "actions": {
     "config.get":             { "method": "GET",    "path": "/v1/app-config" },
+    "system.health":          { "method": "GET",    "path": "/v1/health" },
     "taxonomy.get":           { "method": "GET",    "path": "/v1/taxonomies", "provides": "taxonomies" },
+    "privacy.notice":         { "method": "GET",    "path": "/v1/privacy/notice", "provides": "notice" },
+    "consent.list":           { "method": "GET",    "path": "/v1/me/consents", "provides": "consents" },
+    "consent.update":         { "method": "POST",   "path": "/v1/me/consents", "invalidates": ["consents", "memory", "govLink", "money"] },
     "profile.get":            { "method": "GET",    "path": "/v1/me/profile", "provides": "profile" },
     "profile.update":         { "method": "PUT",    "path": "/v1/me/profile", "invalidates": ["profile", "opportunities", "plans"] },
-    "consent.accept":         { "method": "POST",   "path": "/v1/me/consents" },
+    "facts.update":           { "method": "PATCH",  "path": "/v1/me/facts", "invalidates": ["facts", "money"] },
     "settings.get":           { "method": "GET",    "path": "/v1/me/settings", "provides": "settings" },
     "settings.update":        { "method": "PATCH",  "path": "/v1/me/settings", "invalidates": ["settings"] },
+    "memory.list":            { "method": "GET",    "path": "/v1/me/memory", "provides": "memory" },
+    "memory.add":             { "method": "POST",   "path": "/v1/me/memory", "invalidates": ["memory"] },
+    "memory.delete":          { "method": "DELETE", "path": "/v1/me/memory/{id}", "invalidates": ["memory"] },
     "me.export":              { "method": "GET",    "path": "/v1/me/export" },
-    "me.delete":              { "method": "DELETE", "path": "/v1/me", "invalidates": ["profile", "tasks", "settings"], "confirm": "ลบโปรไฟล์และความคืบหน้าทั้งหมด กู้คืนไม่ได้" },
+    "me.delete":              { "method": "DELETE", "path": "/v1/me", "invalidates": ["profile", "tasks", "settings", "consents", "memory", "money"], "confirm": "ลบโปรไฟล์ ความคืบหน้า และสิ่งที่ AI จำทั้งหมด กู้คืนไม่ได้" },
+    "gov.status":             { "method": "GET",    "path": "/v1/me/gov-link", "provides": "govLink" },
+    "gov.start":              { "method": "POST",   "path": "/v1/me/gov-link", "invalidates": ["govLink"] },
+    "gov.finish":             { "method": "POST",   "path": "/v1/me/gov-link/callback", "invalidates": ["govLink", "money"] },
+    "gov.delete":             { "method": "DELETE", "path": "/v1/me/gov-link", "invalidates": ["govLink", "money"], "confirm": "ยกเลิกการเชื่อม ThaID และลบข้อมูลจากหน่วยงาน" },
     "intake.start":           { "method": "POST",   "path": "/v1/intake/sessions" },
     "intake.reply":           { "method": "POST",   "path": "/v1/intake/sessions/{id}/messages" },
+    "money.overview":         { "method": "GET",    "path": "/v1/money", "provides": "money" },
+    "money.route":            { "method": "GET",    "path": "/v1/money/{id}" },
+    "money.documents":        { "method": "PATCH",  "path": "/v1/money/{id}", "invalidates": ["money"] },
     "opportunity.search":     { "method": "GET",    "path": "/v1/opportunities", "provides": "opportunities" },
     "opportunity.get":        { "method": "GET",    "path": "/v1/opportunities/{id}" },
     "opportunity.report":     { "method": "POST",   "path": "/v1/opportunities/{id}/reports" },
     "ai.rank":                { "method": "POST",   "path": "/v1/ai/rankings" },
     "ai.explain.step":        { "method": "POST",   "path": "/v1/ai/explanations", "body": { "subjectType": "task_step" } },
     "ai.explain.opportunity": { "method": "POST",   "path": "/v1/ai/explanations", "body": { "subjectType": "opportunity" } },
+    "ai.explain.money":       { "method": "POST",   "path": "/v1/ai/explanations", "body": { "subjectType": "money" } },
+    "assistant.start":        { "method": "POST",   "path": "/v1/ai/conversations" },
+    "assistant.send":         { "method": "POST",   "path": "/v1/ai/conversations/{id}/messages", "invalidates": ["memory"] },
+    "assistant.decide":       { "method": "POST",   "path": "/v1/ai/conversations/{id}/actions/{actionId}", "idempotent": true, "invalidates": ["tasks", "facts", "money"] },
     "plan.options":           { "method": "GET",    "path": "/v1/plans/options", "provides": "plans" },
+    "plan.ideas":             { "method": "GET",    "path": "/v1/plans/ideas", "provides": "ideas" },
     "task.list":              { "method": "GET",    "path": "/v1/tasks", "provides": "tasks" },
     "task.get":               { "method": "GET",    "path": "/v1/tasks/{id}" },
     "task.create":            { "method": "POST",   "path": "/v1/tasks", "invalidates": ["tasks"] },
@@ -145,8 +221,10 @@
     "task.block":             { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "block" }, "idempotent": true, "invalidates": ["tasks"] },
     "task.snooze":            { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "snooze" }, "idempotent": true, "invalidates": ["tasks"] },
     "task.resume":            { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "resume" }, "idempotent": true, "invalidates": ["tasks"] },
+    "task.outcome":           { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "report_outcome" }, "idempotent": true, "invalidates": ["tasks"] },
     "source.list":            { "method": "GET",    "path": "/v1/sources", "provides": "sources" },
-    "source.refresh":         { "method": "POST",   "path": "/v1/sources/{provider}/refresh", "invalidates": ["sources", "opportunities"] }
+    "source.refresh":         { "method": "POST",   "path": "/v1/sources/{provider}/refresh", "invalidates": ["sources", "opportunities"] },
+    "demo.load":              { "method": "POST",   "path": "/v1/demo/personas/{id}", "invalidates": ["profile", "facts", "tasks", "money", "consents"] }
   },
 
   "filters": [

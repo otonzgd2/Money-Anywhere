@@ -84,6 +84,11 @@
 | Planner | คำนวณรายได้สุทธิแบบ deterministic | `/v1/plans/options` | FR-04 |
 | Tasks | บันทึก, ลบ, ทำขั้นเสร็จ/เลิกทำ/ติดปัญหา/เลื่อน/กลับมาทำ เป็น event, ประวัติ | `/v1/tasks*`, `/v1/tasks/{id}/events` | FR-05, FR-06 |
 | Integrations | ระบบภายนอกส่งโอกาสเข้าเป็นชุด และแจ้งปิดหรืออัปเดตประกาศ | `/v1/integrations/*` | FR-03 |
+| Money (v0.3) | เงินอยู่ไหน ได้เท่าไหร่ มีสิทธิ์ไหม เส้นทางรับเงิน กฎเป็นข้อมูลมีเวอร์ชัน | `/v1/money*`, `/v1/me/facts` | Track A, FR-03..05 |
+| Privacy (v0.3) | ประกาศ PDPA ความยินยอมแยกข้อ ถอนมีผลทันที | `/v1/privacy/notice`, `/v1/me/consents` | ข้อ 6 |
+| AI assistant (v0.3) | ผู้ช่วยที่ใช้เครื่องมือ เขียนต้องยืนยัน จำแบบเห็นและลบได้ | `/v1/ai/conversations*`, `/v1/me/memory*` | FR-01, FR-02 |
+| Gov (v0.3, ซ่อน) | เชื่อม ThaID ผ่าน adapter จำลอง | `/v1/me/gov-link*` | ข้อ 9 (Owner ตัดสินให้มีแบบซ่อน) |
+| System, Demo (v0.3) | health + commit, ผู้ใช้ตัวอย่าง | `/v1/health`, `/v1/demo/personas/{id}` | AC-01, AC-05 |
 | Scam rules | กฎตรวจสัญญาณหลอกลวงแบบมีเวอร์ชัน + รายงานจากผู้ใช้ | ฝังใน Opportunity, `/reports` | FR-07 |
 
 ฟิลด์กลางของโอกาสอ้างตาม `docs/design/opportunity-sources.md` และถูกกำหนดใน `Opportunity` ของ OpenAPI

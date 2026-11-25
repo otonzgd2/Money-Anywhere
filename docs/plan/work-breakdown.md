@@ -100,7 +100,9 @@
 | TF.4 | หน้าบ้าน "เงินอยู่ไหน": การ์ดยอดรวม, หน้าเงินของฉัน, เส้นทางรับเงิน 5 ขั้น, ThaID ซ่อน/แสดง | AI | TF.2 | mock + smoke test 44/44 | DONE |
 | TF.5 | หาเกณฑ์ อัตรา เอกสาร ช่องทางจริงของ 4 รายการเงินพร้อมแหล่งอ้างอิง | P1-P3 | TF.4 | ไฟล์อ้างอิง | TODO |
 | TF.6 | Owner ปรับ requirements ข้อ 9 ให้ตรงกับการตัดสินใจ | OWNER | TF.2 | requirements.md | TODO |
-| TF.3 | แก้ API ตามหน้าบ้าน: consent แยกข้อ (รวม gov), privacy notice, AI เช็คความยินยอม, noticeVersion, money/eligibility/claim route, gov port + flag | AI | TF.1, TF.4 | contract test | TODO |
+| TF.3 | แก้ API ตามหน้าบ้าน (v0.3): PDPA, เงินอยู่ไหน, ThaID ซ่อน, ผู้ช่วย AI, health, ideas, outcome, suggestions, demo | AI | TF.1, TF.4 | `npm test` 87/87, 47/47 operations | DONE |
+| TF.7 | หน้าบ้านผู้ช่วย AI: ถามจากข้อมูลของฉัน, ปุ่มยืนยันก่อนทำ, หน้า "AI จำอะไรเกี่ยวกับฉัน" | AI | TF.3 | smoke test 53/53 | DONE |
+| TF.8 | อัปเดต gap analysis หลัง v0.3 | AI | TF.3 | `docs/design/backend-gaps.md` | DONE |
 | TB.17 | P1: scheduler, คุมค่า AI, log/หลักฐาน, env, Dart client, ผลลัพธ์งาน, ตรวจลิงก์, dedupe, คำแนะนำเมื่อไม่พบผล, personas | AI | TB.16 | contract test | TODO |
 | TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | ADR (รวมกับ T2.7, TM.13) | TODO |
 | TB.7 | Mock server ครบทุก operation ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.2 | `npm run mock`; LIVE=1 ดึง Greenhouse 220 และ Lever 6 ตำแหน่งในกรุงเทพฯ (ทดสอบจริงแล้ว) | DONE |

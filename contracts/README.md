@@ -4,9 +4,9 @@
 
 | ไฟล์ | หน้าที่ | แก้เมื่อ |
 |---|---|---|
-| `openapi.yaml` | API ทุกตัว (27 operations, 9 บริการ) | เพิ่ม/แก้ API หรือฟิลด์ |
+| `openapi.yaml` | API ทุกตัว (v0.3: 47 operations, 14 บริการ) | เพิ่ม/แก้ API หรือฟิลด์ |
 | `integrations.json` | ช่องทางเชื่อมต่อภายนอก (port) และ adapter ของแต่ละตัว | เพิ่ม/เปลี่ยนผู้ให้บริการ |
-| `adapters/` | AI, แหล่งโอกาส, หาพิกัด, แจ้งเตือน | เขียน adapter ใหม่ตาม interface เดิม |
+| `adapters/` | AI, ผู้ช่วย AI (agent), กฎเงิน (money), เชื่อมรัฐ (gov จำลอง), แหล่งโอกาส, หาพิกัด, แจ้งเตือน | เขียน adapter ใหม่ตาม interface เดิม |
 | `app-config.sample.json` | แท็บ หน้า ปุ่ม ตัวกรอง และ action catalog | ย้ายเมนู ย้ายปุ่ม เพิ่มหน้า |
 | `app-config.schema.json` | รูปแบบของ config และรายชื่อ widget | เพิ่มชนิด widget |
 | `fixtures/reference.json` | หมวด ทักษะ ขั้นตอน กฎหลอกลวง แหล่งข้อมูล แผนรายได้ตัวอย่าง | เพิ่มตัวเลือก |
@@ -24,6 +24,12 @@ npm run check     # ตรวจทั้งหมดแล้วสร้าง
 npm run mock      # API จำลองที่ http://localhost:8080 เอกสารที่ /docs
 ```
 PowerShell ที่ปิดการรันสคริปต์ ให้ใช้ `npm.cmd` แทน `npm`
-ดึงข้อมูลจริงจาก Greenhouse/Lever ตอนเปิด mock: ตั้ง `LIVE=1` ก่อนรัน (`set LIVE=1` ใน cmd หรือ `$env:LIVE=1` ใน PowerShell)
+ตัวแปรของ mock (ตั้งก่อนรัน เช่น `$env:LIVE=1` ใน PowerShell):
+- `LIVE=1` ดึง Greenhouse/Lever จริงตอนเปิด
+- `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` ใช้ผู้ให้บริการ AI แบบ OpenAI-compatible (ไม่ตั้งใช้กฎ)
+- `GOV_CONNECTED=1` เปิดโหมดเชื่อมรัฐ (adapter จำลอง)
+- `DEMO_MODE=0` ปิด `/v1/demo`
+- `INTEGRATION_KEY` คีย์ของ `/v1/integrations`
+- `GIT_COMMIT` commit ที่ `/v1/health` รายงาน
 
 `docs/backend/index.html` สร้างอัตโนมัติ ห้ามแก้ตรง

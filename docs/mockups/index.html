@@ -175,6 +175,10 @@
   .cmpt { font-size:12px; margin:10px 0; }
   .cmpt th { font-size:12px; color:var(--ink); }
   .cmpt td.win { background:#dcfce7; color:#166534; font-weight:700; }
+  /* assistant */
+  .pact { background:#fff7e6; border:1.5px solid #fde68a; border-radius:12px; padding:9px 10px; margin-top:8px; font-size:13px; color:var(--ink); }
+  .pmem { background:#f3e8ff; color:#6b21a8; border-radius:10px; padding:6px 9px; margin-top:8px; font-size:12px; }
+  .pmem u { cursor:pointer; margin-left:6px; }
   /* where is my money */
   .mcard { background:linear-gradient(145deg,#ecfdf5,#fff); border:1.5px solid #a7f3d0; }
   .mcard small { font-size:13px; font-weight:600; color:var(--mut); }
@@ -505,6 +509,17 @@
     <div class="body" id="routeBody"></div>
   </div>
 
+  <!-- 13 AI assistant -->
+  <div class="view" id="v-assistant">
+    <div class="top"><div class="back" onclick="goHome()">‹</div><div class="ttl">ถาม AI เรื่องเงินของฉัน</div></div>
+    <div class="chat" id="achat"></div>
+    <div class="quick" id="aquick"></div>
+    <div class="composer">
+      <input id="aIn" placeholder="ถามได้เลย เช่น เงินฉันอยู่ไหน" onkeydown="if(event.key==='Enter')aSend()">
+      <button onclick="aSend()">➤</button>
+    </div>
+  </div>
+
   <!-- 10 Me -->
   <div class="view" id="v-me">
     <div class="top"><div class="ttl" style="font-size:20px">ฉัน</div></div>
@@ -527,7 +542,7 @@ const screens = [
   ['g','เริ่มต้น'],['welcome','1 เลือกวิธี (ผู้ใช้ใหม่)'],['home','1b หน้าแรก (ผู้ใช้เดิม)'],['chat','2a คุยกับ AI'],['manual','2b เลือกเอง'],['loading','3 กำลังวิเคราะห์'],
   ['g','ผลและการลงมือ'],['results','4 โอกาส: รายการ'],['map','4b โอกาส: แผนที่'],['detail','5 รายละเอียด (แบบเดิม)'],['planner','6 แผนรายได้'],
   ['checklist','7 เช็คลิสต์ลงมือทำ'],['tracker','8 แผนของฉัน'],['scam','9 สัญญาณหลอกลวง'],['me','10 ฉัน (โปรไฟล์/ตั้งค่า)'],
-  ['g','เงินอยู่ไหน'],['money','11 เงินของฉัน'],['route','12 เส้นทางรับเงิน'],
+  ['g','เงินอยู่ไหน'],['money','11 เงินของฉัน'],['route','12 เส้นทางรับเงิน'],['assistant','13 ถาม AI (ผู้ช่วย)'],
   ['g','กรณีผิดปกติ'],['error-missing','E1 ข้อมูลไม่พอ'],['error-none','E2 ไม่พบผล'],['error-ai','E3 AI ล้มเหลว']
 ];
 const nav = document.getElementById('nav');
@@ -536,7 +551,7 @@ screens.forEach(([id,label]) => {
   const b = document.createElement('button'); b.textContent = label; b.id = 'nav-'+id;
   b.onclick = () => id === 'chat' ? startChat() : go(id); nav.appendChild(b);
 });
-const noTabs = ['chat','loading','scam'];
+const noTabs = ['chat','loading','scam','assistant'];
 function go(id) {
   closeModal();
   document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
@@ -548,6 +563,7 @@ function go(id) {
   if (id === 'me') renderMe();
   if (id === 'money') renderMoney();
   if (id === 'route') renderRoute();
+  if (id === 'assistant' && !document.getElementById('achat').children.length) aGreet();
   if (id === 'map' || id === 'results') syncChips();
   if (id === 'tracker') renderTracker();
   document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on'));
@@ -741,7 +757,7 @@ function renderHome() {
   const others = active.filter(t => !n || t.id !== n.id).length;
   if (others) h += '<div class="card click" onclick="go(\'tracker\')"><div class="row"><b>งานอื่นที่ทำอยู่ '+others+' รายการ</b><span class="mut" style="font-size:18px">›</span></div></div>';
   h += '<div class="card click" onclick="go(\'results\')"><div class="row"><div><b>✨ โอกาสใหม่ใกล้คุณ '+nearCount()+' แห่ง</b><div class="mut">ดูเป็นรายการหรือแผนที่</div></div><span class="mut" style="font-size:18px">›</span></div></div>';
-  h += '<p style="text-align:center;margin:14px 0 0"><a class="link" onclick="startChat()">🤖 หรือคุยกับ AI เพื่อหาแบบละเอียด</a></p>';
+  h += '<div class="card click" onclick="startAssistant()" style="border:1.5px solid #bfdbfe;background:#eff6ff"><div class="row"><div><b>🤖 ถาม AI เรื่องเงินของฉัน</b><div class="mut">เช่น เงินฉันอยู่ไหน เอกสารที่ยังขาด</div></div><span class="mut" style="font-size:18px">›</span></div></div>';
   document.getElementById('homeBody').innerHTML = h;
 }
 function renderTracker() {
@@ -867,6 +883,7 @@ function toggleConsent(id) {
   consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } });
   if (id === 'location' && !consent.p.location && loc.state === 'gps') loc = { state:'ask', label:'' };
   if (id === 'reminders') meSet.remind = consent.p.reminders;
+  if (id === 'ai' && !consent.p.ai) { aMemory = aMemory.filter(m => m.source !== 'ai'); document.getElementById('achat').innerHTML = ''; }
   if (id === 'gov') { if (consent.p.gov) { consent.p.gov = false; consent.history.pop(); manageConsent(); connectThaid(); return; } gov.connected = false; }
   toast(consent.p[id] ? 'ให้ความยินยอมแล้ว' : 'ถอนความยินยอมแล้ว มีผลทันที');
   manageConsent(); renderMe();
@@ -1157,6 +1174,7 @@ function renderMe() {
   h += '<h3>ความเป็นส่วนตัวและข้อมูลของฉัน</h3><div class="card" style="padding:4px 14px">'
     + row('🛡️', 'จัดการความยินยอม', consent.accepted ? PURPOSES.filter(pp => consent.p[pp.id]).map(pp => pp.ic).join(' ')+' ยินยอมอยู่' : 'ยังไม่ได้ให้ความยินยอม', 'manageConsent()')
     + row('📜', 'ประกาศความเป็นส่วนตัว', 'ฉบับ '+NOTICE_VERSION, 'showNotice()')
+    + row('🧠', 'AI จำอะไรเกี่ยวกับฉัน', aMemory.length ? aMemory.length+' เรื่อง · ดูและลบได้' : 'ยังไม่มี', 'showMemory()')
     + row('📄', 'ดูและขอสำเนาข้อมูล', 'ทุกอย่างที่แอปเก็บ รวมประวัติความยินยอม', 'showMyData()')
     + row('🗑️', 'ลบข้อมูลทั้งหมด', 'ลบโปรไฟล์และความคืบหน้าบนเครื่องนี้', 'confirmDelete()') + '</div>';
   h += '<h3>ช่วยเหลือ</h3><div class="card" style="padding:4px 14px">'
@@ -1168,7 +1186,7 @@ function renderMe() {
 }
 function showMyData() {
   modal('<b style="font-size:17px">ข้อมูลที่แอปเก็บ</b><div class="card" style="margin-top:10px"><table>'
-    + [['ชื่อที่แสดง', 'คุณ'+persona.name], ['พื้นที่', persona.chip], ['ทักษะ', skillPicked.join(', ')], ['งานที่บันทึก', tasks.length+' รายการ'], ['ความยินยอม', consent.accepted ? 'ฉบับ '+consent.version+': '+PURPOSES.filter(pp => consent.p[pp.id]).map(pp => pp.t).join(', ') : 'ยังไม่ได้ให้'], ['ตำแหน่ง', loc.state === 'gps' ? 'ใช้ตำแหน่งปัจจุบัน (ไม่เก็บประวัติ)' : loc.label || 'ยังไม่ได้เลือก']].map(r => '<tr><td class="mut">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')
+    + [['ชื่อที่แสดง', 'คุณ'+persona.name], ['พื้นที่', persona.chip], ['ทักษะ', skillPicked.join(', ')], ['งานที่บันทึก', tasks.length+' รายการ'], ['ความยินยอม', consent.accepted ? 'ฉบับ '+consent.version+': '+PURPOSES.filter(pp => consent.p[pp.id]).map(pp => pp.t).join(', ') : 'ยังไม่ได้ให้'], ['ตำแหน่ง', loc.state === 'gps' ? 'ใช้ตำแหน่งปัจจุบัน (ไม่เก็บประวัติ)' : loc.label || 'ยังไม่ได้เลือก'], ['AI จำไว้', aMemory.length ? aMemory.map(m => m.text).join(' · ') : 'ไม่มี'], ['ประวัติแชทกับ AI', 'ไม่เก็บถาวร']].map(r => '<tr><td class="mut">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>').join('')
     + '</table></div><p class="mut">ไม่เก็บเลขบัตรประชาชน รหัสผ่าน OTP หรือข้อมูลบัญชีธนาคาร</p><button class="btn" onclick="toast(\'จำลอง: ส่งไฟล์ข้อมูลของคุณ (JSON)\')">ขอสำเนาข้อมูล</button><button class="btn sec sm" onclick="closeModal()">ปิด</button>');
 }
 function confirmDelete() {
@@ -1307,6 +1325,7 @@ function renderRoute() {
     h += stepN(5, 'หลังยื่น', '<div class="mut">💸 '+m.payHow+'</div><div class="mut">⏱️ '+m.after+'</div><div class="mut">↩️ ถ้าไม่ผ่าน: '+m.ifNo+'</div>', false);
     h += '<button class="btn" onclick="startClaim(\''+m.id+'\')">เริ่มรับเงิน: บันทึกเป็นแผนทีละขั้น</button>';
   }
+  h += '<div class="link" style="text-align:center;margin-top:12px" onclick="startAssistant(\'ไปรับ'+m.t+'ยังไง\')">🤖 ถาม AI เรื่องเงินก้อนนี้</div>';
   h += '<p class="mut" style="margin-top:12px">ขั้นตอน เกณฑ์ อัตรา และสถานที่เป็นตัวอย่าง ต้องตรวจกับหน่วยงานก่อนใช้จริง แอปไม่ยื่นแทนคุณและไม่รับประกันว่าจะได้เงิน</p>';
   document.getElementById('routeBody').innerHTML = h;
 }
@@ -1345,6 +1364,84 @@ function doConnect() {
 function disconnectThaid() {
   gov.connected = false; consent.p.gov = false; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } });
   toast('ยกเลิกการเชื่อมและลบข้อมูลจากหน่วยงานแล้ว'); renderMe();
+}
+/* ---------- AI assistant (mock of the rules agent; real one: POST /v1/ai/conversations) ---------- */
+let aMemory = [], aPending = {}, aSeq = 1;
+const aChat = () => document.getElementById('achat');
+function startAssistant(firstText) {
+  if (!consent.accepted) { withConsent(() => startAssistant(firstText)); return; }
+  if (!consent.p.ai) {
+    modal('<b style="font-size:17px">ต้องยินยอมให้ใช้ AI ก่อน</b><p>ผู้ช่วยต้องอ่านข้อมูลของคุณในแอป (ไม่ส่งชื่อ) และอาจจำสิ่งที่คุณบอกไว้ ดูและลบได้ที่แท็บ ฉัน</p>'
+      + '<button class="btn" onclick="toggleConsentQuiet(\'ai\');closeModal();startAssistant('+(firstText ? '\''+firstText+'\'' : '')+')">ยินยอมและเริ่มคุย</button><button class="btn sec" onclick="closeModal()">ไม่ใช่ตอนนี้</button>');
+    return;
+  }
+  go('assistant');
+  if (firstText) aSend(firstText);
+}
+function aBubble(cls, html) { const d = document.createElement('div'); d.className = 'msg ' + cls; d.innerHTML = html; aChat().appendChild(d); aChat().scrollTop = aChat().scrollHeight; return d; }
+function aQuick(list) { const q = document.getElementById('aquick'); q.innerHTML = ''; (list || []).forEach(t => { const s = document.createElement('span'); s.textContent = t; s.onclick = () => aSend(t); q.appendChild(s); }); }
+function aGreet() { aBot({ reply:'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย ฉันเห็นเฉพาะข้อมูลของคุณในแอปนี้ จะเปลี่ยนอะไรให้ จะถามคุณก่อนเสมอ', quick:['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน', 'เตือนฉันพรุ่งนี้'] }); }
+function aBot(r) {
+  const w = document.createElement('div'); w.className = 'who'; w.textContent = 'AI (จำลอง)' + (r.tools && r.tools.length ? ' · 🔧 ' + r.tools.join(', ') : ''); aChat().appendChild(w);
+  let h = esc(r.reply).replace(/\n/g, '<br>');
+  (r.pending || []).forEach(pa => { const id = 'ap' + aSeq++; aPending[id] = pa;
+    h += '<div class="pact" id="'+id+'"><div>⚡ '+esc(pa.label)+'</div><div class="row" style="gap:6px;margin-top:6px"><button class="btn sm" style="margin:0" onclick="aDecide(\''+id+'\',true)">ยืนยัน</button><button class="btn sec sm" style="margin:0" onclick="aDecide(\''+id+'\',false)">ไม่ใช่</button></div></div>'; });
+  (r.memory || []).forEach(m => { h += '<div class="pmem">🧠 จำไว้: '+esc(m.text)+' <u onclick="forget(\''+m.id+'\');this.parentNode.textContent=\'ลบแล้ว\'">ลบ</u></div>'; });
+  if (r.link) h += '<div class="link" style="margin-top:6px" onclick="'+r.link.on+'">'+r.link.t+'</div>';
+  aBubble('ai', h); aQuick(r.quick);
+}
+function aSend(text) {
+  const i = document.getElementById('aIn'); const t = (text !== undefined ? text : i.value).trim(); i.value = ''; if (!t) return;
+  aBubble('me', esc(t)); aQuick([]);
+  const typing = document.createElement('div'); typing.className = 'typing'; typing.innerHTML = '<i></i><i></i><i></i>'; aChat().appendChild(typing);
+  setTimeout(() => { typing.remove(); aBot(aRespond(t)); }, 500);
+}
+function aRespond(t) {
+  const r = { tools:[], pending:[], memory:[], quick:['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'] };
+  const pref = t.match(/(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ว่างแค่[^.?!]*)/);
+  if (pref) { const m = { id:'mem' + aSeq++, text:pref[1].trim(), source:'ai' }; aMemory.push(m); r.memory.push(m); }
+  const live = MONEY.filter(m => ['likely', 'verified', 'check'].includes(mEval(m).st));
+  if (/เอกสาร/.test(t)) {
+    r.tools.push('ดูเส้นทางรับเงิน');
+    const lines = live.map(m => { const have = docHave[m.id] || new Set(); const miss = m.docs.filter((d, i) => !have.has(i)); return miss.length ? '• ' + m.t + ': ' + miss.join(', ') : null; }).filter(Boolean);
+    r.reply = lines.length ? 'เอกสารที่ยังขาด\n' + lines.join('\n') : 'เอกสารครบทุกรายการที่น่าจะมีสิทธิ์แล้ว';
+  } else if (/งาน/.test(t)) {
+    r.tools.push('ค้นหาโอกาส');
+    const jobs = ITEMS.filter(i => i.g === 'job' && !i.scam && i.dx !== undefined).sort((a, b) => dist(a) - dist(b)).slice(0, 3);
+    r.reply = 'งานใกล้คุณ:\n' + jobs.map((j, i) => (i + 1) + '. ' + j.t + ' · ' + dist(j).toFixed(1) + ' กม.' + (j.tier < 3 ? ' · ' + j.short + ' ตามประกาศ' : '')).join('\n')
+      + (aMemory.some(m => /ไกล/.test(m.text)) ? '\n(เรียงจากใกล้สุด เพราะคุณบอกว่าไม่สะดวกเดินทางไกล)' : '');
+    r.pending.push({ label:'บันทึก "' + jobs[0].t + '" ไว้ในแผนของฉัน', run:() => addPlan(jobs[0].id, 1) });
+  } else if (/เตือน|เลื่อน|พรุ่งนี้/.test(t)) {
+    r.tools.push('ดูแผนของฉัน');
+    const a = tasks.find(x => !finished(x));
+    if (a) { r.reply = 'จะตั้งเตือนเรื่อง "' + a.title + '" พรุ่งนี้ ยืนยันไหมคะ'; r.pending.push({ label:'เตือน "' + a.title + '" พรุ่งนี้', run:() => { a.due = 'เตือนพรุ่งนี้ (จำลอง)'; refresh(); } }); }
+    else r.reply = 'ยังไม่มีงานที่กำลังทำอยู่';
+  } else if (/ยังไง|อย่างไร|ไปรับ/.test(t)) {
+    r.tools.push('ดูเส้นทางรับเงิน');
+    const m = MONEY.find(x => t.includes(x.t)) || live[0];
+    if (!m) r.reply = 'ยังไม่มีรายการที่น่าจะมีสิทธิ์ ลองตอบคำถามในหน้าเงินของฉันก่อน';
+    else { r.reply = m.t + '\n1. เตรียม: ' + m.docs.join(', ') + '\n2. ยื่นที่: ' + m.channels[0].t + '\n3. หลังยื่น: ' + m.after; r.pending.push({ label:'สร้างแผนรับ "' + m.t + '" ทีละขั้น', run:() => { startClaimQuiet(m.id); } }); r.link = { t:'เปิดเส้นทางรับเงิน ›', on:"openRoute('" + m.id + "')" }; }
+  } else if (/เงิน|ได้เท่าไหร่|สิทธิ์|รอรับ/.test(t)) {
+    r.tools.push('ดูข้อมูลเงินของคุณ');
+    const s = moneyTotals(), top = MONEY.filter(m => ['likely', 'verified'].includes(mEval(m).st)), need = MONEY.find(m => mEval(m).st === 'need');
+    r.reply = (s.n ? 'เงินที่คุณอาจได้ ' + (s.month ? baht(s.month) + '/เดือน' : '') + (s.once ? ' + ' + baht(s.once) + ' ครั้งเดียว' : '') + (s.verified ? ' (ยืนยันจากหน่วยงาน · DEMO / MOCK)' : ' (ประมาณจากเกณฑ์ ยังไม่ยืนยัน)') : 'ยังไม่พบเงินที่น่าจะมีสิทธิ์')
+      + (top.length ? '\nเริ่มที่: ' + top.map(m => m.t).join(', ') : '') + (need ? '\nตอบอีกข้อเพื่อเช็ค "' + need.t + '": ' + ASK[mEval(need).ask].q : '');
+    r.link = { t:'ดูเงินของฉัน ›', on:"go('money')" }; r.quick = ['ไปรับเงินยังไง', 'เอกสารที่ยังขาด'];
+  } else if (pref) r.reply = 'จำไว้แล้ว จะใช้ประกอบคำแนะนำครั้งต่อไป ลบได้ทุกเมื่อ';
+  else r.reply = 'ถามได้เลย เช่น เงินฉันอยู่ไหน เอกสารที่ยังขาด หรือหางานใกล้บ้าน\nฉันไม่ยื่นเรื่องแทนคุณ และไม่รับประกันว่าจะได้เงิน';
+  return r;
+}
+function aDecide(id, yes) {
+  const pa = aPending[id], el = document.getElementById(id); if (!pa) return; delete aPending[id];
+  if (yes) { pa.run(); el.innerHTML = '✓ ทำแล้ว: ' + esc(pa.label); toast('ทำแล้ว'); } else el.innerHTML = 'ยกเลิกแล้ว ไม่ได้เปลี่ยนอะไร';
+}
+function startClaimQuiet(id) { const m = MONEY.find(x => x.id === id); if (!tasks.find(x => x.src === 'money_' + id)) tasks.push({ id:'t' + Date.now(), src:'money_' + id, title:m.t, steps:['เตรียมเอกสาร', m.channels[0].t, 'ติดตามผล', 'ได้รับเงิน (ผู้ใช้แจ้ง)'], done:0, due:'' }); refresh(); }
+function forget(id) { aMemory = aMemory.filter(m => m.id !== id); }
+function showMemory() {
+  modal('<div class="row"><b style="font-size:17px">🧠 AI จำอะไรเกี่ยวกับฉัน</b><span class="mut" style="font-size:20px;cursor:pointer" onclick="closeModal()">✕</span></div>'
+    + '<p class="mut">AI ใช้เรื่องเหล่านี้ประกอบคำแนะนำ ประวัติแชทไม่เก็บถาวร ถอนความยินยอมข้อ AI แล้วลบทั้งหมด</p>'
+    + (aMemory.length ? '<div class="card" style="padding:2px 12px">' + aMemory.map(m => '<div class="swrow" style="cursor:default"><div><b>' + esc(m.text) + '</b><div class="mut">' + (m.source === 'ai' ? 'AI จำจากที่คุณคุย' : 'คุณเพิ่มเอง') + '</div></div><span class="link" onclick="forget(\'' + m.id + '\');showMemory();renderMe()">ลบ</span></div>').join('') + '</div>' : '<div class="card"><p class="mut" style="margin:0">ยังไม่มี</p></div>')
+    + '<div class="row" style="gap:8px"><input id="memIn" placeholder="เพิ่มเรื่องที่อยากให้ AI รู้" style="flex:1"><button class="btn sm" style="margin:0;width:auto;padding:10px 14px" onclick="const v=document.getElementById(\'memIn\').value.trim();if(v){aMemory.push({id:\'mem\'+aSeq++,text:v,source:\'user\'});showMemory();renderMe()}">เพิ่ม</button></div>');
 }
 function toggleConsentQuiet(id) { consent.p[id] = !consent.p[id]; consent.history.push({ at:new Date(), version:consent.version, p:{ ...consent.p } }); }
 function startChatNow() { chat.innerHTML = ''; si = 0; answers = []; go('chat'); ask(); }

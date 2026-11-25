@@ -76,6 +76,17 @@ setTimeout(() => {
     w.eval("doConnect()"); check('connected shows verified items labelled mock', d.getElementById('moneyBody').innerHTML.includes('ยืนยันจากหน่วยงาน') && w.eval('consent.p.gov') === true);
     w.eval("go('me')"); check('me tab shows ThaID account', d.getElementById('meBody').innerHTML.includes('บัญชีที่เชื่อมต่อ'));
     w.eval("disconnectThaid(); toggleGov(); go('money')"); check('flag off hides ThaID again', !d.getElementById('moneyBody').innerHTML.includes('ThaID') && w.eval('gov.connected') === false);
+    // AI assistant
+    w.eval("setPersona('p2'); go('home')"); check('home offers the AI assistant', d.getElementById('homeBody').innerHTML.includes('ถาม AI เรื่องเงินของฉัน'));
+    w.eval("consent.p.ai=false; startAssistant()"); check('assistant asks for AI consent first', d.getElementById('msheet').innerHTML.includes('ต้องยินยอมให้ใช้ AI'));
+    w.eval("consent.p.ai=true; startAssistant()"); check('assistant greets', on('assistant') && d.getElementById('achat').textContent.includes('ถามเรื่องเงิน'));
+    const ask = q => { const r = w.eval("aBot(aRespond(" + JSON.stringify(q) + ")); aRespond(" + JSON.stringify(q) + ")"); return r; };
+    ask('เงินฉันอยู่ไหน'); check('assistant answers money from the app data', d.getElementById('achat').textContent.includes('฿6,000'));
+    w.eval("aBot(aRespond('หางานใกล้บ้าน'))"); check('assistant proposes an action with confirm buttons', d.querySelectorAll('#achat .pact').length === 1);
+    const before = w.eval('tasks.length'); w.eval("aDecide(Object.keys(aPending)[0], true)"); check('confirming the action adds to my plan', w.eval('tasks.length') === before + 1);
+    w.eval("aBot(aRespond('ฉันไม่สะดวกเดินทางไกล'))"); check('assistant remembers a preference visibly', w.eval('aMemory.length') === 1 && !!d.querySelector('#achat .pmem'));
+    w.eval("go('me'); showMemory()"); check('memory page lists it with delete', d.getElementById('msheet').innerHTML.includes('ไม่สะดวกเดินทางไกล'));
+    w.eval("toggleConsent('ai')"); check('withdrawing AI consent deletes AI memory', w.eval('aMemory.length') === 0);
   });
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));
   console.log(results.join('\n'));

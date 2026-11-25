@@ -80,4 +80,32 @@ function createAi(opts = {}) {
   };
 }
 
-module.exports = { createAi, stripMoney, rulesRank };
+// Intake helper: turn a free-text answer into one profile field. Rules match an option; AI may normalise.
+function rulesExtract(field, text) {
+  const t = String(text || '').trim();
+  if (field.options) return field.options.find(o => t.includes(o)) || t;
+  if (field.number) { const n = +t.replace(/[^\d]/g, ''); return n || undefined; }
+  return t;
+}
+const _createAi = createAi;
+function createAiWithExtract(opts = {}) {
+  const base = _createAi(opts);
+  const baseUrl = opts.baseUrl !== undefined ? opts.baseUrl : process.env.AI_BASE_URL;
+  const apiKey = opts.apiKey !== undefined ? opts.apiKey : process.env.AI_API_KEY;
+  const fetchImpl = opts.fetch || fetch;
+  base.extract = async (field, text) => {
+    if (!(baseUrl && apiKey)) return { aiStatus: 'fallback_rules', value: rulesExtract(field, text) };
+    try {
+      const res = await fetchImpl(baseUrl.replace(/\/$/, '') + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        body: JSON.stringify({ model: opts.model || process.env.AI_MODEL || 'default', temperature: 0, response_format: { type: 'json_object' },
+          messages: [{ role: 'system', content: 'แปลงคำตอบเป็นค่าเดียว ตอบ JSON {"value":...}' + (field.options ? ' เลือกจาก: ' + field.options.join(', ') : '') }, { role: 'user', content: field.question + ' | คำตอบ: ' + text }] }) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const v = JSON.parse((await res.json()).choices[0].message.content).value;
+      if (field.options && !field.options.includes(v)) throw new Error('value not in options');
+      return { aiStatus: 'ok', value: v };
+    } catch (e) { return { aiStatus: 'fallback_rules', value: rulesExtract(field, text) }; }
+  };
+  return base;
+}
+
+module.exports = { createAi: createAiWithExtract, stripMoney, rulesRank, rulesExtract };
