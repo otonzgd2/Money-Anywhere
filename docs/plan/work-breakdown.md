@@ -87,7 +87,11 @@
 | TB.4 | Validator ตรวจการอ้างอิงของ config กับ OpenAPI | AI | TB.2, TB.3 | `node contracts/validate-config.js` PASS, config ที่ย้ายปุ่ม PASS, config ที่ผิดจับได้ 2 จุด | DONE |
 | TB.5 | ตรวจ OpenAPI และ schema ด้วยเครื่องมือมาตรฐาน | AI | TB.2, TB.3 | `npm run validate`: OpenAPI 3.0.3 valid, config ตรง schema | DONE |
 | TB.8 | เอกสาร HTML หลังบ้าน/API แยกตามหน้า สร้างจากสัญญา | AI | TB.2, TB.3 | `docs/backend/index.html` (`npm run docs`) | DONE |
-| TB.9 | Contract test เรียกทุก API ตรวจ schema และกติกา | AI | TB.7 | `npm test`: 100/100 PASS, 25/25 operations | DONE |
+| TB.9 | Contract test เรียกทุก API ตรวจ schema และกติกา | AI | TB.7 | `npm test`: 45/45 PASS, 27/27 operations (v0.2) | DONE |
+| TB.10 | ตรวจทาน API v0.2: แก้ 15 จุด, รวมเส้นที่ซ้ำ, แยกเส้นที่หน้าที่ต่างกัน | AI | TB.9 | `docs/design/api-review.md` | DONE |
+| TB.11 | Port เชื่อมต่อภายนอก: AI, แหล่งโอกาส (ดึง/ส่งเข้า), หาพิกัด, แจ้งเตือน | AI | TB.10 | `contracts/integrations.json`, `contracts/adapters/` | DONE |
+| TB.12 | ยืนยันว่า "TM standard" คือมาตรฐานไหน แล้วปรับสัญญาตาม | OWNER+AI | TB.10 | ตารางเทียบใน api-review ข้อ 3 | TODO |
+| TB.13 | ทดสอบ AI adapter กับผู้ให้บริการจริง | AI | TB.6 | ผลเรียกจริง | TODO |
 | TB.6 | ตัดสิน stack หลังบ้าน, AI provider, ที่เก็บข้อมูล | OWNER+AI | TB.1 | ADR (รวมกับ T2.7, TM.13) | TODO |
 | TB.7 | Mock server ครบทุก operation ให้ U1/U2/U3 ทำงานขนานได้ | AI | TB.2 | `npm run mock`; LIVE=1 ดึง Greenhouse 220 และ Lever 6 ตำแหน่งในกรุงเทพฯ (ทดสอบจริงแล้ว) | DONE |
 

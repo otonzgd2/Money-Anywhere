@@ -9,6 +9,8 @@ const api = yaml.load(fs.readFileSync(path.join(D, 'openapi.yaml'), 'utf8'));
 const cfg = JSON.parse(fs.readFileSync(path.join(D, 'app-config.sample.json'), 'utf8'));
 const schema = JSON.parse(fs.readFileSync(path.join(D, 'app-config.schema.json'), 'utf8'));
 const ref = JSON.parse(fs.readFileSync(path.join(D, 'fixtures', 'reference.json'), 'utf8'));
+const integ = JSON.parse(fs.readFileSync(path.join(D, 'integrations.json'), 'utf8'));
+const resolveRef = x => (x && x.$ref ? x.$ref.replace(/^#\//, '').split('/').reduce((o, k) => o[k], api) : x);
 const OUT = path.join(D, '..', 'docs', 'backend', 'index.html');
 
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -87,7 +89,7 @@ T.push(`<section id="overview"><h2>ภาพรวม</h2>
   <div class="box b2"><b>Layout config</b><span>${cfg.tabs.length} แท็บ · ${Object.keys(cfg.routes).length} หน้า · ${cfg.filters.length} ตัวกรอง</span><small>แก้บ่อย</small></div><div class="arr">→</div>
   <div class="box b3"><b>Action catalog</b><span>${Object.keys(cfg.actions).length} action id → endpoint</span><small>แก้น้อย</small></div><div class="arr">→</div>
   <div class="box b4"><b>Resource API</b><span>${ops.length} operations · ${api.tags.length} บริการ</span><small>แก้น้อยที่สุด</small></div><div class="arr">→</div>
-  <div class="box b5"><b>แหล่งข้อมูล / AI / DB</b><span>${ref.sources.length} แหล่ง · AI มี fallback</span></div>
+  <div class="box b5"><b>แหล่งข้อมูล / AI / DB</b><span>${integ.ports.length} ช่องทางเชื่อมต่อ · ${ref.sources.length} แหล่ง · AI มี fallback</span></div>
 </div>
 <table><tr><th>อยากทำ</th><th>แก้ไฟล์</th><th>ส่วน</th></tr>
 <tr><td>ย้ายปุ่ม ย้ายเมนู เพิ่มหน้า เปลี่ยนแท็บ</td><td><code>contracts/app-config.sample.json</code></td><td><code>tabs</code>, <code>routes</code></td></tr>
@@ -95,6 +97,7 @@ T.push(`<section id="overview"><h2>ภาพรวม</h2>
 <tr><td>เปลี่ยน endpoint ของ action</td><td><code>contracts/app-config.sample.json</code></td><td><code>actions</code></td></tr>
 <tr><td>เพิ่ม API หรือฟิลด์ข้อมูล</td><td><code>contracts/openapi.yaml</code></td><td><code>paths</code>, <code>components.schemas</code></td></tr>
 <tr><td>เพิ่มหมวด ทักษะ ขั้นตอน กฎหลอกลวง</td><td><code>contracts/fixtures/reference.json</code></td><td>taxonomies, checklists, scamRules</td></tr>
+<tr><td>เพิ่มหรือเปลี่ยนผู้ให้บริการภายนอก (AI, แหล่งงาน, แจ้งเตือน)</td><td><code>contracts/adapters/*.js</code> + <code>contracts/integrations.json</code></td><td>adapter ใหม่ตาม interface เดิม</td></tr>
 <tr><td>เพิ่มชนิด widget ใหม่</td><td><code>contracts/app-config.schema.json</code> + โค้ดแอป</td><td><code>$defs.widget.type</code></td></tr></table>
 <div class="cmd"><b>หลังแก้ทุกครั้ง</b> (ในโฟลเดอร์ <code>contracts/</code>):<pre>npm run check     # ตรวจ config, OpenAPI, schema, ทดสอบทุก API แล้วสร้างหน้านี้ใหม่
 npm run mock      # เปิด mock API ที่ http://localhost:8080 (เอกสารที่ /docs)</pre></div>
@@ -127,12 +130,12 @@ for (const tg of api.tags) {
   for (const o of list) {
     const acts = actionOf[o.method + ' ' + o.path] || [];
     const pages = new Set(); acts.forEach(a => (usedAt[a] || []).forEach(r => pages.add(r)));
-    const params = (o.parameters || []).map(p => '<tr><td><code>' + esc(p.name) + '</code>' + (p.required ? ' <span class="req">จำเป็น</span>' : '') + '</td><td>' + esc(p.in) + '</td><td>' + typeOf(p.schema) + (p.schema && p.schema.default !== undefined ? ' <span class="mut">ค่าเริ่มต้น ' + esc(JSON.stringify(p.schema.default)) + '</span>' : '') + '</td></tr>').join('');
+    const params = (o.parameters || []).map(resolveRef).map(p => '<tr><td><code>' + esc(p.name) + '</code>' + (p.required ? ' <span class="req">จำเป็น</span>' : '') + '</td><td>' + esc(p.in) + '</td><td>' + typeOf(p.schema) + (p.schema && p.schema.default !== undefined ? ' <span class="mut">ค่าเริ่มต้น ' + esc(JSON.stringify(p.schema.default)) + '</span>' : '') + '</td></tr>').join('');
     const reqSchema = o.requestBody && o.requestBody.content['application/json'].schema;
     const resps = Object.entries(o.responses).map(([code, r]) => { const s = r.content && r.content['application/json'] && r.content['application/json'].schema; const isErr = r.$ref; return '<span class="code c' + code[0] + '">' + code + '</span> ' + (isErr ? '<a href="#schema-error">Error</a>' : s ? typeOf(s.type === 'object' && s.properties ? { type: 'object' } : s) : '<span class="mut">' + esc(r.description || 'ไม่มี body') + '</span>'); }).join(' &nbsp; ');
     A += '<details class="op" id="' + opAnchor(o) + '"><summary>' + mbadge(o.method) + ' <code>' + esc(o.path) + '</code> <span class="sum">' + esc(o.summary) + '</span></summary><div class="opb">'
       + '<div class="kv"><span>operationId</span><code>' + esc(o.operationId) + '</code></div>'
-      + '<div class="kv"><span>action id</span>' + (acts.length ? acts.map(actionLink).join(', ') : '<span class="mut">ไม่มี (ใช้ภายใน)</span>') + '</div>'
+      + '<div class="kv"><span>action id</span>' + (acts.length ? acts.map(a => actionLink(a) + (cfg.actions[a].body ? ' <span class="mut">' + esc(JSON.stringify(cfg.actions[a].body)) + '</span>' : '')).join('<br>') : (o.tags || [])[0] === 'Integrations' ? '<span class="pill">ระบบภายนอกเรียก (X-Api-Key)</span>' : '<span class="mut">ไม่มี</span>') + '</div>'
       + '<div class="kv"><span>ใช้ที่หน้า</span>' + (pages.size ? [...pages].map(routeLink).join(', ') : '<span class="mut">ยังไม่ได้วางบนหน้าใด</span>') + '</div>'
       + (o.description ? '<p>' + esc(o.description) + '</p>' : '')
       + (params ? '<div class="lab">Parameters</div><table><tr><th>ชื่อ</th><th>อยู่ที่</th><th>ชนิด</th></tr>' + params + '</table>' : '')
@@ -146,11 +149,11 @@ T.push(A);
 
 // Action catalog
 T.push('<section id="actions"><h2>Action catalog</h2><p class="mut">ชั้นกลางระหว่างหน้าจอกับ API แก้ endpoint ที่นี่ หน้าจอไม่ต้องรู้</p><table><tr><th>action id</th><th>เรียก</th><th>อ่าน tag</th><th>ล้าง tag (หน้าอื่นจะโหลดใหม่)</th><th>ใช้ที่หน้า</th></tr>'
-  + Object.entries(cfg.actions).map(([id, a]) => { const o = opByMP[a.method + ' ' + a.path]; return '<tr id="action-' + slug(id) + '"><td><code>' + esc(id) + '</code>' + (a.confirm ? '<div class="mut">ถามก่อน: ' + esc(a.confirm) + '</div>' : '') + (a.undoAction ? '<div class="mut">เลิกทำด้วย ' + actionLink(a.undoAction) + '</div>' : '') + '</td><td>' + mbadge(a.method) + ' ' + (o ? '<a href="#' + opAnchor(o) + '"><code>' + esc(a.path) + '</code></a>' : '<code>' + esc(a.path) + '</code> <span class="req">ไม่พบใน API</span>') + '</td><td>' + esc(a.provides || '') + '</td><td>' + esc((a.invalidates || []).join(', ')) + '</td><td>' + [...(usedAt[id] || [])].map(routeLink).join(', ') + '</td></tr>'; }).join('') + '</table></section>');
+  + Object.entries(cfg.actions).map(([id, a]) => { const o = opByMP[a.method + ' ' + a.path]; return '<tr id="action-' + slug(id) + '"><td><code>' + esc(id) + '</code>' + (a.body ? '<div class="mut">ส่ง ' + esc(JSON.stringify(a.body)) + '</div>' : '') + (a.idempotent ? '<div class="mut">กดซ้ำได้ ไม่ทำซ้ำ (Idempotency-Key)</div>' : '') + (a.confirm ? '<div class="mut">ถามก่อน: ' + esc(a.confirm) + '</div>' : '') + (a.undoAction ? '<div class="mut">เลิกทำด้วย ' + actionLink(a.undoAction) + '</div>' : '') + '</td><td>' + mbadge(a.method) + ' ' + (o ? '<a href="#' + opAnchor(o) + '"><code>' + esc(a.path) + '</code></a>' : '<code>' + esc(a.path) + '</code> <span class="req">ไม่พบใน API</span>') + '</td><td>' + esc(a.provides || '') + '</td><td>' + esc((a.invalidates || []).join(', ')) + '</td><td>' + [...(usedAt[id] || [])].map(routeLink).join(', ') + '</td></tr>'; }).join('') + '</table></section>');
 
 // Filters
 T.push('<section id="filters"><h2>ตัวกรอง</h2><table><tr><th>ตัวกรอง</th><th>ชนิด</th><th>ส่งเป็น</th><th>อยู่ที่</th><th>ค่าเริ่มต้น</th><th>ตัวเลือก</th></tr>'
-  + cfg.filters.map(f => '<tr><td>' + esc(f.label) + '</td><td>' + esc(f.type) + '</td><td><code>' + esc(f.param) + '</code></td><td>' + (f.placement === 'bar' ? 'บนจอ' : 'ในแผ่นตัวกรอง') + '</td><td><code>' + esc(JSON.stringify(f.default)) + '</code></td><td>' + (f.options || []).map(x => esc(x.label)).join(', ') + '</td></tr>').join('') + '</table></section>');
+  + cfg.filters.map(f => '<tr><td>' + esc(f.label) + '</td><td>' + esc(f.type) + '</td><td><code>' + esc(f.param) + '</code></td><td>' + (f.placement === 'bar' ? 'บนจอ' : 'ในแผ่นตัวกรอง') + '</td><td><code>' + esc(JSON.stringify(f.default)) + '</code></td><td>' + (f.optionsFrom ? (f.includeAll ? esc(f.includeAll) + ' + ' : '') + 'จาก <code>taxonomies.' + esc(f.optionsFrom) + '</code> (' + (ref.taxonomies[f.optionsFrom] || []).map(x => esc(x.name)).join(', ') + ')' : (f.options || []).map(x => esc(x.label)).join(', ')) + '</td></tr>').join('') + '</table></section>');
 
 // Schemas
 T.push('<section id="schemas"><h2>รูปแบบข้อมูล</h2>' + Object.entries(api.components.schemas).map(([n, s]) => '<details class="op" id="schema-' + slug(n) + '"><summary><b>' + esc(n) + '</b> <span class="sum">' + esc(s.description || (s.enum ? 'ค่า: ' + s.enum.join(', ') : '')) + '</span></summary><div class="opb">' + (s.enum ? '<p><code>' + s.enum.map(esc).join(' | ') + '</code></p>' : propsTable(s)) + '</div></details>').join('') + '</section>');
@@ -158,6 +161,30 @@ T.push('<section id="schemas"><h2>รูปแบบข้อมูล</h2>' + O
 // Reference data
 T.push('<section id="reference"><h2>ข้อมูลอ้างอิง</h2><div class="cols"><div><div class="lab">หมวดตาม requirements → กลุ่มบนแผนที่</div><table>' + ref.taxonomies.categories.map(c => '<tr><td>' + esc(c.name) + '</td><td><code>' + esc(c.mapGroup) + '</code></td></tr>').join('') + '</table></div>'
   + '<div><div class="lab">แหล่งข้อมูล</div><table>' + ref.sources.map(s => '<tr><td>' + esc(s.name) + '</td><td>' + esc(s.kind) + '</td></tr>').join('') + '</table><div class="lab">กฎสัญญาณหลอกลวง</div><table>' + ref.scamRules.map(s => '<tr><td><code>' + esc(s.id) + '</code></td><td>' + esc(s.reason) + '</td></tr>').join('') + '</table></div></div></section>');
+
+// External interfaces
+const ST = { implemented: ['ใช้ได้', 'c2'], implemented_untested_live: ['ใช้ได้ ยังไม่ทดสอบกับของจริง', 'c4'], planned: ['วางแผน', 'c3'] };
+T.push('<section id="integrations"><h2>เชื่อมต่อภายนอก</h2><p class="mut">' + esc(integ.note) + '</p>'
+  + integ.ports.map(p => '<div class="card"><div class="ch"><span class="pill" style="background:' + (p.direction === 'in' ? '#dbeafe;color:#1e40af' : '#dcfce7;color:#166534') + '">' + (p.direction === 'in' ? '⬅ ขาเข้า' : 'ขาออก ➡') + '</span> <b>' + esc(p.name) + '</b> <code>' + esc(p.id) + '</code> <span class="mut">' + esc(p.purpose) + '</span></div>'
+    + '<div class="kv"><span>interface</span><code>' + esc(p.interface) + '</code></div>'
+    + '<div class="kv"><span>ใช้กับ API</span>' + (p.usedBy.length ? p.usedBy.map(id => { const o = ops.find(x => x.operationId === id); return o ? '<a href="#' + opAnchor(o) + '">' + esc(id) + '</a>' : esc(id); }).join(', ') : '<span class="mut">แอปเรียกตรง</span>') + '</div>'
+    + (p.env.length ? '<div class="kv"><span>ตั้งค่า (env)</span>' + p.env.map(e => '<code>' + esc(e) + '</code>').join(' ') + '</div>' : '')
+    + '<table><tr><th>adapter</th><th>สถานะ</th><th>หมายเหตุ</th></tr>' + p.adapters.map(a => '<tr><td><code>' + esc(a.id) + '</code></td><td><span class="code ' + (ST[a.status] || ['', 'c3'])[1] + '">' + esc((ST[a.status] || [a.status])[0]) + '</span></td><td>' + esc(a.note) + '</td></tr>').join('') + '</table>'
+    + (p.guardrails ? '<div class="lab">กติกาที่บังคับใน adapter</div><ul class="wl">' + p.guardrails.map(g => '<li>' + esc(g) + '</li>').join('') + '</ul>' : '') + '</div>').join('')
+  + '<div class="card"><b>ยังไม่ทำ (Deferred ตาม requirements)</b><ul class="wl">' + integ.deferred.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div></section>');
+
+// Conventions
+T.push(`<section id="conventions"><h2>มาตรฐานที่ใช้</h2><p class="mut">รายละเอียดและเหตุผลการรวม/แยก endpoint อยู่ใน <code>docs/design/api-review.md</code></p><table>
+<tr><th>เรื่อง</th><th>ที่ใช้</th></tr>
+<tr><td>ชื่อ path</td><td>คำนามพหูพจน์ตาม resource เช่น <code>/v1/tasks</code> ไม่มีคำกริยาใน path การเปลี่ยนสถานะทำผ่าน <code>/events</code></td></tr>
+<tr><td>รุ่น</td><td><code>/v1</code> ใน path เปลี่ยนแบบไม่เข้ากันเมื่อไหร่ขึ้น <code>/v2</code></td></tr>
+<tr><td>ผู้เรียก</td><td>แอปส่ง <code>X-Device-Id</code> ระบบภายนอกส่ง <code>X-Api-Key</code></td></tr>
+<tr><td>ติดตามปัญหา</td><td>ทุก response มี <code>X-Request-Id</code> และ Error มี <code>requestId</code> เดียวกัน</td></tr>
+<tr><td>ข้อผิดพลาด</td><td>Error รูปแบบเดียว <code>{code, message, status, retryable, requestId}</code> code อ่านได้ด้วยโปรแกรม message ภาษาไทยแสดงได้เลย</td></tr>
+<tr><td>รายการ</td><td>ห่อเป็น <code>{items}</code> แบ่งหน้าด้วย <code>limit</code> + <code>cursor</code> จำนวนรวมใน <code>X-Total-Count</code></td></tr>
+<tr><td>กดซ้ำ</td><td><code>Idempotency-Key</code> สำหรับ event ของงาน กดสองครั้งมีผลครั้งเดียว</td></tr>
+<tr><td>cache</td><td><code>ETag</code> / <code>If-None-Match</code> สำหรับ app-config</td></tr>
+<tr><td>แก้บางส่วน</td><td><code>PATCH</code> แบบ merge สำหรับ settings, <code>PUT</code> ทั้งชุดสำหรับ profile</td></tr></table></section>`);
 
 // Rules
 T.push(`<section id="rules"><h2>กติกาที่บังคับฝั่ง server</h2><p class="mut">อยู่ที่ server ย้ายหน้าจอแล้วกติกาไม่หาย ทุกข้อมีการทดสอบใน <code>test-contract.js</code></p><ol class="rules">
@@ -170,7 +197,7 @@ T.push(`<section id="rules"><h2>กติกาที่บังคับฝั
 <li><b>ความคืบหน้าเป็นข้อมูลที่ผู้ใช้แจ้ง</b> <code>reportedBy: user</code></li>
 <li><b>รายได้สุทธิคำนวณตรง</b> net = gross - cost ไม่ใช้ AI</li></ol></section>`);
 
-const nav = [['overview', 'ภาพรวม'], ['front', 'แยกตามหน้า'], ...groups.map(g => ['tab-' + g.id, '— ' + g.label]), ['api', 'API ตามบริการ'], ...api.tags.map(t => ['svc-' + slug(t.name), '— ' + t.name]), ['actions', 'Action catalog'], ['filters', 'ตัวกรอง'], ['schemas', 'รูปแบบข้อมูล'], ['reference', 'ข้อมูลอ้างอิง'], ['rules', 'กติกาฝั่ง server']];
+const nav = [['overview', 'ภาพรวม'], ['front', 'แยกตามหน้า'], ...groups.map(g => ['tab-' + g.id, '— ' + g.label]), ['api', 'API ตามบริการ'], ...api.tags.map(t => ['svc-' + slug(t.name), '— ' + t.name]), ['actions', 'Action catalog'], ['filters', 'ตัวกรอง'], ['schemas', 'รูปแบบข้อมูล'], ['reference', 'ข้อมูลอ้างอิง'], ['integrations', 'เชื่อมต่อภายนอก'], ['conventions', 'มาตรฐานที่ใช้'], ['rules', 'กติกาฝั่ง server']];
 
 const html = `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Money Anywhere - หลังบ้านและ API</title>

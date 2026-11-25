@@ -1,6 +1,7 @@
 # Backend Design: Money Anywhere (ร่างสำหรับ R&D)
 
 สถานะ: ข้อเสนอ ยังไม่ผ่าน AI-DLC design และยังไม่ได้ Owner อนุมัติ ไม่ได้เลือก stack แทนทีม
+ผลตรวจทานและเหตุผลการรวม/แยก endpoint (v0.2): `docs/design/api-review.md` · การเชื่อมต่อภายนอก: `contracts/integrations.json`
 สัญญากลาง (ใช้ร่วมกัน 3 คน): `contracts/openapi.yaml`, `contracts/app-config.schema.json`, `contracts/app-config.sample.json`
 ตรวจความถูกต้องของ config: `node contracts/validate-config.js [config.json]`
 
@@ -76,12 +77,13 @@
 |---|---|---|---|
 | Config | ส่ง app-config, taxonomy, feature flags | `/v1/app-config`, `/v1/taxonomies` | - |
 | Profile | โปรไฟล์ขั้นต่ำ, ความยินยอม, ตั้งค่า, ดูและลบข้อมูล | `/v1/me/*` | FR-01 |
-| Intake (AI) | คุยถามทีละข้อ คืนคำถามถัดไปและโปรไฟล์ร่าง | `/v1/intake/chat` | FR-01 |
+| Intake | คุยถามทีละข้อ คืนคำถามถัดไปและโปรไฟล์ร่าง | `/v1/intake/sessions*` | FR-01 |
 | Opportunity | รวมข้อมูลจากทุกแหล่งเป็นฟิลด์กลาง, ค้นหาตามระยะ หมวด คำค้น และเรียงลำดับ | `/v1/opportunities*` | FR-02, FR-03 |
 | Source adapters | Greenhouse, Lever, data.go.th, OSM, Curated, Mock แปลงเป็นฟิลด์กลาง | `/v1/sources*` | FR-03 |
-| Matching (AI) | จัดอันดับและให้เหตุผลจากรายการที่ server ส่งให้เท่านั้น | `/v1/matches` | FR-02, AC-02 |
+| AI | จัดอันดับและให้เหตุผล, อธิบายขั้นตอนหรือเงื่อนไข จากข้อมูลที่ server ส่งให้เท่านั้น | `/v1/ai/rankings`, `/v1/ai/explanations` | FR-02, AC-02 |
 | Planner | คำนวณรายได้สุทธิแบบ deterministic | `/v1/plans/options` | FR-04 |
-| Tasks | บันทึก, ทำขั้นเสร็จ, เลิกทำ, ติดปัญหา, เลื่อน, AI อธิบาย | `/v1/tasks*` | FR-05, FR-06 |
+| Tasks | บันทึก, ลบ, ทำขั้นเสร็จ/เลิกทำ/ติดปัญหา/เลื่อน/กลับมาทำ เป็น event, ประวัติ | `/v1/tasks*`, `/v1/tasks/{id}/events` | FR-05, FR-06 |
+| Integrations | ระบบภายนอกส่งโอกาสเข้าเป็นชุด และแจ้งปิดหรืออัปเดตประกาศ | `/v1/integrations/*` | FR-03 |
 | Scam rules | กฎตรวจสัญญาณหลอกลวงแบบมีเวอร์ชัน + รายงานจากผู้ใช้ | ฝังใน Opportunity, `/reports` | FR-07 |
 
 ฟิลด์กลางของโอกาสอ้างตาม `docs/design/opportunity-sources.md` และถูกกำหนดใน `Opportunity` ของ OpenAPI

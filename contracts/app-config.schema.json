@@ -46,6 +46,8 @@
           "invalidates": { "type": "array", "items": { "type": "string" }, "description": "Data tags to refetch after success, e.g. tasks" },
           "provides": { "type": "string", "description": "Data tag this action reads" },
           "confirm": { "type": "string", "description": "Ask before running (destructive actions)" },
+          "body": { "type": "object", "description": "Fixed body fields merged into the request. Lets several actions share one endpoint, e.g. task events." },
+          "idempotent": { "type": "boolean", "description": "Send an Idempotency-Key so a double tap applies once" },
           "undoAction": { "type": "string" }
         }
       }
@@ -60,6 +62,8 @@
           "label": { "type": "string" },
           "param": { "type": "string", "description": "Query parameter of opportunity.search" },
           "options": { "type": "array", "items": { "type": "object", "properties": { "value": {}, "label": { "type": "string" } } } },
+          "optionsFrom": { "type": "string", "description": "Take options from /v1/taxonomies, e.g. mapGroups. Avoids copying labels." },
+          "includeAll": { "type": "string", "description": "Label of an extra 'all' option placed first" },
           "default": {},
           "placement": { "enum": ["bar", "sheet"], "description": "bar = visible on screen, sheet = inside the filter sheet" }
         }

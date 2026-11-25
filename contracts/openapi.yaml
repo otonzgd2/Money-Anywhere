@@ -1,128 +1,175 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
-    Endpoints are organised by resource, never by screen. Screens find endpoints through the
-    action catalog in app-config, so moving a menu or button never changes this contract.
-    All amounts are THB. All user-facing text is Thai.
+    Conventions (see docs/design/api-review.md):
+    - Resources are plural nouns, organised by domain, never by screen. Screens reach endpoints
+      through the action catalog in app-config, so moving a menu or button never changes this contract.
+    - State changes that are not plain field edits are recorded as events (POST .../events), not verb paths.
+    - Every request from the app carries X-Device-Id (no login in the Demo). Integration endpoints use X-Api-Key.
+    - Every response carries X-Request-Id. Errors always use the Error object.
+    - Lists use limit + cursor. Writes that a double tap could repeat accept Idempotency-Key.
+    - All amounts are THB. All user-facing text is Thai.
 servers:
   - url: http://localhost:8080
-    description: Local development
+    description: Local mock server (contracts/mock-server.js)
+
+tags:
+  - { name: Config, description: "โครงแอปและรายการตัวเลือก" }
+  - { name: Me, description: "โปรไฟล์ ความยินยอม การตั้งค่า ส่งออกและลบข้อมูล" }
+  - { name: Intake, description: "สร้างโปรไฟล์ด้วยการคุยถามทีละข้อ" }
+  - { name: Opportunity, description: "ค้นหา รายละเอียด และรายงานโอกาส" }
+  - { name: AI, description: "AI จัดอันดับและอธิบาย ใช้ adapter เดียวกัน มี fallback" }
+  - { name: Planner, description: "แผนรายได้แบบคำนวณตรง" }
+  - { name: Tasks, description: "แผนของฉัน ความคืบหน้าเป็น event" }
+  - { name: Sources, description: "แหล่งข้อมูลและการดึงข้อมูล" }
+  - { name: Integrations, description: "ช่องทางให้ระบบภายนอกส่งข้อมูลเข้า" }
 
 paths:
   /v1/app-config:
     get:
       operationId: getAppConfig
-      tags: ["Config"]
+      tags: [Config]
       summary: "โหลดโครงเมนู หน้าจอ ปุ่ม ตัวกรอง และ feature flag"
       parameters:
         - { name: appVersion, in: query, required: true, schema: { type: string } }
         - { name: If-None-Match, in: header, required: false, schema: { type: string } }
       responses:
         '200': { description: Current config, content: { application/json: { schema: { $ref: '#/components/schemas/AppConfig' } } } }
-        '304': { description: Unchanged; keep cached config }
+        '304': { description: "Unchanged, keep cached config" }
 
   /v1/taxonomies:
     get:
       operationId: getTaxonomies
-      tags: ["Config"]
-      summary: "รายการหมวด กลุ่มแผนที่ และกลุ่มทักษะ"
+      tags: [Config]
+      summary: "รายการหมวด กลุ่มแผนที่ กลุ่มทักษะ และเขต"
       responses:
         '200': { description: Taxonomies, content: { application/json: { schema: { $ref: '#/components/schemas/Taxonomies' } } } }
+
+  /v1/me:
+    delete:
+      operationId: deleteMe
+      tags: [Me]
+      summary: "ลบข้อมูลทั้งหมดของเครื่องนี้ (โปรไฟล์ งาน การตั้งค่า ความยินยอม)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/me/profile:
     get:
       operationId: getProfile
-      tags: ["Profile"]
+      tags: [Me]
       summary: "ดูโปรไฟล์ของฉัน"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
         '200': { description: Profile, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
     put:
       operationId: putProfile
-      tags: ["Profile"]
-      summary: "บันทึกโปรไฟล์ (พื้นที่ ทักษะ เวลาว่าง เป้ารายได้)"
+      tags: [Me]
+      summary: "บันทึกโปรไฟล์ทั้งชุด ถ้าส่งเขตมาไม่มีพิกัด server หาพิกัดให้"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
+        '400': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
-    delete:
-      operationId: deleteMyData
-      tags: ["Profile"]
-      summary: "ลบโปรไฟล์ งาน และการตั้งค่าทั้งหมดของเครื่องนี้"
-      responses:
-        '204': { description: Deleted }
 
-  /v1/me/consent:
+  /v1/me/consents:
     post:
-      operationId: acceptConsent
-      tags: ["Profile"]
-      summary: "บันทึกการยอมรับเรื่องข้อมูลส่วนตัว"
+      operationId: createConsent
+      tags: [Me]
+      summary: "บันทึกการยอมรับเรื่องข้อมูลส่วนตัว (เก็บทุกเวอร์ชัน)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
       responses:
-        '204': { description: Recorded }
+        '201': { description: Recorded, content: { application/json: { schema: { $ref: '#/components/schemas/Consent' } } } }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/me/settings:
     get:
       operationId: getSettings
-      tags: ["Profile"]
-      summary: "ดูการตั้งค่า (ตัวอักษรใหญ่ การเตือน จุดค้นหา)"
+      tags: [Me]
+      summary: "ดูการตั้งค่า"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
         '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+        '400': { $ref: '#/components/responses/Error' }
     patch:
       operationId: patchSettings
-      tags: ["Profile"]
-      summary: "แก้การตั้งค่า"
+      tags: [Me]
+      summary: "แก้การตั้งค่าบางฟิลด์"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/Settings' } } } }
+        '400': { $ref: '#/components/responses/Error' }
 
-  /v1/me/data:
+  /v1/me/export:
     get:
-      operationId: getMyData
-      tags: ["Profile"]
-      summary: "สรุปข้อมูลทั้งหมดที่แอปเก็บ"
+      operationId: exportMe
+      tags: [Me]
+      summary: "ส่งออกข้อมูลทั้งหมดที่แอปเก็บ สำหรับหน้า ข้อมูลของฉัน"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
-        '200': { description: Data summary, content: { application/json: { schema: { $ref: '#/components/schemas/MyData' } } } }
+        '200': { description: Export, content: { application/json: { schema: { $ref: '#/components/schemas/MyData' } } } }
+        '400': { $ref: '#/components/responses/Error' }
 
-  /v1/intake/chat:
+  /v1/intake/sessions:
     post:
-      operationId: chatTurn
-      tags: ["Intake (AI)"]
-      summary: "คุยกับ AI หนึ่งรอบ ได้คำถามถัดไปและโปรไฟล์ร่าง"
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ChatTurnRequest' } } } }
+      operationId: createIntakeSession
+      tags: [Intake]
+      summary: "เริ่มการคุย ได้คำถามแรก"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       responses:
+        '201': { description: Session with first question, content: { application/json: { schema: { $ref: '#/components/schemas/IntakeTurn' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/intake/sessions/{id}/messages:
+    post:
+      operationId: postIntakeMessage
+      tags: [Intake]
+      summary: "ตอบหนึ่งข้อ ได้คำถามถัดไปและโปรไฟล์ร่าง"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string } } } } } }
+      responses:
+        '200': { description: Next turn, content: { application/json: { schema: { $ref: '#/components/schemas/IntakeTurn' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
         '422': { $ref: '#/components/responses/Error' }
-        '200': { description: Next turn, content: { application/json: { schema: { $ref: '#/components/schemas/ChatTurnResponse' } } } }
-        '503': { $ref: '#/components/responses/Error' }
 
   /v1/opportunities:
     get:
       operationId: searchOpportunities
-      tags: ["Opportunity"]
+      tags: [Opportunity]
       summary: "ค้นหาโอกาสตามหมวด คำค้น ระยะทาง และการเรียง"
       parameters:
+        - { $ref: '#/components/parameters/DeviceId' }
         - { name: q, in: query, schema: { type: string } }
-        - { name: group, in: query, schema: { type: string, description: map group id or "all" } }
-        - { name: lat, in: query, schema: { type: number } }
+        - { name: group, in: query, schema: { type: string, description: "map group id or all" } }
+        - { name: category, in: query, schema: { type: string, description: "one of the 10 categories" } }
+        - { name: lat, in: query, schema: { type: number, description: "Search point. Defaults to the profile location." } }
         - { name: lng, in: query, schema: { type: number } }
-        - { name: radiusKm, in: query, schema: { type: number } }
-        - { name: sort, in: query, schema: { type: string, enum: [near, money, fresh, match] } }
+        - { name: radiusKm, in: query, schema: { type: number, default: 5 } }
+        - { name: sort, in: query, schema: { type: string, enum: [near, money, fresh], default: near } }
         - { name: onlyMoney, in: query, schema: { type: boolean, default: false } }
         - { name: showSuspicious, in: query, schema: { type: boolean, default: false } }
-        - { name: cursor, in: query, schema: { type: string } }
-        - { name: limit, in: query, schema: { type: integer, default: 30, maximum: 100 } }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
       responses:
         '200': { description: Results, content: { application/json: { schema: { $ref: '#/components/schemas/OpportunityPage' } } } }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/opportunities/{id}:
     get:
       operationId: getOpportunity
-      tags: ["Opportunity"]
+      tags: [Opportunity]
       summary: "ดูรายละเอียดโอกาสหนึ่งรายการ"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
       responses:
         '200': { description: Opportunity, content: { application/json: { schema: { $ref: '#/components/schemas/Opportunity' } } } }
         '404': { $ref: '#/components/responses/Error' }
@@ -130,140 +177,165 @@ paths:
   /v1/opportunities/{id}/reports:
     post:
       operationId: reportOpportunity
-      tags: ["Opportunity"]
+      tags: [Opportunity]
       summary: "รายงานประกาศน่าสงสัย"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, enum: [suspicious, wrong_info, expired, other] }, note: { type: string } } } } } }
       responses:
+        '202': { description: Accepted for review }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '204': { description: Recorded }
 
-  /v1/matches:
+  /v1/ai/rankings:
     post:
-      operationId: rankMatches
-      tags: ["Matching (AI)"]
-      summary: "ให้ AI จัดอันดับและบอกเหตุผล จากรายการที่ server ส่งให้เท่านั้น"
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MatchRequest' } } } }
+      operationId: createRanking
+      tags: [AI]
+      summary: "ให้ AI จัดอันดับและให้เหตุผล จากรายการที่ส่งมาเท่านั้น"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RankingRequest' } } } }
       responses:
-        '200': { description: Ranked, content: { application/json: { schema: { $ref: '#/components/schemas/MatchResponse' } } } }
+        '200': { description: Ranked, content: { application/json: { schema: { $ref: '#/components/schemas/RankingResponse' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /v1/ai/explanations:
+    post:
+      operationId: createExplanation
+      tags: [AI]
+      summary: "ให้ AI อธิบายขั้นตอนของงาน หรือเงื่อนไขของโอกาส เป็นภาษาง่าย"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExplanationRequest' } } } }
+      responses:
+        '200': { description: Explanation, content: { application/json: { schema: { $ref: '#/components/schemas/Explanation' } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
 
   /v1/plans/options:
     get:
       operationId: getPlanOptions
-      tags: ["Planner"]
+      tags: [Planner]
       summary: "ทางเลือกรายได้พร้อมเงินเหลือต่อเดือน (คำนวณตรง ไม่ใช้ AI)"
       parameters:
+        - { $ref: '#/components/parameters/DeviceId' }
         - { name: opportunityIds, in: query, schema: { type: array, items: { type: string } }, style: form, explode: false }
       responses:
-        '200': { description: Options, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PlanOption' } } } } }
+        '200': { description: Options, content: { application/json: { schema: { $ref: '#/components/schemas/PlanOptionList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/tasks:
     get:
       operationId: listTasks
-      tags: ["Tasks"]
+      tags: [Tasks]
       summary: "รายการงานในแผนของฉัน"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { name: status, in: query, schema: { $ref: '#/components/schemas/TaskStatus' } } ]
       responses:
-        '200': { description: Tasks, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Task' } } } } }
+        '200': { description: Tasks, content: { application/json: { schema: { $ref: '#/components/schemas/TaskList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
     post:
       operationId: createTask
-      tags: ["Tasks"]
-      summary: "บันทึกโอกาสเข้าแผนของฉัน"
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [opportunityId], properties: { opportunityId: { type: string }, startAtStep: { type: integer, default: 0 } } } } } }
+      tags: [Tasks]
+      summary: "บันทึกโอกาสเข้าแผนของฉัน (ซ้ำได้ ไม่สร้างใหม่)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [opportunityId], properties: { opportunityId: { type: string } } } } } }
       responses:
+        '201': { description: Created or existing, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
   /v1/tasks/{id}:
     get:
       operationId: getTask
-      tags: ["Tasks"]
+      tags: [Tasks]
       summary: "ดูงานหนึ่งรายการและขั้นตอน"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
       responses:
-        '404': { $ref: '#/components/responses/Error' }
         '200': { description: Task, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
-
-  /v1/tasks/{id}/steps/complete:
-    post:
-      operationId: completeStep
-      tags: ["Tasks"]
-      summary: "ทำขั้นปัจจุบันเสร็จ (ผู้ใช้แจ้ง)"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
-      responses:
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
-
-  /v1/tasks/{id}/undo:
-    post:
-      operationId: undoTaskEvent
-      tags: ["Tasks"]
-      summary: "เลิกทำการกดล่าสุด"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
+    delete:
+      operationId: deleteTask
+      tags: [Tasks]
+      summary: "เอางานออกจากแผนของฉัน"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
       responses:
+        '204': { description: Removed }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '200': { description: Reverted, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
 
-  /v1/tasks/{id}/block:
-    post:
-      operationId: blockTask
-      tags: ["Tasks"]
-      summary: "แจ้งว่าติดปัญหา"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, enum: [not_understood, missing_documents, site_broken, other] } } } } } }
+  /v1/tasks/{id}/events:
+    get:
+      operationId: listTaskEvents
+      tags: [Tasks]
+      summary: "ประวัติการกดของงานนี้ (หลักฐานความคืบหน้า)"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
       responses:
+        '200': { description: Events, content: { application/json: { schema: { $ref: '#/components/schemas/TaskEventList' } } } }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
-
-  /v1/tasks/{id}/snooze:
     post:
-      operationId: snoozeTask
-      tags: ["Tasks"]
-      summary: "เลื่อนไว้ทีหลังและตั้งเตือน"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [until], properties: { until: { type: string, enum: [tomorrow, in_3_days, next_week, never] } } } } } }
+      operationId: createTaskEvent
+      tags: [Tasks]
+      summary: "บันทึกการกระทำกับงาน: ทำขั้นเสร็จ เลิกทำ ติดปัญหา เลื่อน กลับมาทำต่อ"
+      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' }, { $ref: '#/components/parameters/IdempotencyKey' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TaskEventRequest' } } } }
       responses:
+        '201': { description: Applied, content: { application/json: { schema: { $ref: '#/components/schemas/Task' } } } }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
-        '204': { description: Snoozed }
-
-  /v1/tasks/{id}/help:
-    post:
-      operationId: taskHelp
-      tags: ["Tasks"]
-      summary: "ให้ AI อธิบายขั้นปัจจุบัน ไม่ทำแทนผู้ใช้"
-      parameters: [ { name: id, in: path, required: true, schema: { type: string } } ]
-      responses:
-        '404': { $ref: '#/components/responses/Error' }
-        '200': { description: Help text, content: { application/json: { schema: { type: object, required: [text, aiStatus], properties: { text: { type: string }, aiStatus: { $ref: '#/components/schemas/AiStatus' } } } } } }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 
   /v1/sources:
     get:
       operationId: listSources
-      tags: ["Sources"]
+      tags: [Sources]
       summary: "สถานะของแหล่งข้อมูลแต่ละเจ้า"
       responses:
-        '200': { description: Sources, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Source' } } } } }
+        '200': { description: Sources, content: { application/json: { schema: { $ref: '#/components/schemas/SourceList' } } } }
 
   /v1/sources/{provider}/refresh:
     post:
       operationId: refreshSource
-      tags: ["Sources"]
-      summary: "สั่งดึงข้อมูลใหม่จากแหล่ง"
+      tags: [Sources]
+      summary: "สั่งดึงข้อมูลใหม่จากแหล่ง (provider = all ได้)"
       parameters: [ { name: provider, in: path, required: true, schema: { type: string } } ]
       responses:
-        '404': { $ref: '#/components/responses/Error' }
         '202': { description: Refresh started }
+        '404': { $ref: '#/components/responses/Error' }
 
-tags:
-  - { name: Config, description: "โครงแอปและรายการตัวเลือก" }
-  - { name: Profile, description: "โปรไฟล์ ความยินยอม การตั้งค่า ข้อมูลของฉัน" }
-  - { name: "Intake (AI)", description: "คุยกับ AI เพื่อสร้างโปรไฟล์" }
-  - { name: Opportunity, description: "ค้นหาและรายละเอียดโอกาส" }
-  - { name: "Matching (AI)", description: "AI จัดอันดับและให้เหตุผล" }
-  - { name: Planner, description: "แผนรายได้แบบคำนวณตรง" }
-  - { name: Tasks, description: "แผนของฉันและความคืบหน้า" }
-  - { name: Sources, description: "แหล่งข้อมูลและการดึงข้อมูล" }
+  /v1/integrations/opportunities/batch:
+    post:
+      operationId: upsertOpportunitiesBatch
+      tags: [Integrations]
+      summary: "ระบบภายนอกหรือทีม curate ส่งโอกาสเข้าเป็นชุด ในรูปแบบฟิลด์กลาง"
+      parameters: [ { $ref: '#/components/parameters/ApiKey' } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OpportunityBatch' } } } }
+      responses:
+        '200': { description: Result per item, content: { application/json: { schema: { $ref: '#/components/schemas/BatchResult' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /v1/integrations/webhooks/{provider}:
+    post:
+      operationId: receiveWebhook
+      tags: [Integrations]
+      summary: "รับแจ้งเหตุจากผู้ให้ข้อมูล เช่น ประกาศปิดรับ หรืออัปเดต"
+      parameters: [ { $ref: '#/components/parameters/ApiKey' }, { name: provider, in: path, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/WebhookEvent' } } } }
+      responses:
+        '202': { description: Accepted }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
 
 components:
+  parameters:
+    DeviceId: { name: X-Device-Id, in: header, required: true, schema: { type: string, minLength: 8 }, description: "Anonymous per-install id. No login in the Demo." }
+    ApiKey: { name: X-Api-Key, in: header, required: true, schema: { type: string }, description: "Key for integration partners. From environment, never in the repo." }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string }, description: "Same key within 24 h returns the first result instead of applying twice." }
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, default: 30, minimum: 1, maximum: 100 } }
+    Cursor: { name: cursor, in: query, schema: { type: string }, description: "Opaque. Use nextCursor from the previous page." }
+
   responses:
     Error:
       description: Error
@@ -272,7 +344,7 @@ components:
   schemas:
     AppConfig:
       type: object
-      description: Full structure in contracts/app-config.schema.json (JSON Schema 2020-12)
+      description: "Full structure in contracts/app-config.schema.json (JSON Schema 2020-12)"
       required: [schemaVersion, configVersion, minAppVersion, tabs, routes, actions, filters]
       additionalProperties: true
       properties:
@@ -287,17 +359,19 @@ components:
 
     Error:
       type: object
-      required: [code, message, retryable]
+      required: [code, message, status, retryable, requestId]
       properties:
-        code: { type: string, enum: [PROFILE_INCOMPLETE, NO_RESULTS, SOURCE_UNAVAILABLE, AI_UNAVAILABLE, STALE_DATA, NOT_FOUND, VALIDATION, INTERNAL] }
-        message: { type: string, description: Thai text safe to show the user }
+        code: { type: string, enum: [PROFILE_INCOMPLETE, NO_RESULTS, SOURCE_UNAVAILABLE, AI_UNAVAILABLE, STALE_DATA, NOT_FOUND, VALIDATION, MISSING_DEVICE, UNAUTHORIZED, CONFLICT, INTERNAL] }
+        message: { type: string, description: "Thai text safe to show the user" }
+        status: { type: integer, description: "Same as the HTTP status" }
         retryable: { type: boolean }
+        requestId: { type: string, description: "Same as the X-Request-Id header, for support" }
         missingFields: { type: array, items: { type: string } }
 
     AiStatus:
       type: string
       enum: [ok, fallback_rules, unavailable]
-      description: fallback_rules means AI failed and a deterministic ranking was used (FR-08)
+      description: "fallback_rules = the AI provider failed or is not configured and deterministic rules were used (FR-08)"
 
     DataStatus: { type: string, enum: [live, curated, open_data, mock, blocked] }
 
@@ -305,11 +379,11 @@ components:
       type: object
       required: [basis]
       properties:
-        basis: { type: string, enum: [official, listing, none], description: Where the number came from. AI never fills this. }
+        basis: { type: string, enum: [official, listing, none], description: "Where the number came from. AI never fills this." }
         min: { type: number }
         max: { type: number }
-        unit: { type: string, description: e.g. "บาท/วัน" }
-        knownText: { type: string, description: What is known when basis is none }
+        unit: { type: string, description: "for example บาท/วัน" }
+        knownText: { type: string, description: "What is known when basis is none" }
 
     Location:
       type: object
@@ -319,7 +393,7 @@ components:
         text: { type: string }
         lat: { type: number }
         lng: { type: number }
-        distanceKm: { type: number, description: From the search point; set by search }
+        distanceKm: { type: number, description: "From the search point. Set by search." }
 
     Provenance:
       type: object
@@ -342,7 +416,7 @@ components:
         id: { type: string }
         title: { type: string }
         organization: { type: string }
-        category: { type: string, description: One of the 10 requirement categories }
+        category: { type: string, description: "One of the 10 requirement categories" }
         mapGroup: { type: string }
         location: { $ref: '#/components/schemas/Location' }
         money: { $ref: '#/components/schemas/Money' }
@@ -352,37 +426,93 @@ components:
         suspiciousReasons: { type: array, items: { type: string } }
         checklistTemplateId: { type: string }
 
+    OpportunityInput:
+      type: object
+      description: "What an integration partner sends. The server computes suspicious flags, distance and age."
+      required: [externalId, title, category, mapGroup, money, sourceUrl]
+      properties:
+        externalId: { type: string }
+        title: { type: string }
+        organization: { type: string }
+        category: { type: string }
+        mapGroup: { type: string }
+        location: { $ref: '#/components/schemas/Location' }
+        money: { $ref: '#/components/schemas/Money' }
+        conditions: { type: array, items: { type: string } }
+        sourceUrl: { type: string, format: uri }
+        updatedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+
+    OpportunityBatch:
+      type: object
+      required: [provider, items]
+      properties:
+        provider: { type: string }
+        dataStatus: { type: string, enum: [live, curated, open_data] }
+        attribution: { type: string }
+        items: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/OpportunityInput' } }
+
+    BatchResult:
+      type: object
+      required: [accepted, rejected]
+      properties:
+        accepted: { type: integer }
+        rejected: { type: array, items: { type: object, required: [index, reason], properties: { index: { type: integer }, reason: { type: string } } } }
+
+    WebhookEvent:
+      type: object
+      required: [event, externalId]
+      properties:
+        event: { type: string, enum: [opportunity.closed, opportunity.updated] }
+        externalId: { type: string }
+        data: { $ref: '#/components/schemas/OpportunityInput' }
+
     OpportunityPage:
       type: object
-      required: [items, hiddenSuspicious, sources]
+      required: [items, hiddenSuspicious]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } }
         nextCursor: { type: string }
         hiddenSuspicious: { type: integer }
-        sources: { type: array, items: { $ref: '#/components/schemas/Source' } }
+        sourceWarnings: { type: array, items: { type: string }, description: "Providers whose last fetch failed. Details in /v1/sources." }
 
-    MatchRequest:
+    RankingRequest:
       type: object
       required: [opportunityIds]
       properties:
-        opportunityIds: { type: array, items: { type: string }, maxItems: 50 }
+        opportunityIds: { type: array, items: { type: string }, minItems: 1, maxItems: 50 }
 
-    MatchResponse:
+    RankingResponse:
       type: object
       required: [aiStatus, ranked]
       properties:
         aiStatus: { $ref: '#/components/schemas/AiStatus' }
-        aiInvocationId: { type: string, description: Evidence that live AI ran (AC-02) }
+        aiInvocationId: { type: string, description: "Evidence that the AI step ran (AC-02)" }
         ranked:
           type: array
           items:
             type: object
             required: [opportunityId, fit, reason]
             properties:
-              opportunityId: { type: string, description: Must be one of the requested ids; server drops anything else }
+              opportunityId: { type: string, description: "Always one of the requested ids" }
               fit: { type: string, enum: [high, good, fair] }
-              reason: { type: string }
+              reason: { type: string, description: "No money figures" }
               missingInfo: { type: array, items: { type: string } }
+
+    ExplanationRequest:
+      type: object
+      required: [subjectType, subjectId]
+      properties:
+        subjectType: { type: string, enum: [task_step, opportunity] }
+        subjectId: { type: string }
+
+    Explanation:
+      type: object
+      required: [aiStatus, text]
+      properties:
+        aiStatus: { $ref: '#/components/schemas/AiStatus' }
+        aiInvocationId: { type: string }
+        text: { type: string }
 
     PlanOption:
       type: object
@@ -402,6 +532,13 @@ components:
         numberSource: { type: string, enum: [official, listing, estimate, none] }
         assumptions: { type: array, items: { type: string } }
 
+    PlanOptionList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/PlanOption' } } }
+
+    TaskStatus: { type: string, enum: [active, blocked, snoozed, finished] }
+
     Task:
       type: object
       required: [id, title, steps, doneCount, status, reportedBy]
@@ -411,10 +548,37 @@ components:
         title: { type: string }
         steps: { type: array, items: { type: string } }
         doneCount: { type: integer }
-        status: { type: string, enum: [active, blocked, snoozed, finished] }
-        reportedBy: { type: string, enum: [user, external], description: Always user in the Demo (FR-06) }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        reportedBy: { type: string, enum: [user, external], description: "Always user in the Demo (FR-06)" }
         dueText: { type: string }
-        lastEventId: { type: string, description: Used by undo }
+        blockReason: { type: string }
+
+    TaskList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Task' } } }
+
+    TaskEventRequest:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [complete_step, undo, block, snooze, resume] }
+        reason: { type: string, enum: [not_understood, missing_documents, site_broken, other], description: "For block" }
+        until: { type: string, enum: [tomorrow, in_3_days, next_week, never], description: "For snooze" }
+
+    TaskEvent:
+      type: object
+      required: [id, type, at]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        at: { type: string, format: date-time }
+        undone: { type: boolean }
+
+    TaskEventList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/TaskEvent' } } }
 
     Profile:
       type: object
@@ -432,33 +596,29 @@ components:
     Consent:
       type: object
       required: [version, accepted]
-      properties: { version: { type: string }, accepted: { type: boolean } }
+      properties: { version: { type: string }, accepted: { type: boolean }, at: { type: string, format: date-time } }
 
     Settings:
       type: object
       properties:
         largeText: { type: boolean }
         reminders: { type: boolean }
-        searchPoint: { type: object, properties: { label: { type: string }, lat: { type: number }, lng: { type: number } } }
 
     MyData:
       type: object
+      required: [profile, settings, tasks, consents, storedFields]
       properties:
         profile: { $ref: '#/components/schemas/Profile' }
-        taskCount: { type: integer }
+        settings: { $ref: '#/components/schemas/Settings' }
+        tasks: { type: array, items: { $ref: '#/components/schemas/Task' } }
+        consents: { type: array, items: { $ref: '#/components/schemas/Consent' } }
         storedFields: { type: array, items: { type: string } }
 
-    ChatTurnRequest:
+    IntakeTurn:
       type: object
-      required: [sessionId]
+      required: [sessionId, aiStatus, done, profileDraft]
       properties:
         sessionId: { type: string }
-        message: { type: string }
-
-    ChatTurnResponse:
-      type: object
-      required: [aiStatus, done]
-      properties:
         aiStatus: { $ref: '#/components/schemas/AiStatus' }
         question: { type: string }
         quickReplies: { type: array, items: { type: string } }
@@ -467,20 +627,28 @@ components:
 
     Source:
       type: object
-      required: [provider, name, kind, state]
+      required: [provider, name, kind, direction, state]
       properties:
         provider: { type: string }
         name: { type: string }
         kind: { type: string }
+        direction: { type: string, enum: [pull, push, static], description: "pull = we fetch, push = partner sends via Integrations" }
         attribution: { type: string }
-        state: { type: string, enum: [ok, failed, loading, static] }
+        state: { type: string, enum: [ok, failed, loading, static, idle] }
         itemCount: { type: integer }
         lastFetchedAt: { type: string, format: date-time }
         error: { type: string }
 
+    SourceList:
+      type: object
+      required: [items]
+      properties: { items: { type: array, items: { $ref: '#/components/schemas/Source' } } }
+
     Taxonomies:
       type: object
+      required: [categories, mapGroups, skillGroups, districts]
       properties:
         categories: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, mapGroup: { type: string } } } }
         mapGroups: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, icon: { type: string }, color: { type: string } } } }
         skillGroups: { type: array, items: { type: object, properties: { name: { type: string }, skills: { type: array, items: { type: string } } } } }
+        districts: { type: array, items: { type: object, properties: { id: { type: string }, name: { type: string }, lat: { type: number }, lng: { type: number } } } }

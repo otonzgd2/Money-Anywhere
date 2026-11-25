@@ -1,0 +1,75 @@
+{
+  "note": "External interfaces (ports). Each port has one interface and swappable adapters, so a provider can change without touching the API or the app. Edit this file, then run npm run docs.",
+  "ports": [
+    {
+      "id": "ai", "direction": "out", "name": "AI provider", "purpose": "จัดอันดับโอกาสและอธิบายเป็นภาษาง่าย",
+      "interface": "rank(profile, candidates) -> {aiStatus, ranked[]} ; explain(subject) -> {aiStatus, text}",
+      "usedBy": ["createRanking", "createExplanation"],
+      "adapters": [
+        { "id": "rules", "status": "implemented", "note": "ไม่ใช้ AI ใช้กฎตายตัว เป็น fallback เสมอ" },
+        { "id": "openai_compatible", "status": "implemented_untested_live", "note": "เรียก /chat/completions แบบ OpenAI-compatible ทดสอบกับ LLM จำลองแล้ว ยังไม่ได้ทดสอบกับผู้ให้บริการจริง" }
+      ],
+      "env": ["AI_BASE_URL", "AI_API_KEY", "AI_MODEL"],
+      "guardrails": ["ส่งให้ AI เฉพาะรายการที่ server กรองแล้ว", "ตัด id ที่ไม่อยู่ในรายการ", "ตัดตัวเลขเงินออกจากเหตุผล", "หมดเวลา 8 วินาทีแล้วใช้กฎแทน", "บันทึก aiInvocationId"]
+    },
+    {
+      "id": "opportunity_source", "direction": "out", "name": "แหล่งโอกาส (ดึง)", "purpose": "ดึงประกาศจากผู้ให้บริการแล้วแปลงเป็นฟิลด์กลาง",
+      "interface": "fetch() -> OpportunityInput[]",
+      "usedBy": ["refreshSource", "searchOpportunities"],
+      "adapters": [
+        { "id": "greenhouse", "status": "implemented", "note": "ทดสอบจริงแล้ว ได้ตำแหน่งในกรุงเทพฯ ระดับเมือง" },
+        { "id": "lever", "status": "implemented", "note": "ทดสอบจริงแล้ว" },
+        { "id": "bma_open", "status": "planned", "note": "ไฟล์โรงเรียนฝึกอาชีพ กทม. ยังไม่ได้เปิดเนื้อหา" },
+        { "id": "osm_overpass", "status": "planned", "note": "ร้านรับซื้อของเก่า ยังไม่ยืนยันการเรียก" }
+      ],
+      "env": []
+    },
+    {
+      "id": "opportunity_ingest", "direction": "in", "name": "แหล่งโอกาส (ส่งเข้า)", "purpose": "ทีม curate หรือพันธมิตรส่งข้อมูลเข้าเป็นชุด และแจ้งปิดประกาศ",
+      "interface": "POST /v1/integrations/opportunities/batch ; POST /v1/integrations/webhooks/{provider}",
+      "usedBy": ["upsertOpportunitiesBatch", "receiveWebhook"],
+      "adapters": [ { "id": "api_key", "status": "implemented", "note": "ตรวจ X-Api-Key จาก env INTEGRATION_KEY" } ],
+      "env": ["INTEGRATION_KEY"]
+    },
+    {
+      "id": "geocoder", "direction": "out", "name": "หาพิกัด", "purpose": "แปลงชื่อเขตเป็นจุดค้นหา",
+      "interface": "geocode(text) -> {lat, lng, precision} | null",
+      "usedBy": ["putProfile", "searchOpportunities"],
+      "adapters": [
+        { "id": "district_table", "status": "implemented", "note": "ตารางเขตในกรุงเทพฯ (พิกัดโดยประมาณ)" },
+        { "id": "nominatim", "status": "planned", "note": "ต้องทำตามนโยบายการใช้งานของ OSM" }
+      ],
+      "env": []
+    },
+    {
+      "id": "notifier", "direction": "out", "name": "แจ้งเตือน", "purpose": "เตือนงานค้างเมื่อผู้ใช้กดไว้ทีหลัง",
+      "interface": "schedule(deviceId, taskId, at) ; cancel(deviceId, taskId)",
+      "usedBy": ["createTaskEvent", "patchSettings"],
+      "adapters": [
+        { "id": "memory", "status": "implemented", "note": "เก็บในหน่วยความจำ ใช้ทดสอบ" },
+        { "id": "fcm", "status": "planned", "note": "Firebase Cloud Messaging หรือการแจ้งเตือนบนเครื่อง" }
+      ],
+      "env": []
+    },
+    {
+      "id": "map_tiles", "direction": "out", "name": "แผนที่", "purpose": "ภาพแผนที่ในแอป (ฝั่งแอปเรียกตรง ไม่ผ่าน API นี้)",
+      "interface": "tile URL template + attribution",
+      "usedBy": [],
+      "adapters": [ { "id": "osm_tiles", "status": "planned", "note": "ต้องแสดง © OpenStreetMap contributors และทำตามนโยบาย tile" } ],
+      "env": []
+    },
+    {
+      "id": "official_handoff", "direction": "out", "name": "ส่งต่อช่องทางทางการ", "purpose": "เปิดเว็บไซต์ต้นทางหรือหน่วยงาน แอปไม่ยื่นแทนผู้ใช้",
+      "interface": "sourceUrl ในข้อมูลโอกาส",
+      "usedBy": ["getOpportunity"],
+      "adapters": [ { "id": "link_out", "status": "implemented", "note": "ลิงก์ออกเท่านั้น" } ],
+      "env": []
+    }
+  ],
+  "deferred": [
+    "เชื่อมฐานข้อมูลสิทธิ์รายบุคคลของรัฐ (requirements ข้อ 9)",
+    "ยื่นสมัครหรือทำธุรกรรมแทนผู้ใช้อัตโนมัติ",
+    "โอนเงิน",
+    "รับสถานะยืนยันจากหน่วยงานภายนอกเข้างานในแผน (reportedBy: external) ออกแบบช่องไว้แล้วใน Task แต่ยังไม่เปิดใช้"
+  ]
+}

@@ -47,6 +47,10 @@ const checkBinding = (where, b) => {
   if (b.action && !actions.has(b.action)) err(where, 'unknown action ' + b.action);
   if (b.route && !routes.has(b.route)) err(where, 'unknown route ' + b.route);
   if (b.then && b.then.route && !routes.has(b.then.route)) err(where, 'then.route unknown ' + b.then.route);
+  if (b.then && b.then.openSheet && !actions.has(b.then.openSheet)) err(where, 'then.openSheet must be an action id: ' + b.then.openSheet);
+  if (b.action && cfg.actions[b.action]) {
+    for (const m of cfg.actions[b.action].path.matchAll(/\{(\w+)\}/g)) if (!b.params || !(m[1] in b.params)) err(where, 'action ' + b.action + ' needs path param ' + m[1]);
+  }
   if (b.route && cfg.routes[b.route] && cfg.routes[b.route].params) {
     for (const p of cfg.routes[b.route].params) if (!b.params || !(p in b.params)) err(where, 'route ' + b.route + ' needs param ' + p);
   }
@@ -65,13 +69,19 @@ for (const [aid, a] of Object.entries(cfg.actions)) {
   if (!apiOps.has(a.method + ' ' + a.path)) err('action ' + aid, 'not in openapi.yaml: ' + a.method + ' ' + a.path);
   if (a.undoAction && !actions.has(a.undoAction)) err('action ' + aid, 'unknown undoAction ' + a.undoAction);
 }
-for (const f of cfg.filters) if (!searchParams.has(f.param)) err('filter ' + f.id, 'param not accepted by GET /v1/opportunities: ' + f.param);
+const taxonomies = JSON.parse(fs.readFileSync(path.join(dir, 'fixtures', 'reference.json'), 'utf8')).taxonomies;
+for (const f of cfg.filters) {
+  if (!searchParams.has(f.param)) err('filter ' + f.id, 'param not accepted by GET /v1/opportunities: ' + f.param);
+  if (f.type !== 'toggle' && !f.options && !f.optionsFrom) err('filter ' + f.id, 'needs options or optionsFrom');
+  if (f.optionsFrom && !Array.isArray(taxonomies[f.optionsFrom])) err('filter ' + f.id, 'optionsFrom not in taxonomies: ' + f.optionsFrom);
+}
 
 // Every action should be reachable from somewhere, otherwise it is dead config (warning only).
 const used = new Set();
 JSON.stringify(cfg.routes, (k, v) => { if ((k === 'action' || k === 'data') && typeof v === 'string') used.add(v); if (k === 'undoAction') used.add(v); return v; });
 Object.values(cfg.actions).forEach(a => a.undoAction && used.add(a.undoAction));
-const unused = [...actions].filter(a => !used.has(a) && !['config.get', 'consent.accept', 'match.rank', 'settings.get', 'task.block'].includes(a));
+JSON.stringify(cfg.routes, (k, v) => { if (k === 'openSheet' && typeof v === 'string') used.add(v); return v; });
+const unused = [...actions].filter(a => !used.has(a) && a !== 'config.get');
 
 console.log('config: ' + path.basename(cfgPath) + ' v' + cfg.configVersion);
 console.log('tabs ' + cfg.tabs.length + ', routes ' + routes.size + ', actions ' + actions.size + ', api operations ' + apiOps.size + ', filters ' + cfg.filters.length);

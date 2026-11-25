@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-11-26.1",
+  "configVersion": "2026-11-27.1",
   "minAppVersion": "0.1.0",
   "featureFlags": { "moneyMap": true, "aiChat": true, "liveSources": true },
 
@@ -34,7 +34,12 @@
         { "type": "link", "label": "หรือคุยกับ AI เพื่อหาแบบละเอียด", "flag": "aiChat", "onTap": { "route": "intake.chat" } }
       ]
     },
-    "intake.chat": { "title": "คุยกับ AI", "showTabs": false, "sections": [ { "type": "chat", "data": "intake.chat", "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ] },
+    "intake.chat": {
+      "title": "คุยกับ AI", "showTabs": false,
+      "sections": [ { "type": "chat", "data": "intake.start",
+        "actions": [ { "label": "ส่งคำตอบ", "style": "primary", "action": "intake.reply", "params": { "id": "$ctx.session.sessionId" } } ],
+        "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ]
+    },
     "intake.manual": { "title": "เลือกเอง", "sections": [ { "type": "profile_form", "data": "taxonomy.get", "onTap": { "action": "profile.update", "then": { "route": "opp.list" } } } ] },
     "opp.list": {
       "title": "โอกาส",
@@ -61,10 +66,11 @@
       "title": "รายละเอียด", "params": ["id"],
       "sections": [
         { "type": "info_card", "data": "opportunity.get" },
-        { "type": "info_card", "label": "ทำไมตรงกับคุณ (AI)", "data": "match.rank", "flag": "aiChat" },
+        { "type": "info_card", "label": "ทำไมตรงกับคุณ (AI)", "data": "ai.rank", "flag": "aiChat" },
+        { "type": "link", "label": "อธิบายเงื่อนไขแบบง่าย", "flag": "aiChat", "onTap": { "action": "ai.explain.opportunity", "params": { "subjectId": "$ctx.item.id" } } },
         { "type": "link", "label": "ดูประกาศต้นทาง", "onTap": { "route": "external", "params": { "url": "$ctx.item.provenance.sourceUrl" } } },
         { "type": "link", "label": "บันทึกไว้ในแผนของฉัน", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.id" }, "then": { "toast": "บันทึกแล้ว" } } },
-        { "type": "link", "label": "รายงานประกาศนี้", "when": "item.suspicious", "onTap": { "action": "opportunity.report", "params": { "id": "$ctx.item.id", "reason": "suspicious" }, "then": { "toast": "ขอบคุณ ส่งรายงานแล้ว" } } }
+        { "type": "link", "label": "รายงานประกาศนี้", "onTap": { "action": "opportunity.report", "params": { "id": "$ctx.item.id", "reason": "suspicious" }, "then": { "toast": "ขอบคุณ ส่งรายงานแล้ว" } } }
       ]
     },
     "plan.income": { "title": "แผนรายได้", "sections": [ { "type": "planner_list", "data": "plan.options", "onTap": { "action": "task.create", "params": { "opportunityId": "$ctx.item.opportunityId" }, "then": { "route": "my.plans" } } } ] },
@@ -75,10 +81,13 @@
         { "type": "checklist", "data": "task.get",
           "actions": [
             { "label": "ทำขั้นนี้เสร็จแล้ว", "style": "primary", "action": "task.step.complete", "params": { "id": "$ctx.task.id" }, "then": { "toast": "บันทึกแล้ว" } },
-            { "label": "ติดปัญหา / ไม่เข้าใจ", "style": "secondary", "action": "task.block", "params": { "id": "$ctx.task.id", "reason": "not_understood" }, "then": { "openSheet": "task.help" } },
-            { "label": "ให้ AI อธิบายขั้นนี้", "style": "secondary", "action": "task.help", "params": { "id": "$ctx.task.id" } },
-            { "label": "ไว้ทีหลัง", "style": "secondary", "action": "task.snooze", "params": { "id": "$ctx.task.id", "until": "tomorrow" } }
-          ] }
+            { "label": "ติดปัญหา / ไม่เข้าใจ", "style": "secondary", "action": "task.block", "params": { "id": "$ctx.task.id", "reason": "not_understood" }, "then": { "openSheet": "ai.explain.step" } },
+            { "label": "ให้ AI อธิบายขั้นนี้", "style": "secondary", "action": "ai.explain.step", "params": { "subjectId": "$ctx.task.id" } },
+            { "label": "ไว้ทีหลัง", "style": "secondary", "action": "task.snooze", "params": { "id": "$ctx.task.id", "until": "tomorrow" } },
+            { "label": "กลับมาทำต่อ", "style": "secondary", "action": "task.resume", "params": { "id": "$ctx.task.id" } },
+            { "label": "เอาออกจากแผน", "style": "danger", "action": "task.delete", "params": { "id": "$ctx.task.id" }, "then": { "route": "my.plans" } }
+          ] },
+        { "type": "info_card", "label": "ประวัติการทำ", "data": "task.history" }
       ]
     },
     "me": {
@@ -91,7 +100,7 @@
         ] },
         { "type": "settings_group", "label": "ข้อมูลของฉัน", "items": [
           { "type": "nav_row", "label": "ดูข้อมูลที่แอปเก็บ", "onTap": { "route": "me.data" } },
-          { "type": "nav_row", "label": "ลบข้อมูลทั้งหมด", "onTap": { "action": "profile.delete", "then": { "route": "welcome" } } }
+          { "type": "nav_row", "label": "ลบข้อมูลทั้งหมด", "onTap": { "action": "me.delete", "then": { "route": "welcome" } } }
         ] },
         { "type": "settings_group", "label": "ช่วยเหลือ", "items": [
           { "type": "nav_row", "label": "วิธีใช้แอป", "onTap": { "route": "help" } },
@@ -100,7 +109,7 @@
         ] }
       ]
     },
-    "me.data": { "title": "ข้อมูลของฉัน", "sections": [ { "type": "info_card", "data": "mydata.get" } ] },
+    "me.data": { "title": "ข้อมูลของฉัน", "sections": [ { "type": "info_card", "data": "me.export" } ] },
     "help": { "title": "วิธีใช้", "sections": [ { "type": "info_card", "label": "บอกเราเกี่ยวกับคุณ ดูโอกาส แล้วทำตามขั้นตอนในแผนของฉัน" } ] },
     "help.scam": { "title": "รู้ทันมิจฉาชีพ", "sections": [ { "type": "info_card", "label": "ห้ามโอนเงินล่วงหน้า ห้ามให้รหัส OTP หรือรหัสผ่าน" } ] },
     "sources": { "title": "แหล่งข้อมูล", "sections": [ { "type": "info_card", "data": "source.list" }, { "type": "link", "label": "ดึงข้อมูลสดใหม่", "onTap": { "action": "source.refresh", "params": { "provider": "all" } } } ] },
@@ -108,36 +117,40 @@
   },
 
   "actions": {
-    "config.get":           { "method": "GET",    "path": "/v1/app-config" },
-    "taxonomy.get":         { "method": "GET",    "path": "/v1/taxonomies", "provides": "taxonomies" },
-    "profile.get":          { "method": "GET",    "path": "/v1/me/profile", "provides": "profile" },
-    "profile.update":       { "method": "PUT",    "path": "/v1/me/profile", "invalidates": ["profile", "opportunities", "plans"] },
-    "profile.delete":       { "method": "DELETE", "path": "/v1/me/profile", "invalidates": ["profile", "tasks", "settings"], "confirm": "ลบโปรไฟล์และความคืบหน้าทั้งหมด กู้คืนไม่ได้" },
-    "consent.accept":       { "method": "POST",   "path": "/v1/me/consent" },
-    "settings.get":         { "method": "GET",    "path": "/v1/me/settings", "provides": "settings" },
-    "settings.update":      { "method": "PATCH",  "path": "/v1/me/settings", "invalidates": ["settings"] },
-    "mydata.get":           { "method": "GET",    "path": "/v1/me/data" },
-    "intake.chat":          { "method": "POST",   "path": "/v1/intake/chat" },
-    "opportunity.search":   { "method": "GET",    "path": "/v1/opportunities", "provides": "opportunities" },
-    "opportunity.get":      { "method": "GET",    "path": "/v1/opportunities/{id}" },
-    "opportunity.report":   { "method": "POST",   "path": "/v1/opportunities/{id}/reports" },
-    "match.rank":           { "method": "POST",   "path": "/v1/matches" },
-    "plan.options":         { "method": "GET",    "path": "/v1/plans/options", "provides": "plans" },
-    "task.list":            { "method": "GET",    "path": "/v1/tasks", "provides": "tasks" },
-    "task.get":             { "method": "GET",    "path": "/v1/tasks/{id}" },
-    "task.create":          { "method": "POST",   "path": "/v1/tasks", "invalidates": ["tasks"] },
-    "task.step.complete":   { "method": "POST",   "path": "/v1/tasks/{id}/steps/complete", "invalidates": ["tasks"], "undoAction": "task.undo" },
-    "task.undo":            { "method": "POST",   "path": "/v1/tasks/{id}/undo", "invalidates": ["tasks"] },
-    "task.block":           { "method": "POST",   "path": "/v1/tasks/{id}/block", "invalidates": ["tasks"] },
-    "task.snooze":          { "method": "POST",   "path": "/v1/tasks/{id}/snooze", "invalidates": ["tasks"] },
-    "task.help":            { "method": "POST",   "path": "/v1/tasks/{id}/help" },
-    "source.list":          { "method": "GET",    "path": "/v1/sources", "provides": "sources" },
-    "source.refresh":       { "method": "POST",   "path": "/v1/sources/{provider}/refresh", "invalidates": ["sources", "opportunities"] }
+    "config.get":             { "method": "GET",    "path": "/v1/app-config" },
+    "taxonomy.get":           { "method": "GET",    "path": "/v1/taxonomies", "provides": "taxonomies" },
+    "profile.get":            { "method": "GET",    "path": "/v1/me/profile", "provides": "profile" },
+    "profile.update":         { "method": "PUT",    "path": "/v1/me/profile", "invalidates": ["profile", "opportunities", "plans"] },
+    "consent.accept":         { "method": "POST",   "path": "/v1/me/consents" },
+    "settings.get":           { "method": "GET",    "path": "/v1/me/settings", "provides": "settings" },
+    "settings.update":        { "method": "PATCH",  "path": "/v1/me/settings", "invalidates": ["settings"] },
+    "me.export":              { "method": "GET",    "path": "/v1/me/export" },
+    "me.delete":              { "method": "DELETE", "path": "/v1/me", "invalidates": ["profile", "tasks", "settings"], "confirm": "ลบโปรไฟล์และความคืบหน้าทั้งหมด กู้คืนไม่ได้" },
+    "intake.start":           { "method": "POST",   "path": "/v1/intake/sessions" },
+    "intake.reply":           { "method": "POST",   "path": "/v1/intake/sessions/{id}/messages" },
+    "opportunity.search":     { "method": "GET",    "path": "/v1/opportunities", "provides": "opportunities" },
+    "opportunity.get":        { "method": "GET",    "path": "/v1/opportunities/{id}" },
+    "opportunity.report":     { "method": "POST",   "path": "/v1/opportunities/{id}/reports" },
+    "ai.rank":                { "method": "POST",   "path": "/v1/ai/rankings" },
+    "ai.explain.step":        { "method": "POST",   "path": "/v1/ai/explanations", "body": { "subjectType": "task_step" } },
+    "ai.explain.opportunity": { "method": "POST",   "path": "/v1/ai/explanations", "body": { "subjectType": "opportunity" } },
+    "plan.options":           { "method": "GET",    "path": "/v1/plans/options", "provides": "plans" },
+    "task.list":              { "method": "GET",    "path": "/v1/tasks", "provides": "tasks" },
+    "task.get":               { "method": "GET",    "path": "/v1/tasks/{id}" },
+    "task.create":            { "method": "POST",   "path": "/v1/tasks", "invalidates": ["tasks"] },
+    "task.delete":            { "method": "DELETE", "path": "/v1/tasks/{id}", "invalidates": ["tasks"], "confirm": "เอางานนี้ออกจากแผนของฉัน" },
+    "task.history":           { "method": "GET",    "path": "/v1/tasks/{id}/events" },
+    "task.step.complete":     { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "complete_step" }, "idempotent": true, "invalidates": ["tasks"], "undoAction": "task.undo" },
+    "task.undo":              { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "undo" }, "idempotent": true, "invalidates": ["tasks"] },
+    "task.block":             { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "block" }, "idempotent": true, "invalidates": ["tasks"] },
+    "task.snooze":            { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "snooze" }, "idempotent": true, "invalidates": ["tasks"] },
+    "task.resume":            { "method": "POST",   "path": "/v1/tasks/{id}/events", "body": { "type": "resume" }, "idempotent": true, "invalidates": ["tasks"] },
+    "source.list":            { "method": "GET",    "path": "/v1/sources", "provides": "sources" },
+    "source.refresh":         { "method": "POST",   "path": "/v1/sources/{provider}/refresh", "invalidates": ["sources", "opportunities"] }
   },
 
   "filters": [
-    { "id": "group", "type": "chips", "label": "หมวด", "param": "group", "placement": "bar", "default": "all",
-      "options": [ { "value": "all", "label": "ทั้งหมด" }, { "value": "job", "label": "💼 งาน" }, { "value": "skill", "label": "🛠️ ทักษะ" }, { "value": "sell", "label": "🏪 ขายของ" }, { "value": "money", "label": "💰 เงิน/สิทธิ์" } ] },
+    { "id": "group", "type": "chips", "label": "หมวด", "param": "group", "placement": "bar", "default": "all", "optionsFrom": "mapGroups", "includeAll": "ทั้งหมด" },
     { "id": "radius", "type": "segment", "label": "ระยะทางจากจุดค้นหา", "param": "radiusKm", "placement": "sheet", "default": 5,
       "options": [ { "value": 1, "label": "1 กม." }, { "value": 3, "label": "3 กม." }, { "value": 5, "label": "5 กม." }, { "value": 10, "label": "10 กม." } ] },
     { "id": "sort", "type": "segment", "label": "เรียงตาม", "param": "sort", "placement": "sheet", "default": "near",
