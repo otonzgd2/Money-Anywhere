@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'thaid.dart';
 
 const skillChoices = [
   'ทำอาหาร', 'ทำขนม/เบเกอรี่', 'ขับรถยนต์', 'ขับมอเตอร์ไซค์', 'ส่งของ/ส่งอาหาร', 'พิมพ์เอกสาร', 'กรอกข้อมูล', 'Excel/ตาราง',
@@ -28,6 +29,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final TextEditingController goal = TextEditingController(), extra = TextEditingController();
   String? hours, district;
   Map<String, dynamic> rest = {};
+  Map<String, dynamic>? identity; // ThaID claims when connected (GovIdentity)
+  List<String> fromGov = const [];
   bool loading = true, saving = false;
   Api get api => widget.app.api;
 
@@ -52,9 +55,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       hours = p['hoursPerWeek'] as String?;
       district = p['district'] as String?;
       if (p['incomeGoalPerMonth'] is num) goal.text = '${(p['incomeGoalPerMonth'] as num).round()}';
+      fromGov = ((p['fromGov'] as List?) ?? const []).map((e) => '$e').toList();
     } on ApiException {
       // no profile yet
     }
+    identity = await govIdentity(api);
     if (mounted) setState(() => loading = false);
   }
 
@@ -92,6 +97,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(16), children: [
+              if (identity != null) ...[
+                ThaidIdentityCard(identity: identity!),
+                if (fromGov.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    child: Text('เติมจาก ThaID ให้แล้ว: ${fromGov.map((f) => const {'displayName': 'ชื่อที่ใช้ในแอป', 'district': 'เขตที่อยู่', 'ageBand': 'ช่วงอายุ'}[f] ?? f).join(', ')}', style: t.bodySmall),
+                  ),
+                const SizedBox(height: 8),
+              ],
               Text('ทำอะไรเป็นบ้าง (เลือกได้หลายอย่าง)', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 6, children: [
@@ -117,11 +131,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 16),
               Text('อยู่แถวไหน (ใช้หางานใกล้บ้าน)', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
               Wrap(spacing: 6, children: [for (final d in districtChoices) ChoiceChip(label: Text(d), selected: district == d, onSelected: (_) => setState(() => district = d))]),
-              Text('Demo มีพิกัดกลางเขตโดยประมาณ 16 เขตในกรุงเทพ', style: t.bodySmall),
+              Text(fromGov.contains('district') ? 'เลือกไว้ตามที่อยู่ใน ThaID เปลี่ยนได้ถ้าตอนนี้อยู่ที่อื่น' : 'Demo มีพิกัดกลางเขตโดยประมาณ 16 เขตในกรุงเทพ', style: t.bodySmall),
               const SizedBox(height: 20),
               FilledButton(onPressed: saving ? null : _save, style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), child: const Text('บันทึก')),
               const SizedBox(height: 8),
-              Text('ไม่ต้องใส่ชื่อจริง เลขบัตร หรือเลขบัญชี ลบได้ทุกเมื่อที่ ฉัน > ลบข้อมูลทั้งหมด', style: t.bodySmall),
+              Text(identity != null ? 'ข้อมูลจาก ThaID แก้ในแอปไม่ได้ ยกเลิกการเชื่อมแล้วแอปลบข้อมูลนี้และคืนค่าที่เติมให้' : 'ไม่ต้องใส่ชื่อจริง เลขบัตร หรือเลขบัญชี ลบได้ทุกเมื่อที่ ฉัน > ลบข้อมูลทั้งหมด', style: t.bodySmall),
             ]),
     );
   }

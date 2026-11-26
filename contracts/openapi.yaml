@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.10.0
+  version: 0.11.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -609,6 +609,8 @@ components:
         features: { type: object, properties: { govConnected: { type: boolean }, demo: { type: boolean } } }
         sources: { type: array, items: { type: object, properties: { provider: { type: string }, state: { type: string } } } }
         store: { type: string, enum: [memory, file], description: "memory = lost on restart" }
+        storeLayout: { type: integer, description: "2 = device data split into collections identity / profile / activity / runtime (docs/design/data-storage.md)" }
+        retention: { type: object, properties: { days: { type: number, description: "0 = off" }, mode: { type: string, enum: [archive, delete] } } }
         notifier: { type: string, enum: [mock], description: "mock = reminders are logged, not pushed to the phone" }
         aiDailyLimit: { type: integer, description: "AI calls per device per day before rules are used. 0 = no limit" }
         jobs: { type: array, items: { type: object, required: [name, enabled], properties: { name: { type: string }, everyMinutes: { type: number }, enabled: { type: boolean }, lastRunAt: { type: string, format: date-time }, lastResult: { type: string } } } }
@@ -733,6 +735,42 @@ components:
         authUrl: { type: string, format: uri }
         state: { type: string }
         connectedAt: { type: string, format: date-time }
+        identity: { $ref: '#/components/schemas/GovIdentity' }
+
+    GovIdentity:
+      type: object
+      description: "ข้อมูลตัวตนที่ได้จาก ThaID เมื่อเชื่อมแล้ว ชื่อ claim ตาม ThaID (OAuth2/OIDC ของกรมการปกครอง) ยังไม่ได้ยืนยันกับเอกสาร DOPA (claimsVerified=false). ThaID ไม่ให้ข้อมูลสิทธิ์หรือเงิน. เลขบัตรจริงไม่ออกจาก adapter: ได้แค่ pidMasked และ pidHash"
+      required: [dataStatus, claimsVerified, scopes, pidMasked, claims, derived]
+      properties:
+        dataStatus: { type: string, enum: [mock, live], description: "mock = ข้อมูลสังเคราะห์ ต้องแสดง DEMO / MOCK" }
+        claimsVerified: { type: boolean }
+        scopes: { type: array, items: { type: string } }
+        pidMasked: { type: string, example: "X-XXXX-XXXXX-12-3" }
+        pidHash: { type: string, description: "hash ทางเดียว ใช้จับคู่ข้ามระบบภายหลัง ย้อนเป็นเลขบัตรไม่ได้" }
+        claims:
+          type: object
+          properties:
+            title: { type: string }
+            given_name: { type: string }
+            middle_name: { type: string }
+            family_name: { type: string }
+            name: { type: string }
+            title_en: { type: string }
+            given_name_en: { type: string }
+            middle_name_en: { type: string }
+            family_name_en: { type: string }
+            name_en: { type: string }
+            birthdate: { type: string, format: date }
+            gender: { type: string }
+            address: { type: object, properties: { formatted: { type: string }, street_address: { type: string }, locality: { type: string }, region: { type: string }, postal_code: { type: string }, country: { type: string } } }
+            date_of_issuance: { type: string, format: date }
+            date_of_expiry: { type: string, format: date }
+            ial: { type: string, description: "Identity assurance level" }
+        derived:
+          type: object
+          description: "ค่าที่ server คิดจาก claims เพื่อใช้กับโปรไฟล์และกฎเงิน"
+          properties: { age: { type: integer }, ageBand: { type: string }, district: { type: string }, displayName: { type: string } }
+        applied: { type: array, items: { type: string, enum: [displayName, district, ageBand] }, description: "ช่องที่ ThaID เติมให้ (ยกเลิกการเชื่อมแล้วคืนค่าเดิม)" }
 
     MoneyAmount:
       type: object
@@ -1172,6 +1210,7 @@ components:
         incomeGoalPerMonth: { type: number }
         goals: { type: array, items: { type: string } }
         constraints: { type: string }
+        fromGov: { type: array, items: { type: string }, description: "อ่านอย่างเดียว: ช่องที่ ThaID เติมให้ (มีเมื่อเชื่อม ThaID แล้ว)" }
 
     Settings:
       type: object
@@ -1188,7 +1227,7 @@ components:
         tasks: { type: array, items: { $ref: '#/components/schemas/Task' } }
         consents: { type: array, items: { $ref: '#/components/schemas/Consent' } }
         memory: { type: array, items: { $ref: '#/components/schemas/MemoryItem' } }
-        govLink: { type: object, properties: { status: { type: string }, provider: { type: string }, connectedAt: { type: string } } }
+        govLink: { type: object, properties: { status: { type: string }, provider: { type: string }, connectedAt: { type: string }, identity: { $ref: '#/components/schemas/GovIdentity' } } }
         storedFields: { type: array, items: { type: string } }
         notStored: { type: array, items: { type: string } }
 

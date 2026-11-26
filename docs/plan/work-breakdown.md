@@ -111,6 +111,7 @@
 | TF.13 | หาข้อมูลที่ยังไม่ชัวร์ D1-D12 | AI | TF.5 | D1 D4 D6 ยืนยันแล้ว ที่เหลือใน `docs/plan/open-items.md` | DOING |
 | TF.14 | ผู้รู้กฎหมายตรวจข้อความ PDPA และการยินยอมแบบกดปุ่มเดียว (M6, M8) | OWNER | TF.12 | บันทึกผลตรวจ | TODO |
 | TF.15 | บัญชีบริการรัฐเรื่องเงิน (25 รายการ 6 หมวด, เหตุการณ์ชีวิต, ความพร้อม ThaID/พร้อมเพย์/เป๋าตัง, หน้าจอ G1-G10, ข้อเสนอ API) + mockup แยก | AI | TF.13 | `docs/design/gov-services-inventory.md`, `docs/mockups/gov-services.html`, smoke 37/37 | DONE |
+| TB.21 | ThaID identity ด้วยชื่อ claim จริง (mock ค่าสังเคราะห์) เติมโปรไฟล์ + ช่วงอายุ คืนค่าเมื่อยกเลิก, หน้าโปรไฟล์แสดง "ข้อมูลจาก ThaID", ที่เก็บ layout 2 แยก collection, retention เป็น config (archive/delete) | AI | TB.19 | API 0.11.0 `npm.cmd run check` 149/149, flutter analyze สะอาด + test 14/14 | DONE |
 | TF.16 | ต่อรายการใหม่เข้า `reference.json` + API + แอป (เริ่มจาก `sso_child`, `sso_maternity`, `severance`, `nsf`) หลังยืนยัน D13-D15 | AI | TF.15 | `npm.cmd run check` + smoke | TODO |
 | TB.19 | หลังบ้านตามให้ตรงกับ mock: `POST /v1/money/preview`, `child_support`, `disability`, `alreadyReceiving` | AI | TF.11 | API 0.6.0 `npm test` 115/115, 48/48 operations | DONE |
 | TB.20 | ให้ id รายการเงินใน mock ตรงกับ API (`old`→`old_age`, `child`→`child_support` ฯลฯ) ก่อนเขียน Flutter | AI | TB.19 | smoke test | TODO |

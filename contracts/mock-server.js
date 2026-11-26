@@ -5,7 +5,9 @@
 //   AI_DAILY_LIMIT    AI calls per device per day before falling back to rules (0 = no limit)
 //   AI_LOG_FILE       JSON lines log of AI calls (no prompt text)
 //   DATA_FILE         JSON file that keeps device data across restarts (contract tests use memory)
-//   RETENTION_DAYS    delete devices not seen for this many days (0 = off, Owner decides B10)
+//   RETENTION_DAYS    devices not seen for this many days are archived or deleted (0 = off, Owner sets later)
+//   RETENTION_MODE    archive (default: move profile + activity to ARCHIVE_FILE) or delete
+//   ARCHIVE_FILE      JSON lines archive (default DATA_FILE + .archive.jsonl)
 //   GOV_CONNECTED=1   show the hidden government (ThaID) mode, mock adapter only
 //   DEMO_MODE=0       disable /v1/demo endpoints
 //   INTEGRATION_KEY   key for /v1/integrations (defaults to "dev-only-key" locally)
@@ -23,7 +25,7 @@ const { createGeocoder } = require('./adapters/geocoder');
 const { createNotifier } = require('./adapters/notifier');
 const { createMoney } = require('./adapters/money');
 const { createGovMock } = require('./adapters/gov');
-const { createStore } = require('./adapters/store');
+const { createStore, packDevice, readDevices, archiveRecord, LAYOUT } = require('./adapters/store');
 const { createJobs } = require('./adapters/jobs');
 const { createGuard, toFact } = require('./adapters/guard');
 
@@ -52,13 +54,14 @@ function createServer(opts = {}) {
   const geo = createGeocoder(ref.taxonomies.districts);
   const notifier = createNotifier({ debug: opts.debug });
   const money = createMoney(ref);
-  const govAdapter = createGovMock(ref.govMock);
+  const govAdapter = createGovMock(ref.govMock, ref.thaid);
   const integrationKey = opts.integrationKey || process.env.INTEGRATION_KEY || 'dev-only-key';
   const store = opts.store || createStore({ file: opts.dataFile });
   const envNum = (v, dflt) => v !== undefined ? +v : dflt;
   const aiDailyLimit = opts.aiDailyLimit !== undefined ? opts.aiDailyLimit : envNum(process.env.AI_DAILY_LIMIT, 50);
   const aiLogFile = opts.aiLogFile !== undefined ? opts.aiLogFile : process.env.AI_LOG_FILE;
   const retentionDays = opts.retentionDays !== undefined ? opts.retentionDays : envNum(process.env.RETENTION_DAYS, 0);
+  const retentionMode = (opts.retentionMode || process.env.RETENTION_MODE || 'archive') === 'delete' ? 'delete' : 'archive';
   const refreshHours = envNum(process.env.SOURCE_REFRESH_HOURS, 6);
   const reportHide = opts.reportHideThreshold || 3;
   const rulesAi = createAi({ baseUrl: '', apiKey: '' }), rulesAgent = createAgent({ baseUrl: '', apiKey: '' });
@@ -133,12 +136,13 @@ function createServer(opts = {}) {
   };
 
   // ---- persistence (B1): load once, save after every successful write ----
-  const snapshot = () => ({ version: 1, savedAt: nowIso(), devices: [...devices], ingested: [...opps.values()].filter(o => !['mock', 'live'].includes(o.provenance.dataStatus)),
+  // Layout v2: each device is split into collections (identity / profile / activity / runtime), see adapters/store.js.
+  const snapshot = () => ({ version: LAYOUT, savedAt: nowIso(), devices: [...devices].map(([id, d]) => packDevice(id, d)), ingested: [...opps.values()].filter(o => !['mock', 'live'].includes(o.provenance.dataStatus)),
     reports, hiddenByReports: [...hiddenByReports], reminders: notifier.all() });
   const persist = () => { try { store.save(snapshot()); } catch (e) { console.error('store: save failed: ' + e.message); } };
   const saved = store.load();
   if (saved) {
-    (saved.devices || []).forEach(([id, d]) => devices.set(id, d));
+    readDevices(saved).forEach(([id, d]) => devices.set(id, d));
     (saved.ingested || []).forEach(o => opps.set(o.id, o));
     reports.push(...(saved.reports || [])); (saved.hiddenByReports || []).forEach(x => hiddenByReports.add(x));
     notifier.restore(saved.reminders);
@@ -168,6 +172,26 @@ function createServer(opts = {}) {
   const E = (status, code, message, extra = {}) => [status, { code, message, status, retryable: status >= 500, ...extra }];
   const need = (d, p) => has(d, p) ? null : E(403, 'CONSENT_REQUIRED', 'ต้องได้รับความยินยอมเรื่องนี้ก่อน', { missingFields: [p] });
   const govData = d => d.gov.status === 'connected' && has(d, 'gov') ? d.gov.data : null;
+  const govIdentity = d => d.gov.status === 'connected' && has(d, 'gov') ? d.gov.identity || null : null;
+  // ThaID identity fills the profile and age only where the person has not answered yet; remember what was filled
+  // so a disconnect can take it back (data from the government must not stay after the link is removed).
+  function applyIdentity(d, id) {
+    if (!id) return {};
+    const applied = {}, p = d.profile ? { ...d.profile } : {};
+    if (!p.displayName) { p.displayName = id.derived.displayName; applied.displayName = { value: p.displayName }; }
+    if (!p.district) { const g = geo.geocode(id.derived.district); if (g) { p.district = id.derived.district; p.lat = g.lat; p.lng = g.lng; applied.district = { value: p.district }; } }
+    if (Object.keys(applied).length) d.profile = p;
+    if (d.facts.ageBand !== id.derived.ageBand) { applied.ageBand = { value: id.derived.ageBand, prev: d.facts.ageBand }; d.facts = { ...d.facts, ageBand: id.derived.ageBand }; }
+    return applied;
+  }
+  function dropGov(d) {
+    const a = (d.gov && d.gov.applied) || {}, p = d.profile;
+    if (p && a.displayName && p.displayName === a.displayName.value) delete p.displayName;
+    if (p && a.district && p.district === a.district.value) { delete p.district; delete p.lat; delete p.lng; }
+    if (a.ageBand && d.facts.ageBand === a.ageBand.value) { const f = { ...d.facts }; if (a.ageBand.prev === undefined) delete f.ageBand; else f.ageBand = a.ageBand.prev; d.facts = f; }
+    d.gov = { status: 'not_connected' };
+  }
+  const govOut = d => ({ status: d.gov.status, provider: govAdapter.provider, mock: true, connectedAt: d.gov.connectedAt, ...(govIdentity(d) ? { identity: { ...d.gov.identity, applied: Object.keys(d.gov.applied || {}) } } : {}) });
   const taskOut = t => ({ id: t.id, opportunityId: t.opportunityId, moneyId: t.moneyId, title: t.title, steps: t.steps, doneCount: t.doneCount, status: t.status, reportedBy: 'user', dueText: t.dueText, blockReason: t.blockReason, outcome: t.outcome });
   const searchPoint = (d, q) => q.has('lat') && q.has('lng') ? { lat: +q.get('lat'), lng: +q.get('lng') }
     : d && d.profile && typeof d.profile.lat === 'number' ? { lat: d.profile.lat, lng: d.profile.lng } : { lat: fx.center.lat, lng: fx.center.lng };
@@ -282,7 +306,7 @@ function createServer(opts = {}) {
 
   // System + config + privacy
   on('GET', '/v1/health', () => [200, { status: 'ok', version: readJson('package.json').version, commit: COMMIT, startedAt, ai: { provider: ai.provider, agent: agent.provider }, features: { govConnected: govOn, demo: demoOn }, sources: srcState.map(s => ({ provider: s.provider, state: s.state })),
-    store: store.kind, notifier: notifier.kind, aiDailyLimit, jobs: jobs.state }], { public: true });
+    store: store.kind, storeLayout: LAYOUT, retention: { days: retentionDays, mode: retentionMode }, notifier: notifier.kind, aiDailyLimit, jobs: jobs.state }], { public: true });
   on('GET', '/v1/app-config', ({ req }) => {
     const cfg = readJson('app-config.sample.json');
     cfg.featureFlags = { ...cfg.featureFlags, govConnected: govOn }; cfg.noticeVersion = NOTICE.version;
@@ -294,7 +318,7 @@ function createServer(opts = {}) {
 
   // Me
   on('DELETE', '/v1/me', ({ device }) => { devices.delete(device); notifier.cancel(device); return [204]; });
-  on('GET', '/v1/me/profile', ({ d }) => d.profile ? [200, d.profile] : E(404, 'NOT_FOUND', 'ยังไม่มีโปรไฟล์'));
+  on('GET', '/v1/me/profile', ({ d }) => d.profile ? [200, { ...d.profile, ...(govIdentity(d) ? { fromGov: Object.keys(d.gov.applied || {}) } : {}) }] : E(404, 'NOT_FOUND', 'ยังไม่มีโปรไฟล์'));
   on('PUT', '/v1/me/profile', ({ d, body }) => {
     const gate = need(d, 'core'); if (gate) return gate;
     if (!body || typeof body !== 'object' || Array.isArray(body)) return E(422, 'VALIDATION', 'ข้อมูลไม่ถูกต้อง');
@@ -315,7 +339,7 @@ function createServer(opts = {}) {
     // Withdrawals take effect immediately.
     if (prev && prev.purposes.ai && !purposes.ai) { d.memory = d.memory.filter(m => m.source !== 'ai'); d.conversations = {}; }
     if (!purposes.reminders) notifier.cancel(device);
-    if (!purposes.gov && d.gov.status !== 'not_connected') d.gov = { status: 'not_connected' };
+    if (!purposes.gov && d.gov.status !== 'not_connected') dropGov(d);
     return [201, c];
   });
   on('GET', '/v1/me/consents', ({ d }) => { const c = curConsent(d); return [200, { current: c, noticeVersion: NOTICE.version, needsRenewal: !c || c.noticeVersion !== NOTICE.version, items: d.consents }]; });
@@ -335,19 +359,19 @@ function createServer(opts = {}) {
   });
   on('DELETE', '/v1/me/memory/{id}', ({ d, p }) => { const i = d.memory.findIndex(m => m.id === p.id); if (i < 0) return E(404, 'NOT_FOUND', 'ไม่พบบันทึกนี้'); d.memory.splice(i, 1); return [204]; });
   on('GET', '/v1/me/export', ({ d }) => [200, { profile: d.profile || {}, facts: d.facts, settings: d.settings, tasks: d.tasks.map(taskOut), consents: d.consents, memory: d.memory,
-    govLink: { status: d.gov.status, provider: d.gov.provider, connectedAt: d.gov.connectedAt },
+    govLink: { status: d.gov.status, provider: d.gov.provider, connectedAt: d.gov.connectedAt, ...(d.gov.identity ? { identity: d.gov.identity } : {}) },
     storedFields: ['profile', 'facts', 'settings', 'tasks', 'consents', 'memory', 'govLink'], notStored: ['ประวัติแชทกับ AI (เก็บเฉพาะระหว่างคุย)', 'เลขบัตรประชาชน', 'รหัสผ่าน OTP PIN'] }]);
 
   // Government connection (hidden mode)
   const govGate = () => govOn ? null : E(404, 'FEATURE_DISABLED', 'โหมดเชื่อมรัฐยังไม่เปิดใช้');
-  on('GET', '/v1/me/gov-link', ({ d }) => govGate() || [200, { status: d.gov.status, provider: govAdapter.provider, mock: true, connectedAt: d.gov.connectedAt }]);
+  on('GET', '/v1/me/gov-link', ({ d }) => govGate() || [200, govOut(d)]);
   on('POST', '/v1/me/gov-link', ({ d, device }) => { const g = govGate() || need(d, 'gov'); if (g) return g; const s = govAdapter.start(device); d.gov = { status: 'pending' }; return [201, { status: s.status, provider: govAdapter.provider, mock: true, authUrl: s.authUrl, state: s.state }]; });
   on('POST', '/v1/me/gov-link/callback', ({ d, device, body }) => {
     const g = govGate() || need(d, 'gov'); if (g) return g;
-    const r = govAdapter.finish(device, body && body.state, body && body.code, d.facts); if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
-    d.gov = r; return [200, { status: r.status, provider: r.provider, mock: true, connectedAt: r.connectedAt }];
+    const r = govAdapter.finish(device, body && body.state, body && body.code, d.facts, d.profile || {}); if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
+    d.gov = r; d.gov.applied = applyIdentity(d, r.identity); return [200, govOut(d)];
   });
-  on('DELETE', '/v1/me/gov-link', ({ d }) => { const g = govGate(); if (g) return g; d.gov = { status: 'not_connected' }; return [204]; });
+  on('DELETE', '/v1/me/gov-link', ({ d }) => { const g = govGate(); if (g) return g; dropGov(d); return [204]; });
 
   // Intake
   const turn = (sid, s) => {
@@ -702,9 +726,11 @@ function createServer(opts = {}) {
     { name: 'reminders', everyMinutes: 1, run: ctx => { const n = notifier.dispatch(ctx.now ?? Date.now(), reminderText); if (n) persist(); return 'sent ' + n; } },
     { name: 'retention', everyMinutes: 24 * 60, enabled: retentionDays > 0, run: ctx => {
       const days = ctx.days ?? retentionDays; if (!(days > 0)) return 'off (RETENTION_DAYS not set)';
-      const cut = (ctx.now ?? Date.now()) - days * 864e5; let n = 0;
-      for (const [id, d] of devices) if (new Date(d.lastSeenAt || 0).getTime() < cut) { devices.delete(id); notifier.cancel(id); n++; }
-      if (n) persist(); return 'deleted ' + n + ' devices not seen for ' + days + ' days';
+      const mode = ctx.mode || retentionMode, now = ctx.now ?? Date.now(), cut = now - days * 864e5, out = [];
+      for (const [id, d] of devices) if (new Date(d.lastSeenAt || 0).getTime() < cut) { out.push(packDevice(id, d)); devices.delete(id); notifier.cancel(id); }
+      // Archive keeps profile + activity only; identity (ThaID) and runtime state are never archived.
+      if (out.length && mode === 'archive') store.archive(out.map(r => archiveRecord(r, 'retention ' + days + ' days', new Date(now).toISOString())));
+      if (out.length) persist(); return (mode === 'archive' ? 'archived ' : 'deleted ') + out.length + ' devices not seen for ' + days + ' days';
     } }
   ]);
 

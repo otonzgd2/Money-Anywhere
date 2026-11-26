@@ -23,6 +23,7 @@
 | D17 | น้ำท่วม 2569: วันปิดรับคำขอ และเกณฑ์กลุ่ม 5,000 บาท | `window.closes: null` | ข่าวบอกวันเปิด 2 ต.ค. 2569 ไม่บอกวันปิด | ปภ. disaster.go.th, ทางรัฐ | §4.12, `PROGRAMS[flood_2569]` |
 | D18 | เอกสารที่ต้องใช้ของหมวดประกันสังคม และรับสงเคราะห์บุตร SSO พร้อมเงินอุดหนุนเด็ก พม. ได้ไหม | ยังไม่ใส่รายการเอกสาร | ไม่ได้ตรวจ | sso.go.th, dcy.go.th | §4.1 |
 | D19 | ขั้นตอนสมัคร ThaID, ผูกพร้อมเพย์กับบัตร, ชื่อเมนูในทางรัฐ/เป๋าตัง | ข้อความใน `CHANNELS`, `READY` | เขียนจากความรู้ทั่วไป ยังไม่ได้เปิดแอปจริงดู | เปิดแอปจริงบนมือถือ | §7.2, `gov-services.html` → `CHANNELS` |
+| D20 | ThaID: ชื่อ scope/claim (pid, given_name, family_name, birthdate, gender, address, date_of_expiry, ial ฯลฯ), รูปแบบ address และวันที่ (ค.ศ./พ.ศ.), endpoint `imauth.bora.dopa.go.th/api/v2/oauth2/*` | ใช้ตามที่นักพัฒนาที่เคยต่อใช้กัน (`claimsVerified: false`) | เอกสาร DOPA ไม่เปิดสาธารณะ ค้นไม่เจอฉบับทางการ; endpoint auth ตอบ 400 (มีอยู่จริง) ตรวจ 26 พ.ย. 2569 | เอกสารที่กรมการปกครองให้เมื่อสมัครเป็น relying party | `reference.json` → `thaid`, `adapters/gov.js` |
 | D12 | เบี้ยผู้สูงอายุปรับขั้นบันไดเองหรือไม่ | "ถ้ายอดไม่ปรับ ให้ถามท้องถิ่น" | ค้นแล้วไม่พบแหล่งที่ตอบตรงๆ | dla.go.th หรือโทรถามท้องถิ่น | `OLD_NEXT` ใน mock |
 
 ### แก้แล้ว (26 พ.ย. 2569)
@@ -47,6 +48,7 @@
 | M11 | ประกาศงานสำหรับกลุ่มเป้าหมาย (งานใกล้บ้าน งานรายวัน ผู้สูงอายุ) | ประกาศจริงมีแค่ Agoda (Greenhouse, งานออฟฟิศ กรุงเทพ ~225 ตำแหน่ง ตรวจ 26 พ.ย. 2569) ที่เหลือเป็น mock | "ข้อมูลจริง" / DEMO / MOCK | กรมการจัดหางาน (smartjob.doe.go.th) ไม่มี API สาธารณะ data.go.th มีแค่สถิติ ต้องขอความร่วมมือ หรือทีมคัดประกาศส่งผ่าน `POST /v1/integrations/opportunities/batch` (TM.12) |
 | M13 | Mock adapter แทน API ภาครัฐ/เอกชน 6 แหล่ง (`mock_doe`, `mock_jobboard`, `mock_gig`, `mock_dsd`, `mock_market`, `mock_fund`) 77 รายการ | `contracts/fixtures/opportunities-mock.json` (สร้างจาก `gen-mock-opportunities.js`) | DEMO / MOCK, ฉัน > แหล่งข้อมูลที่เชื่อมต่อ | ต่อ API จริงทีละแหล่งผ่าน `adapters/sources.js` (pull) หรือ `POST /v1/integrations/opportunities/batch` (push) แล้วลบ provider นั้นออกจากตัวสร้าง |
 | M14 | ปุ่มเชื่อม ThaID ที่หน้าแรกข้ามขั้นยืนยันตัวตนจริง (bypass) แล้วใช้ ThaID mock | `app/lib/thaid.dart`, `contracts/adapters/gov.js`, `.env` `GOV_CONNECTED=1` | ข้อความบอกก่อนและหลังเชื่อมว่าเป็นข้อมูลจำลอง, รายการ DEMO / MOCK | มีข้อตกลงกับผู้ให้บริการ ThaID และเจ้าของข้อมูล + DPIA แล้วเปลี่ยน adapter (M2) |
+| M16 | ข้อมูลตัวตนจาก ThaID (claims ชื่อ วันเกิด เพศ ที่อยู่ วันหมดอายุบัตร, เลขบัตรแบบปิดบัง) | `reference.json` → `thaid`, `adapters/gov.js` | การ์ด "ข้อมูลจาก ThaID" + DEMO / MOCK ในหน้าโปรไฟล์ | มีข้อตกลงกับกรมการปกครอง ได้ client_id แล้วเขียน adapter แลก code เป็น token ที่ `thaid.endpoints.token` (D20) |
 | M15 | Mockup บริการรัฐ: persona g1-g6, จุดบริการบนแผนที่, ความพร้อมของผู้ใช้ | `docs/mockups/gov-services.html` | DEMO / MOCK, หมุด MOCK, ชื่อ "(สมมติ)" | ต่อรายการเข้า API (TF.16) และแผนที่ด้วย Overpass หรือชุดข้อมูลจริง (D16) |
 | M10 | หน้าที่มีใน mock แต่ยังไม่มีในแอป: แผนรายได้ (planner), 3 lane "สิ่งแรกที่ควรทำ", แก้ไขโปรไฟล์เอง, ร่างข้อความรับออเดอร์ | `docs/mockups/index.html` | ไม่มี | ทำหลัง Demo flow หลักผ่าน (ui-states.md §2) |
 
@@ -64,6 +66,7 @@
 
 | # | เรื่อง | ผลถ้ายังไม่ตัดสิน |
 |---|---|---|
-| O1 | ระยะเวลาเก็บข้อมูล (B10) | งานลบอัตโนมัติปิดอยู่ ตั้ง `RETENTION_DAYS` เมื่อได้ตัวเลข |
+| O1 | ระยะเวลาเก็บข้อมูล (B10) | เป็น config แล้ว (API 0.11): `RETENTION_DAYS` (0 = ปิด), `RETENTION_MODE=archive` ใส่ตัวเลขใน `.env` เมื่อได้ ดู `docs/design/data-storage.md` |
+| O4 | ย้ายที่เก็บข้อมูลไปที่ไหนหลัง Demo | Owner บอกหลัง Demo · ข้อมูลแยก collection พร้อมย้ายแล้ว (`data-storage.md` §3) |
 | O2 | ข้อความ requirements ข้อ 9 (TF.6) | เอกสารยังขัดกับการตัดสินใจ "แอปเดียว ซ่อน ThaID" |
 | O3 | "TM standard" หมายถึง TM Forum (TMF630) หรือไม่ (TB.12) | API ใช้แนวทาง REST ทั่วไป |

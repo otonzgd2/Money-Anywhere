@@ -39,7 +39,7 @@
 </style>
 </head>
 <body>
-<header class="top"><b>Money Anywhere · Architecture Spec</b><span class="tag plan">Draft 1</span><span class="mut">26 พ.ย. 2569 · API 0.10.0 · Flutter app 1.0.0+1</span><span class="sp"></span><span class="mut">Legend:</span><span class="tag built">Built</span><span class="tag mock">Mock</span><span class="tag plan">Planned</span><span class="tag out">Out of scope</span></header>
+<header class="top"><b>Money Anywhere · Architecture Spec</b><span class="tag plan">Draft 1</span><span class="mut">26 พ.ย. 2569 · API 0.11.0 · Flutter app 1.0.0+1</span><span class="sp"></span><span class="mut">Legend:</span><span class="tag built">Built</span><span class="tag mock">Mock</span><span class="tag plan">Planned</span><span class="tag out">Out of scope</span></header>
 <div class="wrap">
 <nav class="toc" id="toc">
   <div class="grp">ภาพรวม</div>
@@ -141,7 +141,7 @@
   <h3>สถานะโดยรวม</h3>
   <table>
     <tr><th>ส่วน</th><th>สถานะ</th><th>หมายเหตุ</th></tr>
-    <tr><td>API contract + server</td><td><span class="tag built">Built</span></td><td>0.10.0, ทุก operation ถูกทดสอบ</td></tr>
+    <tr><td>API contract + server</td><td><span class="tag built">Built</span></td><td>0.11.0, ทุก operation ถูกทดสอบ (149/149)</td></tr>
     <tr><td>แอป Flutter (4 แท็บ)</td><td><span class="tag built">Built</span></td><td>ติดตั้งบน SM-S948B ผ่าน USB; เมนูยังเขียนตายตัว ไม่อ่าน app-config</td></tr>
     <tr><td>AI (Gemini)</td><td><span class="tag built">Built</span></td><td>ต้องมี key ใน <code>.env</code> ไม่มีแล้วใช้กฎ</td></tr>
     <tr><td>ประกาศงาน</td><td><span class="tag built">Built</span> <span class="tag mock">Mock</span></td><td>จริง: Greenhouse/Lever/open data · จำลอง: 77 รายการ</td></tr>
@@ -194,7 +194,7 @@
     <tr><th>Container</th><th>เทคโนโลยี</th><th>หน้าที่</th><th>ที่อยู่</th></tr>
     <tr><td>Mobile app</td><td>Flutter 3.50.1 / Dart 3.14, Android (compile Java 17)</td><td>UI 4 แท็บ, เรียก API, เปิดลิงก์รัฐ, แผนที่ OSM</td><td><code>app/</code></td></tr>
     <tr><td>API server</td><td>Node.js 24 (ไม่มี framework), HTTP :8080</td><td>contract ทั้งหมด, กฎ, AI orchestration, jobs</td><td><code>contracts/mock-server.js</code>, <code>contracts/adapters/</code></td></tr>
-    <tr><td>Data store</td><td>หน่วยความจำ + snapshot ไฟล์ JSON</td><td>สถานะต่ออุปกรณ์ (consent, facts, tasks, memory, conversations)</td><td><code>DATA_FILE</code> (git-ignored)</td></tr>
+    <tr><td>Data store</td><td>หน่วยความจำ + snapshot ไฟล์ JSON (layout 2: identity / profile / activity / runtime)</td><td>สถานะต่ออุปกรณ์ แยก collection พร้อมย้ายไปคนละ server; retention archive/delete ตาม config</td><td><code>DATA_FILE</code>, <code>ARCHIVE_FILE</code> (git-ignored) · <code>docs/design/data-storage.md</code></td></tr>
     <tr><td>Reference data</td><td>JSON ใน repo</td><td>กฎเงิน, คำอธิบายคำถาม, แหล่ง, persona, เขต, ไอเดียทักษะ, policy ของ AI</td><td><code>contracts/fixtures/</code></td></tr>
     <tr><td>AI call log</td><td>JSON lines</td><td>สถานะการเรียก AI + device id แบบ hash</td><td><code>AI_LOG_FILE</code></td></tr>
     <tr><td>Clickable mockups</td><td>HTML + JS ไฟล์เดียว</td><td>ทดลอง UX ก่อนทำในแอป</td><td><code>docs/mockups/</code></td></tr>
@@ -356,7 +356,7 @@
   <h3>8.4 แผนรายได้ตามเป้า</h3>
   <p><code>GET /v1/plans/goal</code>: เป้ารายเดือน − เงินที่น่าจะได้ = ส่วนที่ขาด → <code>jobOptions</code> แปลงประกาศที่มีค่าจ้างเป็นช่วงรายเดือนตามเวลาว่าง → กรองตามทักษะที่ตรง (<code>requires</code> vs <code>matched</code>) และอายุ (<code>forOlder</code> ก่อน) → จำนวนตัวเลือกตามชั่วโมง (&lt;15 = 1, 15–39 = 2, ≥40 = 3)</p>
   <h3>8.5 เชื่อม ThaID (mock)</h3>
-  <p>flag <code>govConnected</code> (env <code>GOV_CONNECTED=1</code>) → consent gov → <code>POST /v1/me/gov-link</code> → <code>POST /v1/me/gov-link/callback</code> → <code>gov.js</code> คืนข้อมูลจำลองต่อ persona (<code>requires</code>/<code>skipIf</code>) ติด DEMO / MOCK → ผลเงินแสดงที่มาเป็น mock ไม่ใช่ verified จริง</p>
+  <p>flag <code>govConnected</code> (env <code>GOV_CONNECTED=1</code>) → consent gov → <code>POST /v1/me/gov-link</code> → <code>POST /v1/me/gov-link/callback</code> → <code>gov.js</code> คืน (1) <code>identity</code>: claims ชื่อตาม ThaID (given_name, family_name, birthdate, gender, address, date_of_expiry, ial …) ค่าสังเคราะห์, <code>pidMasked</code> + <code>pidHash</code> (เลขบัตรจริงไม่ออกจาก adapter) และ (2) <code>data</code>: บันทึกสิทธิ์จำลองต่อ persona (<code>requires</code>/<code>skipIf</code>) → server เติมโปรไฟล์ช่องที่ว่าง (ชื่อ, เขต) และช่วงอายุจากวันเกิด (<code>Profile.fromGov</code>) → ยกเลิกเชื่อมแล้วคืนค่าเดิม · ThaID ให้แค่ตัวตน ข้อมูลเงินต้องมาจาก API หน่วยงาน (GDX)</p>
   <h3>8.6 ดึงแหล่งงาน</h3>
   <p><code>jobs.js</code> ทุก <code>SOURCE_REFRESH_HOURS</code> (ค่าเริ่ม 6) เมื่อ <code>LIVE=1</code> → <code>sources.js</code> → normalize → dedupe (ชื่อ + องค์กร) → ตรวจลิงก์วันละครั้ง (404/410 ซ่อน) · พาร์ทเนอร์ push ผ่าน batch/webhook · รายงานจาก 3 เครื่อง → ซ่อนอัตโนมัติ</p>
 </section>
@@ -451,7 +451,7 @@
     <tr><td><code>GOV_CONNECTED</code></td><td>เปิดโหมด ThaID mock</td></tr>
     <tr><td><code>DEMO_MODE</code></td><td>เปิด endpoint persona</td></tr>
     <tr><td><code>INTEGRATION_KEY</code></td><td><code>X-Api-Key</code> ของ integrations</td></tr>
-    <tr><td><code>DATA_FILE</code>, <code>RETENTION_DAYS</code></td><td>ที่เก็บข้อมูล, ลบข้อมูลเก่า</td></tr>
+    <tr><td><code>DATA_FILE</code>, <code>RETENTION_DAYS</code>, <code>RETENTION_MODE</code>, <code>ARCHIVE_FILE</code></td><td>ที่เก็บข้อมูล, ระยะเวลาเก็บ (0 = ปิด), archive หรือ delete, ไฟล์ archive</td></tr>
     <tr><td><code>GIT_COMMIT</code></td><td>แสดงใน <code>/v1/health</code> เป็นหลักฐานเวอร์ชัน</td></tr>
   </table>
   <p>เครื่องมือ: <code>tools/check-dev-env.ps1</code> (ตรวจเวอร์ชัน), <code>tools/build-and-install.ps1</code> (analyze → test → build → restart server → adb reverse → install → launch), <code>tools/reconnect.ps1</code>, <code>node tools/e2e-flows.js</code> · เวอร์ชันเครื่องมือ: <code>docs/guide/dev-setup.md</code></p>

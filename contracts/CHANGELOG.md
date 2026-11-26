@@ -2,6 +2,16 @@
 
 การเปลี่ยนแปลงของ `openapi.yaml` และพฤติกรรมของ server ที่แอปต้องรู้ ประวัติก่อน v0.4 อยู่ใน `docs/design/api-review.md`
 
+## 0.11.0 (26 พ.ย. 2569)
+
+เพิ่มอย่างเดียว ThaID ตอบข้อมูลตัวตนด้วยชื่อ claim จริง และที่เก็บข้อมูลพร้อมแยก/archive
+
+- `GovLink.identity` (`GovIdentity`): เมื่อเชื่อม ThaID แล้ว `GET /v1/me/gov-link` และ callback คืน `claims` ชื่อตาม ThaID (title, given_name, family_name, name, *_en, birthdate, gender, address, date_of_issuance, date_of_expiry, ial), `scopes`, `pidMasked`, `pidHash`, `derived` (age, ageBand, district, displayName), `applied` ค่าทั้งหมดสังเคราะห์ `dataStatus: mock`, `claimsVerified: false` (ชื่อ claim ยังไม่ได้ยืนยันกับเอกสาร DOPA) เลขบัตรจริงไม่ออกจาก adapter
+- เชื่อมแล้ว server เติมโปรไฟล์ให้เฉพาะช่องที่ยังว่าง (`displayName`, `district`) และตั้ง `facts.ageBand` ตามวันเกิด `Profile.fromGov` บอกว่าช่องไหนมาจาก ThaID ยกเลิกการเชื่อมหรือถอนความยินยอม gov แล้วคืนค่าเดิม
+- `MyData.govLink.identity` ในการส่งออกข้อมูล
+- ที่เก็บข้อมูล layout 2: ข้อมูลแต่ละเครื่องแยกเป็น collection `identity` / `profile` / `activity` / `runtime` (`adapters/store.js`) อ่านไฟล์ layout 1 เดิมได้ `Health.storeLayout`
+- ระยะเวลาเก็บเป็น config: `RETENTION_DAYS` (0 = ปิด), `RETENTION_MODE` = `archive` (ค่าเริ่ม: ย้าย profile + activity ไป `ARCHIVE_FILE` ไม่เก็บ identity) หรือ `delete` `Health.retention`
+
 ## 0.10.0 (26 พ.ย. 2569)
 
 เพิ่มอย่างเดียว ครอบคลุมผู้ใช้หลายกลุ่ม และชั้นเชื่อมต่อแหล่งข้อมูลภาครัฐ/เอกชนแบบจำลอง

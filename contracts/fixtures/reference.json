@@ -229,6 +229,28 @@
     "unemployment": { "amount": 7200, "text": "อนุมัติเงินทดแทนว่างงาน รายงานตัวทุกเดือน (ข้อมูลจำลอง)", "requires": { "work": "ถูกเลิกจ้าง" } }
   },
 
+  "thaid": {
+    "note": "ThaID (กรมการปกครอง) ให้ข้อมูลตัวตนเท่านั้น ไม่ให้ข้อมูลสิทธิ์หรือเงิน ชื่อ claim และ endpoint มาจากที่นักพัฒนาที่เคยต่อใช้กัน ยังไม่ได้ยืนยันกับเอกสาร DOPA (open-items D20) ค่าทั้งหมดเป็นข้อมูลสังเคราะห์",
+    "claimsVerified": false,
+    "endpoints": { "authorize": "https://imauth.bora.dopa.go.th/api/v2/oauth2/auth/", "token": "https://imauth.bora.dopa.go.th/api/v2/oauth2/token/", "revoke": "https://imauth.bora.dopa.go.th/api/v2/oauth2/revoke/" },
+    "scopes": ["openid", "pid", "title", "given_name", "middle_name", "family_name", "name", "title_en", "given_name_en", "middle_name_en", "family_name_en", "name_en", "birthdate", "gender", "address", "date_of_issuance", "date_of_expiry", "ial"],
+    "claimLabels": {
+      "pid": "เลขประจำตัวประชาชน (แอปเห็นแค่แบบปิดบัง)", "title": "คำนำหน้า", "given_name": "ชื่อ", "middle_name": "ชื่อกลาง", "family_name": "นามสกุล", "name": "ชื่อเต็ม",
+      "title_en": "คำนำหน้า (อังกฤษ)", "given_name_en": "ชื่อ (อังกฤษ)", "middle_name_en": "ชื่อกลาง (อังกฤษ)", "family_name_en": "นามสกุล (อังกฤษ)", "name_en": "ชื่อเต็ม (อังกฤษ)",
+      "birthdate": "วันเกิด", "gender": "เพศ", "address": "ที่อยู่ตามทะเบียนบ้าน", "date_of_issuance": "วันออกบัตร", "date_of_expiry": "วันบัตรหมดอายุ", "ial": "ระดับการยืนยันตัวตน (IAL)"
+    },
+    "people": {
+      "default": { "title": "นาง", "given_name": "มาลี", "family_name": "สมมติ", "title_en": "Mrs.", "given_name_en": "Malee", "family_name_en": "Sommut", "gender": "female", "street_address": "99/9 หมู่ 1 ซอยทดสอบ 5" },
+      "older": { "title": "นาย", "given_name": "สมศักดิ์", "family_name": "สมมติ", "title_en": "Mr.", "given_name_en": "Somsak", "family_name_en": "Sommut", "gender": "male", "street_address": "12 ซอยทดสอบ 3" }
+    },
+    "birthYearByAgeBand": { "ต่ำกว่า 60": 1988, "60-69": 1961, "70-79": 1951, "80-89": 1941, "90 ขึ้นไป": 1932 },
+    "defaultDistrict": "ปทุมวัน",
+    "postalCode": "10000",
+    "dateOfIssuance": "2023-01-10",
+    "dateOfExpiry": "2031-04-11",
+    "ial": "2.3"
+  },
+
   "skillIdeas": [
     { "id": "idea_lunchbox", "title": "รับทำอาหารกล่องสั่งล่วงหน้า", "skills": ["ทำอาหาร", "ทำขนม/เบเกอรี่"], "grossPerMonth": [7000, 10000], "costPerMonth": [3000, 4000], "payDays": 14, "effort": 2, "risk": "ยอดสั่งไม่แน่นอน", "assumptions": ["20 กล่อง/สัปดาห์", "ราคาวัตถุดิบเป็นค่าสมมติ"] },
     { "id": "idea_typing", "title": "รับพิมพ์และกรอกข้อมูล", "skills": ["พิมพ์เอกสาร", "กรอกข้อมูล", "Excel/ตาราง"], "grossPerMonth": [2400, 4000], "costPerMonth": [0, 300], "payDays": 10, "effort": 1, "risk": "งานไม่สม่ำเสมอ", "assumptions": ["8 งาน/เดือน"] },

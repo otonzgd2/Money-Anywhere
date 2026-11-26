@@ -60,7 +60,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const miss = await noDevice('getProfile', { expect: 400 });
   check('missing X-Device-Id is rejected with MISSING_DEVICE', miss.data && miss.data.code === 'MISSING_DEVICE');
   const health = await call('getHealth', { expect: 200 });
-  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.10.0');
+  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.11.0');
   const cfg = await call('getAppConfig', { query: { appVersion: '0.1.0' }, expect: 200 });
   check('config carries noticeVersion and gov flag off', cfg.data.noticeVersion === NOTICE && cfg.data.featureFlags.govConnected === false);
   await call('getAppConfig', { query: { appVersion: '0.1.0' }, headers: { 'If-None-Match': cfg.headers.get('etag') }, expect: 304 });
@@ -394,9 +394,14 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('delete clears tasks and consent', (await call('listTasks')).data.items.length === 0 && (await call('getConsents')).data.items.length === 0);
   await call('refreshSource', { params: { provider: 'lever' }, expect: 202 });
   const ret = await server.ports.jobs.run('retention', { days: 30, now: Date.now() + 400 * 864e5 });
-  check('retention job deletes devices not seen for the set days (B10, off unless RETENTION_DAYS)', /^deleted [1-9]/.test(ret) && (await server.ports.jobs.run('retention', {})).startsWith('off'));
+  const arch = server.ports.store.archived;
+  check('retention archives devices not seen for the set days (default mode archive, off unless RETENTION_DAYS)', /^archived [1-9]/.test(ret) && (await server.ports.jobs.run('retention', {})).startsWith('off'));
+  check('archive keeps profile + activity only, never identity or runtime', arch.length > 0 && arch.every(r => r.profile && r.activity && !('identity' in r) && !('runtime' in r) && r.archivedAt && r.layout === 2));
+  await call('getHealth');
+  const retDel = await server.ports.jobs.run('retention', { days: 30, mode: 'delete', now: Date.now() + 400 * 864e5 });
+  check('retention mode delete removes without archiving', /^deleted [1-9]/.test(retDel));
   const h2 = await call('getHealth', { expect: 200 });
-  check('health shows store, notifier, AI limit and job states', h2.data.store === 'memory' && h2.data.notifier === 'mock' && h2.data.aiDailyLimit === 50 && h2.data.jobs.some(j => j.name === 'link_check' && j.lastRunAt));
+  check('health shows store, layout, retention, notifier, AI limit and job states', h2.data.store === 'memory' && h2.data.storeLayout === 2 && h2.data.retention.days === 0 && h2.data.retention.mode === 'archive' && h2.data.notifier === 'mock' && h2.data.aiDailyLimit === 50 && h2.data.jobs.some(j => j.name === 'link_check' && j.lastRunAt));
   server.close();
 
   // ================= Persistence: a restart keeps device data (B1) =================
@@ -415,7 +420,17 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const replay = await pc2('createTaskEvent', { params: { id: pt.data.id }, body: { type: 'complete_step' }, headers: { 'Idempotency-Key': 'k-1' }, expect: 201 });
   check('file store: profile, consent and tasks survive a restart', back.data.district === 'บางกะปิ' && (await pc2('getConsents')).data.current && (await pc2('listTasks')).data.items.length === 1);
   check('file store: idempotency keys survive a restart', replay.data.doneCount === 1);
-  ps2.close(); fs.unlinkSync(dataFile);
+  const onDisk = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+  const rec = onDisk.devices.find(x => x.id === 'device-pers-0001');
+  check('file store layout 2: device split into identity / profile / activity / runtime', onDisk.version === 2 && rec && rec.profile.profile.district === 'บางกะปิ' && rec.activity.tasks.length === 1 && 'identity' in rec && 'runtime' in rec);
+  ps2.close();
+  // A layout 1 file (written by API 0.10 and older) still loads.
+  const { unpackDevice } = require('./adapters/store');
+  fs.writeFileSync(dataFile, JSON.stringify({ version: 1, devices: [unpackDevice(rec)] }));
+  const ps3 = createServer({ dataFile, jobs: false }); const pb3 = await listen(ps3);
+  check('file store reads layout 1 files', (await client(pb3, { 'X-Device-Id': 'device-pers-0001' })('getProfile', { expect: 200 })).data.district === 'บางกะปิ');
+  ps3.close(); fs.unlinkSync(dataFile);
+  const archFile = dataFile + '.archive.jsonl'; if (fs.existsSync(archFile)) fs.unlinkSync(archFile);
 
   // ================= Server 2: gov mode on + fake LLM for AI and the agent =================
   let mode = 'ok', llmCalls = 0, lastSystem = '';
@@ -455,11 +470,20 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   await g('finishGovLink', { body: { state: 'wrong', code: 'demo' }, expect: 422 });
   const fin = await g('finishGovLink', { body: { state: start.data.state, code: 'demo' }, expect: 200 });
   check('callback connects', fin.data.status === 'connected');
+  const idt = fin.data.identity;
+  check('ThaID identity uses ThaID claim names, labelled mock, claims not yet verified', idt && idt.dataStatus === 'mock' && idt.claimsVerified === false && ['given_name', 'family_name', 'birthdate', 'gender', 'address', 'date_of_expiry', 'ial'].every(k => k in idt.claims) && idt.scopes.includes('pid'));
+  check('raw national ID never leaves the adapter (masked + hash only)', /^X-XXXX-XXXXX-\d\d-\d$/.test(idt.pidMasked) && !JSON.stringify(fin.data).match(/\b\d{13}\b/));
+  const gprof = await g('getProfile', { expect: 200 });
+  check('ThaID fills empty profile fields and age (fromGov lists them)', gprof.data.displayName === idt.derived.displayName && gprof.data.district === idt.derived.district && gprof.data.fromGov.includes('ageBand') && (await g('getFacts')).data.ageBand === idt.derived.ageBand);
+  check('gov-link GET returns the same identity', (await g('getGovLink')).data.identity.pidMasked === idt.pidMasked);
+  check('export includes the ThaID identity', (await g('exportMe')).data.govLink.identity.claims.given_name === idt.claims.given_name);
   const gm = await g('getMoneyOverview');
   const gi = Object.fromEntries(gm.data.items.map(i => [i.id, i]));
   check('connected: government data shows as verified and labelled mock', gi.old_age.status === 'verified' && gi.old_age.dataStatus === 'mock' && gi.tax_refund.amount.value === 1850 && gm.data.summary.allVerified === true);
   await g('createConsent', { body: consentBody({ gov: false }) });
   check('withdrawing gov consent disconnects', (await g('getGovLink')).data.status === 'not_connected');
+  const gp2 = (await g('getProfile', { expect: 200 })).data;
+  check('disconnect takes back what ThaID filled (name, district, age)', !gp2.displayName && !gp2.district && !gp2.fromGov && (await g('getFacts')).data.ageBand === undefined);
   await g('createConsent', { body: consentBody({ gov: true }) });
   await g('deleteGovLink', { expect: 204 });
   // The ThaID mock answers per person: a young parent gets the child grant, not the mc_old-age allowance.
