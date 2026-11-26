@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Anywhere - Architecture Spec (Draft 1)</title>
+<!-- Draft 1, 26 พ.ย. 2569. Sources of truth: contracts/openapi.yaml, contracts/adapters/*, app/lib/*, docs/design/adr-001-stack.md. Test: node docs/design/architecture-spec-smoke.js -->
+<style>
+  :root { --p:#0e9f6e; --pd:#047857; --pl:#d1fae5; --ink:#0f1f1a; --mut:#5b6b65; --bg:#f6f9f7; --line:#dfe7e3; --warn:#b45309; --warnbg:#fff4e0; --bad:#b42318; --badbg:#fdecea; --blue:#2563eb; --bluebg:#e8efff; --vio:#7c3aed; --viobg:#f1eafe; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:"Segoe UI","Noto Sans Thai","Leelawadee UI",system-ui,sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; font-size:15px; }
+  header.top { position:sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line); padding:10px 24px; display:flex; gap:16px; align-items:center; }
+  header.top b { font-size:16px; } header.top .sp { flex:1; }
+  .wrap { display:grid; grid-template-columns:250px 1fr; max-width:1400px; margin:0 auto; }
+  nav.toc { position:sticky; top:52px; height:calc(100vh - 52px); overflow:auto; padding:18px 10px 40px 20px; border-right:1px solid var(--line); font-size:13.5px; }
+  nav.toc a { display:block; color:var(--ink); text-decoration:none; padding:4px 8px; border-radius:8px; }
+  nav.toc a:hover, nav.toc a.on { background:var(--pl); color:var(--pd); }
+  nav.toc .grp { font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); margin:14px 0 4px 8px; }
+  main { padding:24px 34px 80px; min-width:0; }
+  section { background:#fff; border-radius:16px; padding:22px 26px; margin-bottom:22px; box-shadow:0 1px 4px rgba(6,40,28,.06); scroll-margin-top:66px; }
+  h1 { font-size:28px; margin:0 0 4px; } h2 { font-size:21px; margin:0 0 12px; display:flex; gap:10px; align-items:center; } h2 .n { background:var(--pd); color:#fff; border-radius:8px; font-size:13px; padding:2px 9px; }
+  h3 { font-size:16px; margin:18px 0 8px; }
+  p { margin:6px 0; } ul { margin:6px 0; padding-left:22px; } li { margin:3px 0; }
+  .mut { color:var(--mut); font-size:13px; }
+  table { width:100%; border-collapse:collapse; margin:8px 0 12px; font-size:13.5px; }
+  th { text-align:left; background:#eef4f1; padding:7px 9px; border-bottom:1px solid var(--line); } td { padding:7px 9px; border-bottom:1px solid var(--line); vertical-align:top; }
+  code { font-family:Consolas,monospace; background:#eef4f1; padding:0 4px; border-radius:4px; font-size:.92em; }
+  .tag { display:inline-block; font-size:11.5px; font-weight:700; padding:1px 8px; border-radius:7px; white-space:nowrap; }
+  .built { background:var(--pl); color:var(--pd); } .mock { background:var(--warnbg); color:var(--warn); } .plan { background:var(--bluebg); color:var(--blue); } .out { background:#eceff0; color:#555; } .risk { background:var(--badbg); color:var(--bad); }
+  .grid { display:grid; gap:14px; } .g2 { grid-template-columns:1fr 1fr; } .g3 { grid-template-columns:repeat(3,1fr); } .g4 { grid-template-columns:repeat(4,1fr); }
+  .box { border:1px solid var(--line); border-radius:12px; padding:12px 14px; background:#fbfdfc; }
+  .kpi b { display:block; font-size:24px; color:var(--pd); line-height:1.2; }
+  .note { background:var(--warnbg); color:#7a3d06; border-radius:10px; padding:9px 12px; font-size:13.5px; margin:8px 0; }
+  .ok { background:var(--pl); color:#064e3b; border-radius:10px; padding:9px 12px; font-size:13.5px; margin:8px 0; }
+  svg { width:100%; height:auto; display:block; } svg text { font-family:"Segoe UI","Noto Sans Thai",sans-serif; }
+  .ov { background:linear-gradient(160deg,#ffffff,#eefaf4); border:1px solid var(--pl); }
+  @media (max-width:1000px) { .wrap { grid-template-columns:1fr; } nav.toc { display:none; } .g3, .g4 { grid-template-columns:1fr 1fr; } }
+  @media print { header.top, nav.toc { display:none; } .wrap { display:block; } section { break-inside:avoid-page; box-shadow:none; border:1px solid var(--line); } body { background:#fff; } }
+</style>
+</head>
+<body>
+<header class="top"><b>Money Anywhere · Architecture Spec</b><span class="tag plan">Draft 1</span><span class="mut">26 พ.ย. 2569 · API 0.10.0 · Flutter app 1.0.0+1</span><span class="sp"></span><span class="mut">Legend:</span><span class="tag built">Built</span><span class="tag mock">Mock</span><span class="tag plan">Planned</span><span class="tag out">Out of scope</span></header>
+<div class="wrap">
+<nav class="toc" id="toc">
+  <div class="grp">ภาพรวม</div>
+  <a href="#overview">0 ภาพรวมหน้าเดียว</a>
+  <div class="grp">บริบท</div>
+  <a href="#scope">1 เป้าหมายและขอบเขต</a>
+  <a href="#context">2 System context</a>
+  <div class="grp">โครงสร้าง</div>
+  <a href="#containers">3 Containers</a>
+  <a href="#components">4 Components ใน API</a>
+  <a href="#client">5 แอป Flutter</a>
+  <a href="#api">6 API design</a>
+  <a href="#data">7 Data model</a>
+  <div class="grp">พฤติกรรม</div>
+  <a href="#flows">8 Flows หลัก</a>
+  <a href="#logic">9 Business logic</a>
+  <a href="#ai">10 AI architecture</a>
+  <div class="grp">การเชื่อมต่อ</div>
+  <a href="#adapters">11 Adapters และระบบภายนอก</a>
+  <a href="#gov">12 การเชื่อมภาครัฐ</a>
+  <div class="grp">การรันและคุณภาพ</div>
+  <a href="#deploy">13 Deployment และ config</a>
+  <a href="#nfr">14 Non-functional</a>
+  <a href="#privacy">15 Privacy / PDPA</a>
+  <a href="#test">16 Testing</a>
+  <div class="grp">อ้างอิง</div>
+  <a href="#repo">17 Repo map</a>
+  <a href="#decisions">18 Decisions</a>
+  <a href="#gaps">19 Gaps, risks, roadmap</a>
+  <a href="#glossary">20 Glossary และ open questions</a>
+</nav>
+<main>
+
+<!-- 0 OVERVIEW -->
+<section id="overview" class="ov">
+  <h1>Money Anywhere: Architecture ภาพรวม</h1>
+  <p>แอป Android (Flutter) บอกผู้ใช้ว่าเงินที่ควรได้อยู่ที่ไหน ได้ประมาณเท่าไหร่ และพาไปรับจนจบ รวมถึงวางแผนรายได้ให้ถึงเป้ารายเดือน แอปคุยกับหลังบ้านผ่าน contract เดียว (<code>contracts/openapi.yaml</code> + app-config) หลังบ้านเป็น Node.js ที่ทุกการเชื่อมต่อภายนอกเป็น adapter สลับได้ด้วย env</p>
+  <svg viewBox="0 0 1200 520" aria-label="ภาพรวมสถาปัตยกรรม">
+    <defs><marker id="m1" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker><marker id="m2" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"/></marker></defs>
+    <!-- user -->
+    <circle cx="70" cy="200" r="26" fill="#0e9f6e"/><rect x="40" y="230" width="60" height="50" rx="25" fill="#0e9f6e"/><text x="70" y="305" text-anchor="middle" font-size="14" font-weight="700">ผู้ใช้</text><text x="70" y="323" text-anchor="middle" font-size="12" fill="#5b6b65">(persona สมมติ)</text>
+    <!-- app -->
+    <rect x="140" y="80" width="200" height="330" rx="22" fill="#111"/><rect x="152" y="94" width="176" height="302" rx="14" fill="#f3f7f5"/>
+    <text x="240" y="122" text-anchor="middle" font-size="15" font-weight="700">แอป Flutter</text>
+    <g font-size="12.5" text-anchor="middle"><rect x="165" y="135" width="150" height="28" rx="7" fill="#fff"/><text x="240" y="154">หน้าแรก · ปุ่ม AI</text>
+    <rect x="165" y="170" width="150" height="28" rx="7" fill="#fff"/><text x="240" y="189">โอกาส · แผนที่ OSM</text>
+    <rect x="165" y="205" width="150" height="28" rx="7" fill="#fff"/><text x="240" y="224">แผนของฉัน · tasks</text>
+    <rect x="165" y="240" width="150" height="28" rx="7" fill="#fff"/><text x="240" y="259">ฉัน · โปรไฟล์ · ยินยอม</text>
+    <rect x="165" y="275" width="150" height="28" rx="7" fill="#fff4e0"/><text x="240" y="294">การ์ด ThaID (mock)</text>
+    <rect x="165" y="320" width="150" height="56" rx="7" fill="#e8efff"/><text x="240" y="343">api.dart</text><text x="240" y="362" fill="#2563eb">X-Device-Id</text></g>
+    <!-- contract -->
+    <rect x="390" y="170" width="140" height="150" rx="14" fill="#e8efff" stroke="#2563eb" stroke-width="2"/><text x="460" y="205" text-anchor="middle" font-size="15" font-weight="700" fill="#2563eb">Contract</text><text x="460" y="232" text-anchor="middle" font-size="12.5">openapi.yaml</text><text x="460" y="252" text-anchor="middle" font-size="12.5">49 operations</text><text x="460" y="272" text-anchor="middle" font-size="12.5">app-config</text><text x="460" y="298" text-anchor="middle" font-size="11.5" fill="#5b6b65">HTTP/JSON :8080</text>
+    <!-- api -->
+    <rect x="575" y="40" width="330" height="440" rx="22" fill="#fff" stroke="#0e9f6e" stroke-width="2"/>
+    <text x="740" y="72" text-anchor="middle" font-size="16" font-weight="700" fill="#047857">API server (Node.js) · mock-server.js</text>
+    <g font-size="12.5" text-anchor="middle">
+      <rect x="595" y="88" width="290" height="30" rx="8" fill="#eef4f1"/><text x="740" y="108">HTTP layer: routing, headers, error shape, ETag</text>
+      <rect x="595" y="124" width="290" height="30" rx="8" fill="#eef4f1"/><text x="740" y="144">consent check (core/location/ai/reminders/gov)</text>
+      <rect x="595" y="166" width="140" height="44" rx="8" fill="#d1fae5"/><text x="665" y="185">money engine</text><text x="665" y="201" font-size="11">money.js</text>
+      <rect x="745" y="166" width="140" height="44" rx="8" fill="#d1fae5"/><text x="815" y="185">plans / goal</text><text x="815" y="201" font-size="11">goalPlan, jobOptions</text>
+      <rect x="595" y="218" width="140" height="44" rx="8" fill="#f1eafe"/><text x="665" y="237">guard</text><text x="665" y="253" font-size="11">guard.js</text>
+      <rect x="745" y="218" width="140" height="44" rx="8" fill="#f1eafe"/><text x="815" y="237">agent + ai</text><text x="815" y="253" font-size="11">agent.js, ai.js</text>
+      <rect x="595" y="270" width="140" height="44" rx="8" fill="#d1fae5"/><text x="665" y="289">tasks + events</text><text x="665" y="305" font-size="11">Idempotency-Key</text>
+      <rect x="745" y="270" width="140" height="44" rx="8" fill="#d1fae5"/><text x="815" y="289">opportunities</text><text x="815" y="305" font-size="11">sources.js, geocoder.js</text>
+      <rect x="595" y="322" width="140" height="44" rx="8" fill="#fff4e0"/><text x="665" y="341">gov link</text><text x="665" y="357" font-size="11">gov.js (mock)</text>
+      <rect x="745" y="322" width="140" height="44" rx="8" fill="#d1fae5"/><text x="815" y="341">jobs + notifier</text><text x="815" y="357" font-size="11">jobs.js, notifier.js</text>
+      <rect x="595" y="378" width="290" height="40" rx="8" fill="#eef4f1"/><text x="740" y="403">store.js: memory ⇄ JSON file (DATA_FILE)</text>
+      <rect x="595" y="426" width="290" height="40" rx="8" fill="#fbfdfc" stroke="#dfe7e3"/><text x="740" y="446">reference.json: moneyPrograms, facts, sources,</text><text x="740" y="461">personas, districts, skillIdeas, policy</text>
+    </g>
+    <!-- externals -->
+    <g font-size="13" text-anchor="middle">
+      <rect x="960" y="60" width="220" height="56" rx="12" fill="#f1eafe"/><text x="1070" y="84" font-weight="700">Gemini API</text><text x="1070" y="103" font-size="11.5">OpenAI-compatible · ไม่มี key = กฎ</text>
+      <rect x="960" y="130" width="220" height="56" rx="12" fill="#f1eafe"/><text x="1070" y="154" font-weight="700">Greenhouse / Lever / open data</text><text x="1070" y="173" font-size="11.5">ประกาศงานจริง (LIVE=1)</text>
+      <rect x="960" y="200" width="220" height="56" rx="12" fill="#fff4e0"/><text x="1070" y="224" font-weight="700">Mock catalogue</text><text x="1070" y="243" font-size="11.5">6 แหล่ง 77 รายการ (MOCK_CATALOGUE)</text>
+      <rect x="960" y="270" width="220" height="56" rx="12" fill="#fff4e0"/><text x="1070" y="294" font-weight="700">ThaID / ทางรัฐ / GDX</text><text x="1070" y="313" font-size="11.5">ยังไม่เชื่อมจริง (mock)</text>
+      <rect x="960" y="340" width="220" height="56" rx="12" fill="#e8efff"/><text x="1070" y="364" font-weight="700">เว็บ/แอปรัฐ (ลิงก์)</text><text x="1070" y="383" font-size="11.5">ผู้ใช้เปิดเอง แล้วกลับมาแจ้งผล</text>
+      <rect x="960" y="410" width="220" height="56" rx="12" fill="#f1eafe"/><text x="1070" y="434" font-weight="700">OpenStreetMap tiles</text><text x="1070" y="453" font-size="11.5">แอปโหลดตรง</text>
+    </g>
+    <g stroke="#047857" stroke-width="3" fill="none" marker-end="url(#m1)"><path d="M102 245 H136"/><path d="M342 245 H386"/><path d="M532 245 H571"/></g>
+    <g stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#m2)"><path d="M907 240 L956 88"/><path d="M907 285 L956 158"/><path d="M907 295 L956 228"/><path d="M907 344 L956 298"/></g>
+    <path d="M330 350 C 600 510, 900 510, 956 370" stroke="#2563eb" stroke-width="2" stroke-dasharray="6 6" fill="none"/>
+    <text x="640" y="508" text-anchor="middle" font-size="12" fill="#2563eb">แอปเปิดลิงก์รัฐให้ผู้ใช้ (ไม่ผ่าน API)</text>
+  </svg>
+  <div class="grid g4" style="margin-top:12px">
+    <div class="box kpi"><b>49</b>API operations ใน contract</div>
+    <div class="box kpi"><b>10</b>adapters สลับได้ด้วย env</div>
+    <div class="box kpi"><b>139/139</b>contract checks ผ่าน (26 พ.ย.)</div>
+    <div class="box kpi"><b>16</b>ไฟล์ Dart ใน <code>app/lib</code></div>
+  </div>
+  <h3>หลักการออกแบบ 6 ข้อ</h3>
+  <div class="grid g3">
+    <div class="box"><b>1 Contract-first</b><br><span class="mut">แอปพึ่งแค่ openapi.yaml + app-config เปลี่ยนหลังบ้านได้โดยไม่แก้แอป</span></div>
+    <div class="box"><b>2 Ports & adapters</b><br><span class="mut">AI, ที่เก็บข้อมูล, แหล่งงาน, รัฐ, แจ้งเตือน สลับด้วย env หรือไฟล์เดียว</span></div>
+    <div class="box"><b>3 Rules as data</b><br><span class="mut">เกณฑ์และอัตราเงินอยู่ใน reference.json มีแหล่งและวันที่ตรวจ ผลคำนวณซ้ำได้</span></div>
+    <div class="box"><b>4 AI ไม่สร้างตัวเลขเงิน</b><br><span class="mut">ยอดมาจากกฎเท่านั้น guardMoney ลบตัวเลขที่ไม่มีที่มา การเขียนข้อมูลต้องให้ผู้ใช้ยืนยัน</span></div>
+    <div class="box"><b>5 ซื่อตรงกับข้อมูล</b><br><span class="mut">ทุกผลมี <code>basis</code> / <code>dataStatus</code> mock ติดป้าย ไม่มีผล verified จากกฎ</span></div>
+    <div class="box"><b>6 Demo ก่อน</b><br><span class="mut">ไม่มี login, การเข้ารหัส, rate limit ด้านความปลอดภัย ข้อมูลสังเคราะห์เท่านั้น</span></div>
+  </div>
+  <h3>สถานะโดยรวม</h3>
+  <table>
+    <tr><th>ส่วน</th><th>สถานะ</th><th>หมายเหตุ</th></tr>
+    <tr><td>API contract + server</td><td><span class="tag built">Built</span></td><td>0.10.0, ทุก operation ถูกทดสอบ</td></tr>
+    <tr><td>แอป Flutter (4 แท็บ)</td><td><span class="tag built">Built</span></td><td>ติดตั้งบน SM-S948B ผ่าน USB; เมนูยังเขียนตายตัว ไม่อ่าน app-config</td></tr>
+    <tr><td>AI (Gemini)</td><td><span class="tag built">Built</span></td><td>ต้องมี key ใน <code>.env</code> ไม่มีแล้วใช้กฎ</td></tr>
+    <tr><td>ประกาศงาน</td><td><span class="tag built">Built</span> <span class="tag mock">Mock</span></td><td>จริง: Greenhouse/Lever/open data · จำลอง: 77 รายการ</td></tr>
+    <tr><td>ThaID / ข้อมูลรัฐรายบุคคล</td><td><span class="tag mock">Mock</span></td><td>ต้องมีข้อตกลงกับหน่วยงานก่อนต่อจริง</td></tr>
+    <tr><td>แจ้งเตือนเข้ามือถือ</td><td><span class="tag mock">Mock</span></td><td>notifier เก็บใน log</td></tr>
+    <tr><td>รายการเงินใหม่ 19 รายการ, life events, readiness</td><td><span class="tag plan">Planned</span></td><td>อยู่ใน mockup <code>docs/mockups/gov-services.html</code> (TF.16)</td></tr>
+    <tr><td>Production hosting, DB, auth</td><td><span class="tag out">Out of scope</span></td><td>กฎ Demo</td></tr>
+  </table>
+</section>
+
+<!-- 1 -->
+<section id="scope">
+  <h2><span class="n">1</span>เป้าหมายและขอบเขต</h2>
+  <div class="grid g2">
+    <div><h3>เป้าหมาย</h3><ul>
+      <li>บอกว่าเงินที่ผู้ใช้น่าจะมีสิทธิ์อยู่ที่ไหน ได้ประมาณเท่าไหร่ พร้อมเหตุผลและแหล่ง</li>
+      <li>ถามเฉพาะข้อที่ขาด แล้วคิดผลใหม่ทันที</li>
+      <li>สร้างแผนทีละขั้น ติดตามความคืบหน้า และผลที่ผู้ใช้แจ้ง</li>
+      <li>วางแผนรายได้ให้ถึงเป้ารายเดือนจากงานจริงและเวลาว่าง</li>
+      <li>ผู้ช่วย AI ที่อธิบายและพาทำ โดยไม่สัญญาเงิน</li></ul></div>
+    <div><h3>ไม่ทำ (Demo)</h3><ul>
+      <li>Login, การเข้ารหัส, rate limit ด้านความปลอดภัย, load test</li>
+      <li>ยืนยันตัวตนจริงและข้อมูลสิทธิ์รายบุคคลจากรัฐ (requirements ข้อ 9 Deferred; โหมดรัฐเป็น mock ซ่อนได้)</li>
+      <li>Publish store, production hosting</li>
+      <li>ข้อมูลคนจริง (repo เป็น public)</li></ul></div>
+  </div>
+  <p class="mut">อ้างอิง: <code>docs/product/requirements.md</code>, <code>aidlc/spaces/default/memory/project.md</code></p>
+</section>
+
+<!-- 2 -->
+<section id="context">
+  <h2><span class="n">2</span>System context</h2>
+  <table>
+    <tr><th>ผู้เกี่ยวข้อง / ระบบ</th><th>บทบาท</th><th>ช่องทาง</th><th>สถานะ</th></tr>
+    <tr><td>ผู้ใช้ (คนรายได้น้อย, ผู้สูงอายุ, ลูกจ้าง, ฟรีแลนซ์)</td><td>ตอบคำถาม ดูเงิน ทำแผน แจ้งผล</td><td>แอป Android</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>ทีม / Owner</td><td>แก้กฎเงิน ข้อมูลอ้างอิง เมนู</td><td><code>reference.json</code>, app-config, batch API (<code>X-Api-Key</code>)</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>ผู้ให้บริการ AI (Gemini)</td><td>คุย อธิบาย แปลงคำตอบอิสระ เลือก tool</td><td>HTTPS <code>/chat/completions</code></td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>แหล่งงาน (Greenhouse, Lever, open data)</td><td>ประกาศงานจริง</td><td>pull ทุก 6 ชม. เมื่อ <code>LIVE=1</code></td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>พาร์ทเนอร์ข้อมูล</td><td>ส่งประกาศเข้ามาเอง</td><td><code>POST /v1/integrations/opportunities/batch</code>, webhooks</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>ThaID / ทางรัฐ / GDX</td><td>ยืนยันตัวตน ข้อมูลสิทธิ์จริง</td><td>OAuth-style callback (ออกแบบไว้)</td><td><span class="tag mock">Mock</span></td></tr>
+    <tr><td>เว็บ/แอปรัฐ (SSO, DOE, RD, เป๋าตัง ฯลฯ)</td><td>ที่ผู้ใช้ไปยื่นจริง</td><td>ลิงก์จาก <code>channels</code> ของแต่ละรายการ</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>OpenStreetMap</td><td>แผนที่</td><td>tile โดยตรงจากแอป</td><td><span class="tag built">Built</span></td></tr>
+  </table>
+</section>
+
+<!-- 3 -->
+<section id="containers">
+  <h2><span class="n">3</span>Containers</h2>
+  <table>
+    <tr><th>Container</th><th>เทคโนโลยี</th><th>หน้าที่</th><th>ที่อยู่</th></tr>
+    <tr><td>Mobile app</td><td>Flutter 3.50.1 / Dart 3.14, Android (compile Java 17)</td><td>UI 4 แท็บ, เรียก API, เปิดลิงก์รัฐ, แผนที่ OSM</td><td><code>app/</code></td></tr>
+    <tr><td>API server</td><td>Node.js 24 (ไม่มี framework), HTTP :8080</td><td>contract ทั้งหมด, กฎ, AI orchestration, jobs</td><td><code>contracts/mock-server.js</code>, <code>contracts/adapters/</code></td></tr>
+    <tr><td>Data store</td><td>หน่วยความจำ + snapshot ไฟล์ JSON</td><td>สถานะต่ออุปกรณ์ (consent, facts, tasks, memory, conversations)</td><td><code>DATA_FILE</code> (git-ignored)</td></tr>
+    <tr><td>Reference data</td><td>JSON ใน repo</td><td>กฎเงิน, คำอธิบายคำถาม, แหล่ง, persona, เขต, ไอเดียทักษะ, policy ของ AI</td><td><code>contracts/fixtures/</code></td></tr>
+    <tr><td>AI call log</td><td>JSON lines</td><td>สถานะการเรียก AI + device id แบบ hash</td><td><code>AI_LOG_FILE</code></td></tr>
+    <tr><td>Clickable mockups</td><td>HTML + JS ไฟล์เดียว</td><td>ทดลอง UX ก่อนทำในแอป</td><td><code>docs/mockups/</code></td></tr>
+    <tr><td>API docs</td><td>สร้างจาก openapi.yaml</td><td>เอกสารให้ทีม</td><td><code>docs/backend/index.html</code> (ห้ามแก้มือ)</td></tr>
+  </table>
+</section>
+
+<!-- 4 -->
+<section id="components">
+  <h2><span class="n">4</span>Components ใน API server</h2>
+  <svg viewBox="0 0 1100 300" aria-label="ลำดับชั้นภายใน API">
+    <g font-size="13" text-anchor="middle">
+      <rect x="10" y="10" width="1080" height="44" rx="10" fill="#e8efff"/><text x="550" y="37">HTTP layer · routing · validate input · X-Request-Id · error shape · ETag (app-config) · Idempotency-Key (task events) · X-Api-Key (/v1/integrations)</text>
+      <rect x="10" y="64" width="1080" height="40" rx="10" fill="#fff4e0"/><text x="550" y="89">Consent gate · 403 CONSENT_REQUIRED · AI ไม่ได้รับยินยอม → aiStatus: skipped_no_consent</text>
+      <rect x="10" y="114" width="170" height="80" rx="10" fill="#d1fae5"/><text x="95" y="146">Profile &amp; facts</text><text x="95" y="166" font-size="11.5">me, facts, memory,</text><text x="95" y="182" font-size="11.5">settings, export</text>
+      <rect x="190" y="114" width="170" height="80" rx="10" fill="#d1fae5"/><text x="275" y="146">Money</text><text x="275" y="166" font-size="11.5">overview, preview,</text><text x="275" y="182" font-size="11.5">item, route</text>
+      <rect x="370" y="114" width="170" height="80" rx="10" fill="#d1fae5"/><text x="455" y="146">Opportunities</text><text x="455" y="166" font-size="11.5">search, dedupe,</text><text x="455" y="182" font-size="11.5">reports, link check</text>
+      <rect x="550" y="114" width="170" height="80" rx="10" fill="#d1fae5"/><text x="635" y="146">Plans</text><text x="635" y="166" font-size="11.5">options, ideas,</text><text x="635" y="182" font-size="11.5">goal (income)</text>
+      <rect x="730" y="114" width="170" height="80" rx="10" fill="#d1fae5"/><text x="815" y="146">Tasks</text><text x="815" y="166" font-size="11.5">create, events,</text><text x="815" y="182" font-size="11.5">reminders, outcome</text>
+      <rect x="910" y="114" width="180" height="80" rx="10" fill="#f1eafe"/><text x="1000" y="146">Assistant</text><text x="1000" y="166" font-size="11.5">intake, conversations,</text><text x="1000" y="182" font-size="11.5">actions, rankings</text>
+      <rect x="10" y="204" width="1080" height="40" rx="10" fill="#eef4f1"/><text x="550" y="229">Ports: money · ai · agent · guard · sources · geocoder · gov · jobs · notifier · store</text>
+      <rect x="10" y="254" width="1080" height="40" rx="10" fill="#fbfdfc" stroke="#dfe7e3"/><text x="550" y="279">Fixtures: reference.json · opportunities.json · opportunities-mock.json · assistant-policy.json · app-config.sample.json</text>
+    </g>
+  </svg>
+  <table>
+    <tr><th>Adapter</th><th>หน้าที่</th><th>สลับได้</th></tr>
+    <tr><td><code>money.js</code></td><td>engine "เงินอยู่ที่ไหน" deterministic ใช้ <code>moneyPrograms</code></td><td>แก้ข้อมูล ไม่แก้โค้ด</td></tr>
+    <tr><td><code>ai.js</code></td><td>port AI: rules (มีเสมอ) หรือ OpenAI-compatible; timeout, fallback, ห้ามตัวเลขเงิน</td><td><code>AI_BASE_URL/AI_API_KEY/AI_MODEL</code></td></tr>
+    <tr><td><code>agent.js</code></td><td>ผู้ช่วยที่เห็นเฉพาะผลจาก tool ของผู้ใช้คนนั้น; tool แบบ read ทำทันที, แบบ confirm เป็น pending action; <code>goalTarget</code>, <code>formatGoal</code></td><td>ตาม ai</td></tr>
+    <tr><td><code>guard.js</code></td><td>ตรวจทุกข้อความก่อนถึง LLM ตาม <code>assistant-policy.json</code> (injection, ข้อมูลอ่อนไหว, การรับประกัน, มิจฉาชีพ/เงินกู้, นอกเรื่อง)</td><td>แก้ policy ไฟล์เดียว</td></tr>
+    <tr><td><code>sources.js</code></td><td>ดึงประกาศจากแหล่ง → รูปแบบกลาง <code>OpportunityInput</code></td><td><code>LIVE</code>, <code>MOCK_CATALOGUE</code></td></tr>
+    <tr><td><code>geocoder.js</code></td><td>ข้อความ → จุดกลางเขตโดยประมาณ (ไม่ใช่หมุด)</td><td>ตาราง districts</td></tr>
+    <tr><td><code>gov.js</code></td><td>ThaID / ทางรัฐ หลัง flag <code>govConnected</code>; มีแค่ mock ต่อคน</td><td><code>GOV_CONNECTED</code></td></tr>
+    <tr><td><code>jobs.js</code></td><td>scheduler ในโปรเซส: ดึงแหล่ง (6 ชม.), ตรวจลิงก์ (วันละครั้ง), ส่งเตือน (ทุกนาที), ลบข้อมูลเก่า</td><td><code>SOURCE_REFRESH_HOURS</code>, <code>RETENTION_DAYS</code></td></tr>
+    <tr><td><code>notifier.js</code></td><td>เตือนที่ถึงกำหนด → sent log</td><td>FCM / แจ้งเตือนในเครื่อง (planned)</td></tr>
+    <tr><td><code>store.js</code></td><td>memory (test) หรือไฟล์ JSON snapshot หลังทุกการเปลี่ยน</td><td><code>DATA_FILE</code>; Postgres ภายหลัง</td></tr>
+  </table>
+</section>
+
+<!-- 5 -->
+<section id="client">
+  <h2><span class="n">5</span>แอป Flutter</h2>
+  <div class="grid g2">
+    <div><h3>โครงหน้าจอ</h3>
+      <table>
+        <tr><th>แท็บ</th><th>ไฟล์</th><th>เนื้อหา</th></tr>
+        <tr><td>หน้าแรก</td><td><code>home_tab.dart</code>, <code>thaid.dart</code>, <code>money_check.dart</code></td><td>ปุ่ม AI, เงินที่อาจได้, เช็คเงินด่วน, การ์ด ThaID</td></tr>
+        <tr><td>โอกาส</td><td><code>opp_tab.dart</code>, <code>opp_map.dart</code></td><td>งาน/อบรม, แผนที่ OSM</td></tr>
+        <tr><td>แผนของฉัน</td><td><code>plans_tab.dart</code>, <code>task_screen.dart</code>, <code>route_screen.dart</code>, <code>income_plan_screen.dart</code></td><td>แผนทีละขั้น, เส้นทางรับเงิน, แผนรายได้ตามเป้า</td></tr>
+        <tr><td>ฉัน</td><td><code>me_tab.dart</code>, <code>profile_screen.dart</code></td><td>โปรไฟล์/ทักษะ, ยินยอม, แหล่งข้อมูลที่เชื่อม, ที่อยู่ server</td></tr>
+      </table></div>
+    <div><h3>โครงภายใน</h3><ul>
+      <li><code>main.dart</code>: shell 4 แท็บ</li>
+      <li><code>api.dart</code>: client HTTP ตัวเดียว ส่ง <code>X-Device-Id</code> ทุกคำขอ ที่อยู่ server ตั้งได้ในแท็บ ฉัน</li>
+      <li><code>chat.dart</code>: ChatSession เก็บบทสนทนาข้ามหน้าจอ, ยืนยัน pending action</li>
+      <li><code>money.dart</code>: model + การ์ดผลเงิน, ป้าย basis</li>
+      <li><code>common.dart</code>: widget/ข้อความร่วม</li></ul>
+      <div class="note">ยังไม่ได้ทำ: เมนูและปุ่มเขียนตายตัว ยังไม่อ่าน <code>GET /v1/app-config</code> (open-items M9) · ยังไม่มี Dart client ที่ generate จาก openapi</div></div>
+  </div>
+  <h3>การเชื่อมต่อกับ server ตอน Demo</h3>
+  <p>USB: <code>adb reverse tcp:8080 tcp:8080</code> แล้วแอปเรียก <code>http://localhost:8080</code> · Wi-Fi (ยังไม่ได้ทดสอบ): ตั้งที่อยู่ในแท็บ ฉัน เป็น IP ของโน้ตบุ๊ก · สคริปต์ <code>tools/build-and-install.ps1</code>, <code>tools/reconnect.ps1</code></p>
+</section>
+
+<!-- 6 -->
+<section id="api">
+  <h2><span class="n">6</span>API design</h2>
+  <h3>ข้อตกลง</h3>
+  <div class="grid g2">
+    <ul>
+      <li>คำนามพหูพจน์; เปลี่ยนสถานะ task ผ่าน <code>POST /v1/tasks/{id}/events</code> ไม่ใช้ path แบบกริยา</li>
+      <li><code>X-Device-Id</code> แทน login · <code>X-Api-Key</code> สำหรับ <code>/v1/integrations</code></li>
+      <li><code>X-Request-Id</code> ทุก response · <code>Idempotency-Key</code> สำหรับ events · ETag บน app-config</li></ul>
+    <ul>
+      <li>error รูปเดียว <code>{code, message, status, retryable, requestId}</code></li>
+      <li>list เป็น <code>{items}</code> + cursor paging</li>
+      <li>เปลี่ยนแบบเพิ่มเท่านั้น; bump <code>info.version</code> + <code>package.json</code> + <code>CHANGELOG.md</code> พร้อมกัน</li></ul>
+  </div>
+  <h3>Operations ทั้งหมด (49) แยกตามโดเมน</h3>
+  <table>
+    <tr><th style="width:16%">โดเมน</th><th>Operations</th><th style="width:12%">Consent</th></tr>
+    <tr><td>System</td><td><code>GET /v1/health</code> (มี commit) · <code>GET /v1/app-config</code> · <code>GET /v1/taxonomies</code> · <code>GET /v1/privacy/notice</code></td><td>-</td></tr>
+    <tr><td>Consent / me</td><td><code>GET|POST /v1/me/consents</code> · <code>DELETE /v1/me</code> · <code>GET|PUT /v1/me/profile</code> · <code>GET|PATCH /v1/me/facts</code> · <code>GET|PATCH /v1/me/settings</code> · <code>GET|POST /v1/me/memory</code> · <code>DELETE /v1/me/memory/{id}</code> · <code>GET /v1/me/export</code></td><td>core</td></tr>
+    <tr><td>Gov link</td><td><code>GET|POST|DELETE /v1/me/gov-link</code> · <code>POST /v1/me/gov-link/callback</code></td><td>gov</td></tr>
+    <tr><td>Intake</td><td><code>POST /v1/intake/sessions</code> · <code>POST /v1/intake/sessions/{id}/messages</code></td><td>core (+ai)</td></tr>
+    <tr><td>Money</td><td><code>GET /v1/money</code> · <code>POST /v1/money/preview</code> (ไม่บันทึก ใช้ก่อนยินยอม) · <code>GET|PATCH /v1/money/{id}</code></td><td>core</td></tr>
+    <tr><td>Opportunities</td><td><code>GET /v1/opportunities</code> · <code>GET /v1/opportunities/{id}</code> · <code>POST /v1/opportunities/{id}/reports</code></td><td>core (+location)</td></tr>
+    <tr><td>AI</td><td><code>POST /v1/ai/rankings</code> · <code>POST /v1/ai/explanations</code> · <code>POST /v1/ai/conversations</code> · <code>POST .../{id}/messages</code> · <code>POST .../{id}/actions/{actionId}</code></td><td>ai</td></tr>
+    <tr><td>Plans</td><td><code>GET /v1/plans/options</code> · <code>GET /v1/plans/ideas</code> · <code>GET /v1/plans/goal</code></td><td>core</td></tr>
+    <tr><td>Tasks</td><td><code>GET|POST /v1/tasks</code> · <code>GET|DELETE /v1/tasks/{id}</code> · <code>GET|POST /v1/tasks/{id}/events</code></td><td>core (+reminders)</td></tr>
+    <tr><td>Sources / integrations</td><td><code>GET /v1/sources</code> · <code>POST /v1/sources/{provider}/refresh</code> · <code>POST /v1/integrations/opportunities/batch</code> · <code>POST /v1/integrations/webhooks/{provider}</code></td><td>X-Api-Key</td></tr>
+    <tr><td>Demo</td><td><code>POST /v1/demo/personas/{id}</code> (โหลด persona สมมติ)</td><td>-</td></tr>
+  </table>
+  <p class="mut">ตารางนี้สร้างจาก <code>openapi.yaml</code> วันที่ 26 พ.ย. 2569 ถ้าขัดกัน ให้ยึด openapi.yaml</p>
+</section>
+
+<!-- 7 -->
+<section id="data">
+  <h2><span class="n">7</span>Data model</h2>
+  <svg viewBox="0 0 1100 330" aria-label="แผนภาพข้อมูล">
+    <defs><marker id="m3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#5b6b65"/></marker></defs>
+    <g font-size="13" text-anchor="middle">
+      <rect x="440" y="10" width="220" height="56" rx="12" fill="#0e9f6e"/><text x="550" y="35" fill="#fff" font-weight="700">Device (X-Device-Id)</text><text x="550" y="54" fill="#d1fae5" font-size="11.5">ไม่มีบัญชีผู้ใช้</text>
+      <rect x="10" y="120" width="150" height="50" rx="10" fill="#fff" stroke="#dfe7e3"/><text x="85" y="150">Consent[] (history)</text>
+      <rect x="170" y="120" width="150" height="50" rx="10" fill="#fff" stroke="#dfe7e3"/><text x="245" y="150">Profile / Settings</text>
+      <rect x="330" y="120" width="130" height="50" rx="10" fill="#fff" stroke="#dfe7e3"/><text x="395" y="150">Facts</text>
+      <rect x="470" y="120" width="140" height="50" rx="10" fill="#fff" stroke="#dfe7e3"/><text x="540" y="150">MemoryItem[]</text>
+      <rect x="620" y="120" width="140" height="50" rx="10" fill="#fff" stroke="#dfe7e3"/><text x="690" y="150">Conversation[]</text>
+      <rect x="770" y="120" width="150" height="50" rx="10" fill="#fff" stroke="#dfe7e3"/><text x="845" y="150">Task[] → TaskEvent[]</text>
+      <rect x="930" y="120" width="160" height="50" rx="10" fill="#fff4e0"/><text x="1010" y="150">GovLink (mock)</text>
+      <rect x="250" y="250" width="200" height="60" rx="10" fill="#eef4f1"/><text x="350" y="276">MoneyOverview / MoneyItem</text><text x="350" y="295" font-size="11.5">คำนวณสด ไม่เก็บ</text>
+      <rect x="640" y="250" width="200" height="60" rx="10" fill="#eef4f1"/><text x="740" y="276">PendingAction</text><text x="740" y="295" font-size="11.5">รอผู้ใช้ยืนยัน</text>
+      <rect x="880" y="250" width="210" height="60" rx="10" fill="#fbfdfc" stroke="#dfe7e3"/><text x="985" y="276">Opportunity (shared)</text><text x="985" y="295" font-size="11.5">Provenance · Location</text>
+      <rect x="10" y="250" width="200" height="60" rx="10" fill="#fbfdfc" stroke="#dfe7e3"/><text x="110" y="276">Reference data</text><text x="110" y="295" font-size="11.5">moneyPrograms, facts, sources</text>
+    </g>
+    <g stroke="#5b6b65" stroke-width="1.6" fill="none" marker-end="url(#m3)"><path d="M480 66 L85 118"/><path d="M500 66 L245 118"/><path d="M530 66 L395 118"/><path d="M550 66 L540 118"/><path d="M570 66 L690 118"/><path d="M600 66 L845 118"/><path d="M630 66 L1010 118"/><path d="M395 172 L350 248"/><path d="M110 248 L330 312" stroke-dasharray="4 4"/><path d="M690 172 L740 248"/></g>
+  </svg>
+  <table>
+    <tr><th>Entity</th><th>เก็บที่</th><th>สำคัญ</th></tr>
+    <tr><td>Consent</td><td>store ต่อ device</td><td>purposes: core, location, ai, reminders, gov · เก็บประวัติ · ถอนได้รายข้อ</td></tr>
+    <tr><td>Facts</td><td>store</td><td>ageBand, work, ss33, taxWithheld, hasUnpaid, unpaidDays, dailyWage, wage, kidUnder6, lowIncome, disabilityCard, welfareCard, govPension, oldAgeGets …</td></tr>
+    <tr><td>MoneyItem</td><td>คำนวณจาก facts + reference</td><td>result, amount (<code>MoneyAmount</code>), <code>basis</code>, <code>dataStatus</code>, questions, channels, route, sources</td></tr>
+    <tr><td>Task / TaskEvent</td><td>store</td><td>ขั้นตอน, เตือน, outcome ที่ผู้ใช้แจ้ง (<code>reportedBy</code>), idempotent</td></tr>
+    <tr><td>MemoryItem</td><td>store</td><td>สิ่งที่ AI จำ (มองเห็นและลบได้)</td></tr>
+    <tr><td>Conversation / PendingAction</td><td>store</td><td>tool ที่เขียนข้อมูลต้องรอผู้ใช้ยืนยัน</td></tr>
+    <tr><td>Opportunity</td><td>หน่วยความจำ (จากแหล่ง)</td><td><code>Provenance</code> บอกแหล่งและ dataStatus, dedupe ข้ามแหล่ง</td></tr>
+    <tr><td>GovLink</td><td>store</td><td>สถานะเชื่อม ThaID mock ต่อคน</td></tr>
+  </table>
+  <p class="mut">Schemas ใน contract (60): Health, AppConfig, Error, AiStatus, PrivacyNotice, Purpose, Consent*, Facts, MemoryItem/List, GovLink, MoneyAmount, MoneyQuestion, MoneyItem, MoneyOverview, MoneyPreview, MoneyRoute, Channel, Money, Location, Provenance, Opportunity*, BatchResult, WebhookEvent, Suggestion, Ranking*, Explanation*, Conversation, ChecklistStep, IncomeGoalPart, IncomeGoalPlan, GuardResult, AgentTurn, PendingAction, ActionResult, PlanOption*, IdeaList, Task*, Outcome, Profile, Settings, MyData, IntakeTurn, Source*, DemoResult, Taxonomies</p>
+</section>
+
+<!-- 8 -->
+<section id="flows">
+  <h2><span class="n">8</span>Flows หลัก</h2>
+  <h3>8.1 เช็คเงิน (ก่อนและหลังยินยอม)</h3>
+  <svg viewBox="0 0 1100 250" aria-label="flow เช็คเงิน">
+    <defs><marker id="m4" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f1f1a"/></marker><marker id="m5" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0e9f6e"/></marker></defs>
+    <g font-size="13" font-weight="700" text-anchor="middle"><text x="90" y="20">แอป</text><text x="420" y="20">API</text><text x="760" y="20">money.js</text><text x="1010" y="20">reference.json</text></g>
+    <g stroke="#cbd8d2" stroke-dasharray="4 5"><path d="M90 28 V245"/><path d="M420 28 V245"/><path d="M760 28 V245"/><path d="M1010 28 V245"/></g>
+    <g font-size="12.5">
+      <path d="M90 55 H414" stroke="#0f1f1a" stroke-width="1.8" marker-end="url(#m4)"/><text x="100" y="49">POST /v1/money/preview (คำตอบด่วน ไม่บันทึก)</text>
+      <path d="M90 90 H414" stroke="#0f1f1a" stroke-width="1.8" marker-end="url(#m4)"/><text x="100" y="84">POST /v1/me/consents (core) → PATCH /v1/me/facts</text>
+      <path d="M90 125 H414" stroke="#0f1f1a" stroke-width="1.8" marker-end="url(#m4)"/><text x="100" y="119">GET /v1/money</text>
+      <path d="M420 150 H754" stroke="#0f1f1a" stroke-width="1.8" marker-end="url(#m4)"/><text x="430" y="144">evaluate(facts)</text>
+      <path d="M760 170 H1004" stroke="#0f1f1a" stroke-width="1.8" marker-end="url(#m4)"/><text x="770" y="164">moneyPrograms</text>
+      <path d="M760 205 H96" stroke="#0e9f6e" stroke-width="1.8" marker-end="url(#m5)"/><text x="100" y="225" fill="#047857">MoneyOverview: items[result, amount, basis, dataStatus, questions, channels, sources]</text>
+    </g>
+  </svg>
+  <h3>8.2 ผู้ช่วย AI + ยืนยันก่อนเขียน</h3>
+  <ol>
+    <li>แอป <code>POST /v1/ai/conversations/{id}/messages</code> (ต้องมี consent ai ไม่งั้นได้ <code>skipped_no_consent</code>)</li>
+    <li><code>guard.js</code> ตรวจก่อน: ถ้าเข้ากฎปฏิเสธ ตอบทันทีโดยไม่เรียก LLM (kind เช่น <code>explain</code>, <code>skip</code>, <code>ai_scope</code>)</li>
+    <li><code>agent.js</code> ให้ LLM เลือก tool; tool แบบ read (money, plans, goal) ทำทันที</li>
+    <li>tool แบบเขียน (create_task, snooze_task, complete_step, update_facts) กลายเป็น <code>PendingAction</code></li>
+    <li>คำตอบผ่าน <code>guardMoney</code>: ตัวเลขเงินที่ไม่อยู่ในผล tool ถูกลบ</li>
+    <li>ผู้ใช้กดยืนยัน → <code>POST .../actions/{actionId}</code> → ทำจริง; <code>remember</code> บันทึกเป็น MemoryItem ที่มองเห็นได้</li>
+  </ol>
+  <h3>8.3 แผนและการติดตาม</h3>
+  <p><code>POST /v1/tasks</code> → ขั้นตอนจากเส้นทางรับเงิน → <code>POST /v1/tasks/{id}/events</code> (complete_step, snooze, report_outcome; Idempotency-Key กันกดซ้ำ) → <code>jobs.js</code> ส่งเตือนทุกนาทีผ่าน notifier → แอปถามผลเมื่อผู้ใช้กลับจากลิงก์รัฐ → outcome <code>reportedBy: user</code></p>
+  <h3>8.4 แผนรายได้ตามเป้า</h3>
+  <p><code>GET /v1/plans/goal</code>: เป้ารายเดือน − เงินที่น่าจะได้ = ส่วนที่ขาด → <code>jobOptions</code> แปลงประกาศที่มีค่าจ้างเป็นช่วงรายเดือนตามเวลาว่าง → กรองตามทักษะที่ตรง (<code>requires</code> vs <code>matched</code>) และอายุ (<code>forOlder</code> ก่อน) → จำนวนตัวเลือกตามชั่วโมง (&lt;15 = 1, 15–39 = 2, ≥40 = 3)</p>
+  <h3>8.5 เชื่อม ThaID (mock)</h3>
+  <p>flag <code>govConnected</code> (env <code>GOV_CONNECTED=1</code>) → consent gov → <code>POST /v1/me/gov-link</code> → <code>POST /v1/me/gov-link/callback</code> → <code>gov.js</code> คืนข้อมูลจำลองต่อ persona (<code>requires</code>/<code>skipIf</code>) ติด DEMO / MOCK → ผลเงินแสดงที่มาเป็น mock ไม่ใช่ verified จริง</p>
+  <h3>8.6 ดึงแหล่งงาน</h3>
+  <p><code>jobs.js</code> ทุก <code>SOURCE_REFRESH_HOURS</code> (ค่าเริ่ม 6) เมื่อ <code>LIVE=1</code> → <code>sources.js</code> → normalize → dedupe (ชื่อ + องค์กร) → ตรวจลิงก์วันละครั้ง (404/410 ซ่อน) · พาร์ทเนอร์ push ผ่าน batch/webhook · รายงานจาก 3 เครื่อง → ซ่อนอัตโนมัติ</p>
+</section>
+
+<!-- 9 -->
+<section id="logic">
+  <h2><span class="n">9</span>Business logic</h2>
+  <div class="grid g2">
+    <div><h3>ผลของรายการเงิน</h3>
+      <table><tr><th>ผล</th><th>เมื่อไหร่</th><th>ยอด</th></tr>
+      <tr><td><span class="tag built">likely</span></td><td>ผ่านเกณฑ์ที่รู้ได้</td><td>แสดงได้ (มี basis)</td></tr>
+      <tr><td><span class="tag plan">check</span></td><td>ยอดขึ้นกับข้อมูลรัฐ / ผู้ใช้ตอบไม่แน่ใจ</td><td>ไม่แสดง</td></tr>
+      <tr><td><span class="tag mock">need</span></td><td>ขาดคำตอบที่เปลี่ยนผลได้</td><td>ไม่แสดง + คำถามถัดไป</td></tr>
+      <tr><td><span class="tag out">unlikely</span></td><td>ไม่ผ่านเกณฑ์</td><td>ไม่แสดง + เหตุผล</td></tr>
+      <tr><td><span class="tag risk">verified</span></td><td>เฉพาะ gov adapter จริง</td><td>-</td></tr></table></div>
+    <div><h3>Basis / dataStatus</h3>
+      <ul><li><code>published_rate</code>: อัตราที่ประกาศ</li><li><code>user_input</code>: คำนวณจากที่ผู้ใช้กรอก</li><li><code>mock</code>: จาก ThaID mock</li><li>ทุกรายการมี <code>sources[{url, checkedAt}]</code></li></ul>
+      <h3>รายการเงินใน API</h3>
+      <p><code>old_age</code>, <code>unemployment</code>, <code>child_support</code>, <code>disability</code>, <code>tax_refund</code>, <code>unpaid_wages</code> (+ 19 รายการ planned ใน <code>gov-services-inventory.md</code>)</p></div>
+  </div>
+  <h3>ลำดับถามคำถาม</h3>
+  <p>แต่ละรายการบอก <code>questions</code> ที่ยังขาด เรียงตามลำดับที่เปลี่ยนผลได้มากที่สุดก่อน แต่ละ fact มี <code>help</code> และ <code>short</code> สำหรับคำอธิบายและป้าย ตอบ "ไม่แน่ใจ" ได้ (ผลเป็น check) และตอบ 0 ได้</p>
+  <h3>Guard order (ผู้ช่วย)</h3>
+  <p>กฎปฏิเสธชนะทุกอย่าง (injection, ขอข้อมูลอ่อนไหว, ขอการรับประกัน, มิจฉาชีพ/เงินกู้, นอกเรื่อง) → คำถามตรงเกี่ยวกับเส้นทางรับเงินตอบจากข้อมูล (<code>DIRECT_RE</code>) → ที่เหลือส่ง LLM · policy ไฟล์เดียว <code>assistant-policy.json</code> ใช้ทั้ง server และ mock</p>
+</section>
+
+<!-- 10 -->
+<section id="ai">
+  <h2><span class="n">10</span>AI architecture</h2>
+  <table>
+    <tr><th>เรื่อง</th><th>การออกแบบ</th></tr>
+    <tr><td>Provider</td><td>OpenAI-compatible <code>/chat/completions</code> · ตอนนี้ Gemini (<code>AI_MODEL</code> ใน .env) · เปลี่ยนเจ้าด้วย 3 env</td></tr>
+    <tr><td>Fallback</td><td>ไม่มี key / timeout / error / เกิน <code>AI_DAILY_LIMIT</code> ต่อเครื่องต่อวัน → rules agent (ตอบได้เสมอ) · health บอก <code>ai: rules</code></td></tr>
+    <tr><td>สิ่งที่ AI เห็น</td><td>เฉพาะผลจาก tool ของผู้ใช้คนนั้น ไม่เห็นข้อมูลคนอื่น</td></tr>
+    <tr><td>Tools</td><td>read: ทำทันที · confirm: create_task, snooze_task, complete_step, update_facts → PendingAction · remember → MemoryItem · tool อื่นถูกปฏิเสธ</td></tr>
+    <tr><td>ตัวเลขเงิน</td><td><code>stripMoney</code> / <code>guardMoney</code> ลบจำนวนเงินที่ไม่อยู่ในผล tool · AI ไม่สร้างยอดเอง</td></tr>
+    <tr><td>Intake (แปลงคำตอบอิสระ)</td><td>ค่าที่ AI แปลงต้องอยู่ในตัวเลือกที่กำหนด ไม่งั้นใช้กฎ</td></tr>
+    <tr><td>Log</td><td><code>AI_LOG_FILE</code> เก็บสถานะ + device id แบบ hash ไม่เก็บข้อความ prompt</td></tr>
+    <tr><td>Privacy</td><td>ไม่มี consent ai → ไม่ส่งข้อมูลไป provider (<code>skipped_no_consent</code>) · ส่งได้แค่ persona สังเคราะห์ (free tier อาจใช้ข้อมูลปรับปรุงโมเดล)</td></tr>
+  </table>
+  <p class="mut">รายละเอียด: <code>docs/design/ai-agent.md</code></p>
+</section>
+
+<!-- 11 -->
+<section id="adapters">
+  <h2><span class="n">11</span>Adapters และระบบภายนอก</h2>
+  <table>
+    <tr><th>Port</th><th>ตอนนี้</th><th>Env / ไฟล์</th><th>เปลี่ยนเป็น</th><th>สถานะ</th></tr>
+    <tr><td>ai</td><td>Gemini หรือ rules</td><td><code>AI_BASE_URL</code>, <code>AI_API_KEY</code>, <code>AI_MODEL</code></td><td>Typhoon, OpenAI ฯลฯ</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>sources</td><td>Greenhouse, Lever, open data + mock 6 แหล่ง</td><td><code>LIVE</code>, <code>MOCK_CATALOGUE</code>, <code>SOURCE_REFRESH_HOURS</code></td><td>API กรมการจัดหางาน (ไม่มี API สาธารณะ), พาร์ทเนอร์ batch</td><td><span class="tag built">Built</span> <span class="tag mock">Mock</span></td></tr>
+    <tr><td>integrations</td><td>batch + webhook</td><td><code>INTEGRATION_KEY</code></td><td>-</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>gov</td><td>ThaID mock ต่อ persona</td><td><code>GOV_CONNECTED</code></td><td>ThaID / ทางรัฐ / GDX จริง</td><td><span class="tag mock">Mock</span></td></tr>
+    <tr><td>store</td><td>memory / JSON file</td><td><code>DATA_FILE</code></td><td>Postgres (JSONB ต่อ device)</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>notifier</td><td>sent log</td><td>-</td><td>FCM / local notification</td><td><span class="tag mock">Mock</span></td></tr>
+    <tr><td>geocoder</td><td>ตาราง 16 เขต</td><td><code>reference.json</code> → districts</td><td>geocoding service</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>offices (แผนที่จุดบริการ)</td><td>จุดจำลองใน mockup</td><td>-</td><td>OSM Overpass (ฟรี)</td><td><span class="tag plan">Planned</span></td></tr>
+    <tr><td>jobs</td><td>ในโปรเซส</td><td><code>RETENTION_DAYS</code></td><td>cron / queue</td><td><span class="tag built">Built</span></td></tr>
+  </table>
+</section>
+
+<!-- 12 -->
+<section id="gov">
+  <h2><span class="n">12</span>การเชื่อมภาครัฐ</h2>
+  <table>
+    <tr><th>ป้าย</th><th>ความหมาย</th><th>ตัวอย่าง</th></tr>
+    <tr><td><code>PUBLIC_LINK</code></td><td>พาผู้ใช้ไปเช็คเอง</td><td>ทางรัฐ, SSO, empui.doe.go.th, My Tax Account, แอปเงินเด็ก, LINE @OICConnect</td></tr>
+    <tr><td><code>OPEN_DATA</code></td><td>ดึงได้ไม่ต้องขอ</td><td>data.go.th occ_sch</td></tr>
+    <tr><td><code>CATALOG_ONLY</code></td><td>มีชื่อใน GDX ยังไม่มีสิทธิ์</td><td>GDX 30 API (CGD, DCY, M-SOCIETY, MOL ฯลฯ)</td></tr>
+    <tr><td><code>MOCK</code></td><td>ข้อมูลจำลอง</td><td>ThaID mock</td></tr>
+    <tr><td><code>USER_REPORTED</code></td><td>ผู้ใช้แจ้งเอง</td><td>ผลหลังกลับจากแอปรัฐ</td></tr>
+    <tr><td><code>LIVE_AUTHORIZED</code> / <code>EXTERNAL_VERIFIED</code></td><td>ต่อจริงและหน่วยงานยืนยัน</td><td>ยังไม่มี</td></tr>
+  </table>
+  <p>เส้นทางสู่ของจริง: ข้อตกลงกับหน่วยงาน + DPIA → เขียน adapter <code>gov</code> ใหม่ → endpoint และแอปเดิม ผลเงินเปลี่ยนเป็น <code>verified</code> ได้ · รายละเอียด: <code>docs/design/gov-services-inventory.md</code>, <code>docs/design/gov-integration-and-pdpa.md</code></p>
+</section>
+
+<!-- 13 -->
+<section id="deploy">
+  <h2><span class="n">13</span>Deployment และ config</h2>
+  <svg viewBox="0 0 1100 170" aria-label="การรันตอน Demo">
+    <g font-size="13" text-anchor="middle">
+      <rect x="20" y="30" width="300" height="110" rx="14" fill="#fff" stroke="#dfe7e3"/><text x="170" y="58" font-weight="700">โน้ตบุ๊ก Windows</text><text x="170" y="82">npm.cmd run mock → :8080</text><text x="170" y="104">.env (key ไม่ commit)</text><text x="170" y="124">DATA_FILE, AI_LOG_FILE</text>
+      <rect x="420" y="45" width="230" height="80" rx="14" fill="#e8efff"/><text x="535" y="78" font-weight="700" fill="#2563eb">USB + adb reverse</text><text x="535" y="102">หรือ Wi-Fi (ยังไม่ทดสอบ)</text>
+      <rect x="750" y="30" width="320" height="110" rx="14" fill="#111"/><text x="910" y="62" fill="#fff" font-weight="700">มือถือ Android (SM-S948B)</text><text x="910" y="88" fill="#d1fae5">APK debug · install -r --user 0</text><text x="910" y="112" fill="#d1fae5">http://localhost:8080</text>
+    </g>
+    <g stroke="#047857" stroke-width="3"><path d="M322 85 H416"/><path d="M652 85 H746"/></g>
+  </svg>
+  <table>
+    <tr><th>Env</th><th>ใช้ทำ</th></tr>
+    <tr><td><code>PORT</code></td><td>พอร์ต server (8080)</td></tr>
+    <tr><td><code>AI_BASE_URL</code>, <code>AI_API_KEY</code>, <code>AI_MODEL</code>, <code>AI_DAILY_LIMIT</code>, <code>AI_LOG_FILE</code></td><td>AI provider, โควตาต่อเครื่อง, log</td></tr>
+    <tr><td><code>LIVE</code>, <code>SOURCE_REFRESH_HOURS</code>, <code>MOCK_CATALOGUE</code></td><td>ดึงแหล่งจริง, รอบดึง, เปิด mock catalogue</td></tr>
+    <tr><td><code>GOV_CONNECTED</code></td><td>เปิดโหมด ThaID mock</td></tr>
+    <tr><td><code>DEMO_MODE</code></td><td>เปิด endpoint persona</td></tr>
+    <tr><td><code>INTEGRATION_KEY</code></td><td><code>X-Api-Key</code> ของ integrations</td></tr>
+    <tr><td><code>DATA_FILE</code>, <code>RETENTION_DAYS</code></td><td>ที่เก็บข้อมูล, ลบข้อมูลเก่า</td></tr>
+    <tr><td><code>GIT_COMMIT</code></td><td>แสดงใน <code>/v1/health</code> เป็นหลักฐานเวอร์ชัน</td></tr>
+  </table>
+  <p>เครื่องมือ: <code>tools/check-dev-env.ps1</code> (ตรวจเวอร์ชัน), <code>tools/build-and-install.ps1</code> (analyze → test → build → restart server → adb reverse → install → launch), <code>tools/reconnect.ps1</code>, <code>node tools/e2e-flows.js</code> · เวอร์ชันเครื่องมือ: <code>docs/guide/dev-setup.md</code></p>
+  <div class="note">ทางเลือก hosting (ADR-001): Render free หลับหลัง 15 นาทีและไม่มี disk ถาวร, tunnel ยังไม่ได้ทดลอง → แผนหลักคือโน้ตบุ๊ก + USB</div>
+</section>
+
+<!-- 14 -->
+<section id="nfr">
+  <h2><span class="n">14</span>Non-functional (ขอบเขต Demo)</h2>
+  <table>
+    <tr><th>คุณสมบัติ</th><th>ทำอย่างไร</th><th>สถานะ</th></tr>
+    <tr><td>ความถูกต้อง</td><td>กฎ deterministic + contract test ตรวจ schema ทุก response</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>ทนต่อความล้มเหลว</td><td>AI fallback เป็นกฎ, idempotent events, error มี <code>retryable</code>, แอปมี reconnect</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>สังเกตได้</td><td><code>X-Request-Id</code>, <code>/v1/health</code> (commit, ai mode, notifier mode), AI log</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>เปลี่ยนได้</td><td>ports & adapters, rules as data, app-config, contract แบบเพิ่ม</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>Cache config</td><td>ETag บน app-config</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>ค่าใช้จ่าย AI</td><td><code>AI_DAILY_LIMIT</code> ต่อเครื่อง, ไม่มี cache</td><td><span class="tag built">Built</span></td></tr>
+    <tr><td>Performance / scale</td><td>โปรเซสเดียว ข้อมูลในหน่วยความจำ</td><td><span class="tag out">Out of scope</span></td></tr>
+    <tr><td>Security (auth, encryption, rate limit)</td><td>ตั้งใจไม่ทำตามกฎ Demo; secrets อยู่ใน .env เท่านั้น</td><td><span class="tag out">Out of scope</span></td></tr>
+    <tr><td>Accessibility / ภาษา</td><td>ภาษาไทย, ข้อความสั้น, มีคำอธิบายทุกคำถาม</td><td><span class="tag built">Built</span> บางส่วน</td></tr>
+  </table>
+</section>
+
+<!-- 15 -->
+<section id="privacy">
+  <h2><span class="n">15</span>Privacy / PDPA</h2>
+  <ul>
+    <li>ยินยอมแยกตามวัตถุประสงค์ (core, location, ai, reminders, gov) ไม่บังคับรวม ถอนได้รายข้อ มีประวัติ</li>
+    <li>ใช้บางส่วนได้โดยไม่ยินยอม (<code>/v1/money/preview</code> ไม่บันทึก)</li>
+    <li>ดู/ส่งออก/ลบข้อมูล: <code>/v1/me/export</code>, <code>DELETE /v1/me</code>; memory ของ AI มองเห็นและลบได้</li>
+    <li>ไม่เก็บเลขบัตรประชาชน เลขบัญชี; ข้อมูลอ่อนไหว (สุขภาพ, การเสียชีวิต) ถามแบบใช่/ไม่ เท่านั้น (planned)</li>
+    <li>ประกาศความเป็นส่วนตัวมีเลขฉบับ (<code>1.0-draft</code>)</li>
+  </ul>
+  <div class="note">ยังไม่ผ่านผู้รู้กฎหมาย (TF.14): ข้อความ PDPA, การยินยอมแบบกดปุ่มเดียว, ThaID bypass · ระยะเวลาเก็บข้อมูลรอ Owner กำหนด</div>
+</section>
+
+<!-- 16 -->
+<section id="test">
+  <h2><span class="n">16</span>Testing</h2>
+  <table>
+    <tr><th>ชั้น</th><th>เครื่องมือ</th><th>ครอบคลุม</th><th>ผลล่าสุด</th></tr>
+    <tr><td>Contract</td><td><code>contracts/test-contract.js</code> (<code>npm.cmd test</code>)</td><td>ทุก operation, schema/status/header ทุก call, fallback AI, guard, money rules, consent</td><td>139/139, 49/49 ops (26 พ.ย.)</td></tr>
+    <tr><td>Docs</td><td><code>npm.cmd run check</code></td><td>test + สร้าง API docs ใหม่</td><td>-</td></tr>
+    <tr><td>Flow บน PC</td><td><code>node tools/e2e-flows.js</code></td><td>profile → เงิน → AI → แผน → ความคืบหน้า + เคสลบ</td><td>28/28 (รอบก่อน)</td></tr>
+    <tr><td>Flutter</td><td><code>flutter test</code> + analyze</td><td>widget/model</td><td>14/14 (รอบก่อน)</td></tr>
+    <tr><td>Mockup หลัก</td><td><code>docs/mockups/smoke-test.js</code> (jsdom)</td><td>ทุกหน้าใน clickable mock</td><td>ผ่าน (รอบก่อน)</td></tr>
+    <tr><td>Mockup บริการรัฐ</td><td><code>docs/mockups/gov-services-smoke.js</code></td><td>persona 6 คน + flow G1-G10</td><td>37/37 (26 พ.ย.)</td></tr>
+  </table>
+  <p class="mut">กติกา: เทสต์ใช้ memory store เสมอ ห้ามชี้ <code>DATA_FILE</code> / <code>AI_LOG_FILE</code> ไปที่ข้อมูลจริง · ไม่ทำ load/security test (กฎ Demo)</p>
+</section>
+
+<!-- 17 -->
+<section id="repo">
+  <h2><span class="n">17</span>Repo map</h2>
+  <table>
+    <tr><th>Path</th><th>เนื้อหา</th></tr>
+    <tr><td><code>app/</code></td><td>แอป Flutter (<code>app/lib/</code> 16 ไฟล์)</td></tr>
+    <tr><td><code>contracts/openapi.yaml</code>, <code>CHANGELOG.md</code></td><td>สัญญา API</td></tr>
+    <tr><td><code>contracts/mock-server.js</code>, <code>contracts/adapters/</code></td><td>API server + 10 adapters</td></tr>
+    <tr><td><code>contracts/fixtures/</code></td><td>reference.json, opportunities*.json, assistant-policy.json, ตัวสร้าง mock</td></tr>
+    <tr><td><code>contracts/app-config.sample.json</code>, <code>app-config.schema.json</code></td><td>เมนู/action จากหลังบ้าน (schemaVersion, configVersion, minAppVersion, featureFlags, tabs, routes, actions, filters)</td></tr>
+    <tr><td><code>docs/design/</code></td><td>ADR, backend gaps, ai-agent, ui-states, gov-services-inventory, spec นี้</td></tr>
+    <tr><td><code>docs/mockups/</code>, <code>docs/presentation/</code>, <code>docs/handoff/</code></td><td>mockup, สไลด์, handoff ให้ BA</td></tr>
+    <tr><td><code>docs/plan/</code></td><td>work-breakdown, delivery-plan, open-items</td></tr>
+    <tr><td><code>tools/</code></td><td>สคริปต์ build/install/reconnect/e2e/check env</td></tr>
+  </table>
+</section>
+
+<!-- 18 -->
+<section id="decisions">
+  <h2><span class="n">18</span>Decisions</h2>
+  <table>
+    <tr><th>การตัดสินใจ</th><th>เหตุผล</th><th>ทางเลือกที่ไม่เลือก</th></tr>
+    <tr><td>Flutter แอปเดียว, 4 แท็บ, โหมด ThaID ซ่อนหลัง <code>govConnected</code></td><td>Owner ตัดสินแล้ว</td><td>สองแอป, React Native</td></tr>
+    <tr><td>Node.js ต่อยอดจาก mock server</td><td>ผ่าน contract test ครบแล้ว เขียนใหม่ไม่เพิ่ม output</td><td>เขียนใหม่ด้วย framework อื่น</td></tr>
+    <tr><td>store แบบไฟล์ JSON ผ่าน port</td><td>ง่าย ไม่มีค่าใช้จ่าย เปลี่ยนเป็น Postgres ได้ด้วย adapter เดียว</td><td>Firebase/Supabase เป็นหลังบ้านตรงจากแอป (แอปต้องรู้กฎเอง)</td></tr>
+    <tr><td>AI แบบ OpenAI-compatible</td><td>เปลี่ยนเจ้าด้วย env</td><td>SDK ของเจ้าเดียว</td></tr>
+    <tr><td>เมนู/action จากหลังบ้าน (app-config)</td><td>เปลี่ยนโดยไม่ออกแอปใหม่</td><td>เขียนตายตัว (ตอนนี้ยังเป็นแบบนี้ในแอป)</td></tr>
+    <tr><td>รันบนโน้ตบุ๊ก + USB</td><td>ไม่หลับ ข้อมูลอยู่เครื่องเดียว</td><td>Render free, tunnel</td></tr>
+    <tr><td>ThaID bypass + ป้าย DEMO / MOCK</td><td>Owner สั่งให้ต่อได้ที่หน้าแรก</td><td>ซ่อน ThaID ตาม handoff (ขัดกัน บันทึกที่ M14)</td></tr>
+  </table>
+  <p class="mut">ฉบับเต็ม: <code>docs/design/adr-001-stack.md</code>, <code>aidlc/spaces/default/memory/project.md</code></p>
+</section>
+
+<!-- 19 -->
+<section id="gaps">
+  <h2><span class="n">19</span>Gaps, risks, roadmap</h2>
+  <table>
+    <tr><th>#</th><th>เรื่อง</th><th>ผลกระทบ</th><th>แผน</th><th>ระดับ</th></tr>
+    <tr><td>G1</td><td>แอปยังไม่อ่าน app-config</td><td>backend-driven UI ยังไม่จริง</td><td>อ่าน config + ETag (M9)</td><td><span class="tag risk">สูง</span></td></tr>
+    <tr><td>G2</td><td>19 รายการเงินใหม่, life events, readiness อยู่แค่ mockup</td><td>ครอบคลุมสิทธิ์น้อยใน API</td><td>TF.16 + <code>/v1/life-events</code>, <code>/v1/readiness</code>, <code>/v1/channels</code></td><td><span class="tag risk">สูง</span></td></tr>
+    <tr><td>G3</td><td>อัตราหลายตัวจากข่าว ยังไม่ตรวจกับเว็บหน่วยงาน</td><td>ตัวเลขอาจผิด</td><td>open-items D8, D13-D19</td><td><span class="tag risk">สูง</span></td></tr>
+    <tr><td>G4</td><td>ไม่มีข้อมูลรัฐจริง</td><td>ไม่มีผล verified</td><td>ข้อตกลง + DPIA → adapter gov</td><td><span class="tag mock">กลาง</span></td></tr>
+    <tr><td>G5</td><td>แจ้งเตือนไม่เข้ามือถือ</td><td>ติดตามผลอ่อน</td><td>local notification / FCM</td><td><span class="tag mock">กลาง</span></td></tr>
+    <tr><td>G6</td><td>จุดบริการบนแผนที่จำลอง</td><td>นำทางไปสำนักงานไม่ได้จริง</td><td>OSM Overpass adapter</td><td><span class="tag mock">กลาง</span></td></tr>
+    <tr><td>G7</td><td>Wi-Fi / tunnel ยังไม่ทดสอบ; Auto Blocker บนมือถือตัด USB ทุก ~30 นาที</td><td>Demo สะดุด</td><td><code>tools/reconnect.ps1</code>, ทดสอบ Wi-Fi</td><td><span class="tag mock">กลาง</span></td></tr>
+    <tr><td>G8</td><td>ไม่มี Dart client ที่ generate จาก openapi</td><td>แอปกับ contract อาจเพี้ยน</td><td>generate หรือเพิ่มเทสต์ model</td><td><span class="tag out">ต่ำ</span></td></tr>
+    <tr><td>G9</td><td>Store เป็นไฟล์ โปรเซสเดียว</td><td>ใช้หลายเครื่องพร้อมกันไม่ได้</td><td>Postgres หลัง Demo</td><td><span class="tag out">ต่ำ</span></td></tr>
+    <tr><td>G10</td><td>PDPA ยังไม่ผ่านผู้รู้กฎหมาย</td><td>ความเสี่ยงข้อความยินยอม</td><td>TF.14</td><td><span class="tag mock">กลาง</span></td></tr>
+  </table>
+</section>
+
+<!-- 20 -->
+<section id="glossary">
+  <h2><span class="n">20</span>Glossary และ open questions</h2>
+  <div class="grid g2">
+    <div><h3>Glossary</h3><ul>
+      <li><b>Contract</b>: <code>openapi.yaml</code> + app-config ที่แอปพึ่ง</li>
+      <li><b>Port / adapter</b>: interface ภายใน / ตัวทำงานจริงที่สลับได้</li>
+      <li><b>Facts</b>: คำตอบของผู้ใช้ที่ใช้คำนวณ</li>
+      <li><b>basis / dataStatus</b>: ที่มาของตัวเลข / สถานะของแหล่ง</li>
+      <li><b>PendingAction</b>: สิ่งที่ AI เสนอ รอผู้ใช้ยืนยัน</li>
+      <li><b>Persona</b>: ผู้ใช้สมมติสำหรับ Demo</li></ul></div>
+    <div><h3>Open questions</h3><ul>
+      <li>ThaID ตอนพรีเซนต์: คง bypass + ป้าย หรือปิด <code>GOV_CONNECTED</code></li>
+      <li>ระยะเวลาเก็บข้อมูล (<code>RETENTION_DAYS</code>) และผู้ติดต่อเรื่องข้อมูลส่วนบุคคล</li>
+      <li>จะย้ายไป hosting จริงไหมหลัง Demo (Postgres + host)</li>
+      <li>รายการเงินชุดไหนเข้า API ก่อน (แนะนำ: สงเคราะห์บุตร, ค่าคลอด, ค่าชดเชย, กอช.)</li></ul></div>
+  </div>
+  <p class="mut">Draft 1 เขียนจาก repo ณ 26 พ.ย. 2569 · แก้ครั้งต่อไป: อัปเดตส่วนที่เปลี่ยน และเลขเวอร์ชันบนหัวหน้า</p>
+</section>
+
+</main>
+</div>
+<script>
+  const links = [...document.querySelectorAll('#toc a')];
+  if ('IntersectionObserver' in window) {
+  const obs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id)); }), { rootMargin:'-40% 0px -55% 0px' });
+  document.querySelectorAll('main section').forEach(s => obs.observe(s));
+  }
+</script>
+</body>
+</html>

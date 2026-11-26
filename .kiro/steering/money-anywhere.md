@@ -34,6 +34,7 @@ Owner speaks Thai: reply in Thai. Code, identifiers, commit messages and API fie
 | Screens, menus, actions (backend-driven UI) | `contracts/app-config.sample.json`, `contracts/app-config.schema.json` |
 | Money rules, facts, sources | `contracts/fixtures/reference.json` → `moneyPrograms`, `facts` |
 | Demo server | `contracts/mock-server.js`, adapters in `contracts/adapters/` |
+| Architecture spec (draft, overview + 20 detail sections; update when contract/adapters change) | `docs/design/architecture-spec.html` (test: `node docs/design/architecture-spec-smoke.js`) |
 | API pitch slides (logic + integration, strengths, gaps) | `docs/presentation/api-pitch.html` (test: `node docs/presentation/smoke-test.js`) |
 | BA handoff: what gov/backend data we can provide (keep in sync with the inventory) | `docs/handoff/ba-gov-data-handoff.md` |
 | Gov money services, apps to connect, map data (update its change log on every edit) | `docs/design/gov-services-inventory.md`, mockup `docs/mockups/gov-services.html` (test: `node docs/mockups/gov-services-smoke.js`) |
