@@ -73,7 +73,10 @@ cd contracts; npm.cmd run check   # ต้องได้ RESULT: PASS
 | `money_check.dart` | `QuickCheckScreen` ถามทีละข้อผ่าน `POST /v1/money/preview`; `RouteScreen` เส้นทางรับเงิน + บันทึกแผน `POST /v1/tasks` | รับ `knownFacts` แล้ว **ไม่ถามซ้ำ** ข้อที่ตอบแล้ว; ถ้ายินยอมแล้วบันทึกทุกคำตอบทันที และไม่ถามยินยอมซ้ำ |
 | `chat.dart` | `ChatSession` (เก็บข้อความ, conversationId) + `ChatScreen` คุยแบบ guided | `ChatSession` ต้องอยู่นอกหน้าจอ (ถือโดยหน้าแรก) ไม่งั้นกด back แล้วแชทหาย; ถ้า server ตอบ 404 ให้เริ่มคุยใหม่เอง |
 | `main.dart` | หน้าแรกแบบ "เงินก่อน" | ก่อนตอบ: ปุ่ม AI ใหญ่ + เช็คเงินเอง; หลังตอบ: สรุปเงิน + แผนของฉัน ขึ้นก่อน, ปุ่ม AI เป็น "คุยกับ AI ต่อ", การ์ดเช็คเงินเองเหลือเฉพาะ "ตอบเพิ่มอีก N เรื่อง" และหายไปเมื่อไม่มีข้อค้าง; โหลดข้อมูลใหม่ทุกครั้งที่กลับมาหน้าแรก |
-| `test/widget_test.dart` | unit test ของ `money.dart` | อย่างน้อย: แปลงคำตอบ, เรียงเงิน, ข้ามข้อที่ข้าม, ป้าย mock |
+| `common.dart` | `AppState` (api, แชท, `bump()` ให้ทุกแท็บโหลดใหม่, สลับแท็บ), แผ่นความยินยอม, ประกาศ, เปิดลิงก์ภายนอก + ถาม "ยื่นแล้วหรือยัง" ตอนกลับเข้าแอป, การ์ด "ต่อ server ไม่ได้" | ตรงตาม `docs/design/ui-states.md` §4 §6 |
+| `home_tab.dart`, `opp_tab.dart`, `plans_tab.dart`, `me_tab.dart` | 4 แท็บ | หน้าแรกเปลี่ยนตามสถานะใน ui-states.md §3 |
+| `route_screen.dart`, `task_screen.dart` | เส้นทางรับเงิน, รายละเอียดแผน (ทำขั้นเสร็จ/เลิกทำ/ติดปัญหา/ไว้ทีหลัง/แจ้งผล) | สถานะแผนเปลี่ยนผ่าน `POST /v1/tasks/{id}/events` เท่านั้น |
+| `test/widget_test.dart` | unit test | แปลงคำตอบ, เรียงเงิน, ข้ามข้อ, ป้าย mock, กฎขั้นต่อไป, ข้อความเงินของโอกาส |
 
 API ที่แอปใช้ (ทั้งหมดมีใน `openapi.yaml`): `GET /v1/privacy/notice`, `POST /v1/me/consents`, `GET /v1/me/consents`, `GET|PATCH /v1/me/facts`, `POST /v1/money/preview`, `GET /v1/money`, `GET /v1/money/{id}`, `GET|POST /v1/tasks`, `POST /v1/ai/conversations`, `POST /v1/ai/conversations/{id}/messages`, `POST /v1/ai/conversations/{id}/actions/{actionId}`
 

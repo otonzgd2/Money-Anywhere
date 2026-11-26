@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:money_anywhere/home_tab.dart';
 import 'package:money_anywhere/money.dart';
+import 'package:money_anywhere/opp_tab.dart';
 
 void main() {
   group('toFactValue', () {
@@ -41,4 +43,28 @@ void main() {
   });
 
   test('mock data is always labelled', () => expect(dataLabel('mock'), 'DEMO / MOCK'));
+
+  group('home next step (ui-states.md §3)', () {
+    test('active before snoozed before blocked, finished never', () {
+      final t = [
+        {'id': 'f', 'status': 'finished'},
+        {'id': 'b', 'status': 'blocked'},
+        {'id': 's', 'status': 'snoozed'},
+        {'id': 'a', 'status': 'active'},
+      ];
+      expect(nextTask(t)?['id'], 'a');
+      expect(nextTask(t.where((x) => x['id'] != 'a').toList())?['id'], 's');
+      expect(nextTask([t[0], t[1]])?['id'], 'b');
+      expect(nextTask([t[0]]), isNull);
+    });
+  });
+
+  group('opportunity money text', () {
+    test('listing range keeps the unit and says where it came from', () {
+      expect(oppMoney({'money': {'basis': 'listing', 'min': 400, 'max': 500, 'unit': 'บาท/วัน'}}), '400-500 บาท/วัน (ตามประกาศ)');
+    });
+    test('unknown money is never invented', () {
+      expect(oppMoney({'money': {'basis': 'none'}}), 'ไม่ทราบจำนวนเงิน');
+    });
+  });
 }

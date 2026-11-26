@@ -1,13 +1,16 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'common.dart';
 import 'money.dart';
+import 'route_screen.dart';
 
 /// Quick money check: one question at a time via POST /v1/money/preview (nothing stored, no consent yet).
 /// Stops as soon as there is a sourced amount to show; the rest can be asked afterwards.
 class QuickCheckScreen extends StatefulWidget {
-  const QuickCheckScreen({super.key, required this.api, this.knownFacts = const {}, this.consented = false});
-  final Api api;
+  const QuickCheckScreen({super.key, required this.app, this.knownFacts = const {}, this.consented = false});
+  final AppState app;
+  Api get api => app.api;
 
   /// Answers the person already gave (chat or an earlier check). Never asked again.
   final Map<String, Object?> knownFacts;
@@ -58,7 +61,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
     facts[q['fact'] as String] = v;
     numberInput.clear();
     if (widget.consented) {
-      widget.api.patch('/v1/me/facts', {q['fact'] as String: v}).catchError((_) => <String, dynamic>{});
+      widget.api.patch('/v1/me/facts', {q['fact'] as String: v}).then((_) => widget.app.bump()).catchError((_) {});
     }
     _refresh();
   }
@@ -158,7 +161,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
   }
 
   void _openRoute(Map<String, dynamic> item) =>
-      Navigator.push(context, MaterialPageRoute(builder: (_) => RouteScreen(api: widget.api, moneyId: item['id'] as String, facts: facts, consented: widget.consented)));
+      Navigator.push(context, MaterialPageRoute(builder: (_) => RouteScreen(app: widget.app, moneyId: item['id'] as String, facts: facts)));
 }
 
 class _MoneyCard extends StatelessWidget {
@@ -200,101 +203,4 @@ class _MoneyCard extends StatelessWidget {
   }
 }
 
-/// Claim route. Needs saved answers, so it asks for consent first (core only, no AI).
-class RouteScreen extends StatefulWidget {
-  const RouteScreen({super.key, required this.api, required this.moneyId, required this.facts, this.consented = false});
-  final Api api;
-  final String moneyId;
-  final Map<String, Object?> facts;
-  final bool consented;
-
-  @override
-  State<RouteScreen> createState() => _RouteScreenState();
-}
-
-class _RouteScreenState extends State<RouteScreen> {
-  Map<String, dynamic>? route;
-  String? error;
-  bool consented = false, saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.consented) _consentAndLoad();
-  }
-
-  Future<void> _consentAndLoad() async {
-    try {
-      if (!widget.consented) await widget.api.consent(ai: false);
-      await widget.api.patch('/v1/me/facts', Map<String, Object?>.fromEntries(widget.facts.entries.where((e) => e.value != null)));
-      final r = await widget.api.get('/v1/money/${widget.moneyId}');
-      setState(() { route = r; consented = true; error = null; });
-    } on ApiException catch (e) {
-      setState(() => error = e.message);
-    }
-  }
-
-  Future<void> _savePlan() async {
-    setState(() => saving = true);
-    try {
-      await widget.api.post('/v1/tasks', {'moneyId': widget.moneyId});
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('บันทึกเป็นแผนทีละขั้นแล้ว')));
-    } on ApiException catch (e) {
-      setState(() => error = e.message);
-    } finally {
-      if (mounted) setState(() => saving = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    return Scaffold(
-      appBar: AppBar(title: const Text('เส้นทางรับเงิน')),
-      body: SafeArea(
-        child: !consented
-            ? ListView(padding: const EdgeInsets.all(20), children: [
-                Text('ก่อนดูเส้นทางและบันทึกแผน', style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text('ต้องบันทึกคำตอบของคุณไว้ เพื่อคิดเอกสารและขั้นตอนให้ ไม่เก็บชื่อ เลขบัตร หรือเลขบัญชี ลบได้ทุกเมื่อ'),
-                if (error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(error!, style: const TextStyle(color: Colors.red))),
-                const SizedBox(height: 16),
-                FilledButton(onPressed: _consentAndLoad, style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                    child: const Text('ฉันอายุ 20 ปีขึ้นไป ยินยอมและไปต่อ')),
-              ])
-            : _routeView(t),
-      ),
-    );
-  }
-
-  Widget _routeView(TextTheme t) {
-    final r = route!;
-    final amount = r['amount'] as Map<String, dynamic>;
-    final docs = (r['documents'] as List).cast<Map<String, dynamic>>();
-    final channels = (r['channels'] as List).cast<Map<String, dynamic>>();
-    final sources = (r['sources'] as List? ?? const []).cast<Map<String, dynamic>>();
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Text('${r['icon'] ?? ''} ${r['title']}', style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-      Wrap(spacing: 6, children: [Chip(label: Text(statusLabel[r['status']] ?? '')), Chip(label: Text(dataLabel(r['dataStatus'] as String?)))]),
-      Text(amount['value'] is num ? '${baht(amount['value'] as num)} ${amount['unit'] ?? ''}' : 'ยังไม่ทราบยอด', style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-      Text('จ่ายโดย ${r['payer']}', style: t.bodySmall),
-      const Divider(height: 28),
-      Text('📄 เอาอะไรไป', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-      for (final d in docs) Text('• ${d['text']}'),
-      const SizedBox(height: 12),
-      Text('📍 ไปยื่นที่ไหน', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-      for (final c in channels) ListTile(contentPadding: EdgeInsets.zero, leading: Text('${c['icon'] ?? ''}', style: const TextStyle(fontSize: 22)), title: Text('${c['title']}'), subtitle: Text('${c['detail']}${c['url'] != null ? '\n${c['url']}' : ''}')),
-      Text('⏱️ หลังยื่น: ${r['after']}'),
-      Text('↩️ ถ้าไม่ผ่าน: ${r['ifNo']}'),
-      const SizedBox(height: 12),
-      FilledButton(onPressed: saving ? null : _savePlan, style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), child: const Text('เริ่มเลย: บันทึกเป็นแผนทีละขั้น')),
-      if (error != null) Text(error!, style: const TextStyle(color: Colors.red)),
-      const Divider(height: 28),
-      Text('📚 แหล่งข้อมูล', style: t.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-      for (final s in sources) Text('• ${s['title']} (ตรวจ ${s['checkedAt']})', style: t.bodySmall),
-      const SizedBox(height: 8),
-      Text('${r['sourceNote']}', style: t.bodySmall),
-    ]);
-  }
-}
+// RouteScreen lives in route_screen.dart.

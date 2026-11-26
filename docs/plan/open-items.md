@@ -35,6 +35,8 @@
 | M6 | ข้อความประกาศความเป็นส่วนตัว | `reference.json` → `privacyNotice` (version 1.0-draft) | ฉบับร่าง | ผู้รู้กฎหมายตรวจ |
 | M8 | ยินยอมแบบกดปุ่มเดียว (ปุ่ม "ให้ AI หาเงินให้ฉัน") | `docs/mockups/index.html` → `aiOneClick` | ข้อความบนปุ่มบอกอายุ 20+ และยินยอมข้อ core + ai | ผู้รู้กฎหมายตรวจว่าใช้เป็นความยินยอมตาม PDPA ได้ |
 | M7 | ผู้ให้บริการ AI | ใช้กฎแทน AI เมื่อไม่มี key | health บอก `ai: rules` | Owner สมัคร key Gemini (ฟรี) ใส่ `.env` |
+| M9 | เมนูและปุ่มในแอป Flutter เขียนตายตัว ยังไม่อ่าน `GET /v1/app-config` | `app/lib/*_tab.dart` ตาม `docs/design/ui-states.md` | ไม่มี (ผู้ใช้ไม่เห็นความต่าง) | TF.13: แก้ `app-config.sample.json` ให้ตรง ui-states.md §8 แล้วให้แอปอ่าน config |
+| M10 | หน้าที่มีใน mock แต่ยังไม่มีในแอป: แผนที่, แผนรายได้ (planner), 3 lane "สิ่งแรกที่ควรทำ", แก้ไขโปรไฟล์เอง, ร่างข้อความรับออเดอร์ | `docs/mockups/index.html` | ไม่มี | ทำหลัง Demo flow หลักผ่าน (ui-states.md §2) |
 
 ## 3. ต่อของจริงได้ฟรีแล้ว ไม่ต้อง mock
 
