@@ -113,6 +113,7 @@ copy .env.example .env      # แล้วใส่ AI_API_KEY (ขอจาก 
 | เทสต์ API + สร้างเอกสาร API | `cd contracts; npm.cmd run check` (ต้องผ่านทุกข้อ ตอนนี้ 139/139) |
 | เทสต์ mock HTML | `cd contracts; $env:JSDOM_PATH="$env:TEMP\jsd"; node ..\docs\mockups\smoke-test.js` |
 | เทสต์แอป | `cd app; flutter analyze; flutter test` (ตอนนี้ 14/14) |
+| มือถือต่อ server ไม่ได้ (ถูกบล็อก / ถอดสาย) ไม่ต้อง build ใหม่ | ปิดตัวบล็อกอัตโนมัติ เสียบสาย แล้ว `powershell -NoProfile -ExecutionPolicy Bypass -File tools\reconnect.ps1` (เปิด server ถ้าดับ, `adb reverse`, เปิดแอปใหม่) |
 | build + รีสตาร์ต server + ติดตั้งลงมือถือ | `powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-and-install.ps1` แล้วดู `contracts\.data\build-app.log` |
 | ทดสอบ flow ทั้งหมดบนคอม (ไม่ต้องใช้มือถือ) | server เปิดอยู่ แล้ว `node tools\e2e-flows.js` ดูผลที่ `contracts\.data\e2e-out.txt` (ตอนนี้ 28/28) |
 
