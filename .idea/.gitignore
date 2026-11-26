@@ -1,3 +1,5 @@
 # Default ignored files
 /shelf/
 /workspace.xml
+# Machine-local caches (Android Studio rewrites them; they cause diffs between teammates)
+/caches/
