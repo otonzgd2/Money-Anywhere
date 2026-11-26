@@ -34,7 +34,7 @@ Owner speaks Thai: reply in Thai. Code, identifiers, commit messages and API fie
 | Screens, menus, actions (backend-driven UI) | `contracts/app-config.sample.json`, `contracts/app-config.schema.json` |
 | Money rules, facts, sources | `contracts/fixtures/reference.json` → `moneyPrograms`, `facts` |
 | Demo server | `contracts/mock-server.js`, adapters in `contracts/adapters/` |
-| Gov money services, apps to connect, map data (update its change log on every edit) | `docs/design/gov-services-inventory.md` |
+| Gov money services, apps to connect, map data (update its change log on every edit) | `docs/design/gov-services-inventory.md`, mockup `docs/mockups/gov-services.html` (test: `node docs/mockups/gov-services-smoke.js`) |
 | Clickable mock | `docs/mockups/index.html` (+ `smoke-test.js`) |
 | Generated API docs (do not edit) | `docs/backend/index.html` |
 | Locked decisions | `aidlc/spaces/default/memory/project.md` (Tech Stack, Decided) |

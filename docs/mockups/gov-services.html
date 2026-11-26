@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Anywhere - บริการรัฐเรื่องเงิน (DEMO / MOCK)</title>
+<!-- Spec: docs/design/gov-services-inventory.md (screens G1-G10). Test: node docs/mockups/gov-services-smoke.js -->
+<style>
+  :root { --p:#0e9f6e; --pd:#047857; --pl:#d1fae5; --ink:#0f1f1a; --mut:#6b7c75; --bg:#f3f7f5; --card:#fff;
+    --warn:#b45309; --warnbg:#fff7e6; --bad:#b42318; --badbg:#fdecea; --blue:#2563eb; --bluebg:#e8efff; }
+  * { box-sizing:border-box; font-family:"Segoe UI","Noto Sans Thai",system-ui,sans-serif; }
+  body { margin:0; background:linear-gradient(135deg,#e7efeb,#cfe3da); color:var(--ink); display:flex; gap:28px; padding:24px; justify-content:center; flex-wrap:wrap; min-height:100vh; }
+  .side { width:260px; }
+  .side h1 { font-size:19px; margin:0 0 4px; }
+  .side p { font-size:12px; color:var(--mut); line-height:1.5; margin:0 0 10px; }
+  .side .grp { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); margin:12px 0 6px; }
+  .side button { display:block; width:100%; text-align:left; margin:0 0 5px; padding:7px 11px; border:0; background:#ffffffaa; border-radius:10px; cursor:pointer; font-size:13px; }
+  .side button.on { background:var(--p); color:#fff; }
+  .phone { width:380px; height:760px; background:#111; border-radius:44px; padding:11px; box-shadow:0 24px 50px rgba(6,40,28,.35); }
+  .screen { width:100%; height:100%; background:var(--bg); border-radius:34px; overflow:hidden; display:flex; flex-direction:column; position:relative; }
+  .pill { position:absolute; top:6px; left:50%; transform:translateX(-50%); background:#ffedd5; color:#9a3412; font-size:10px; font-weight:700; padding:2px 10px; border-radius:10px; z-index:5; }
+  .status { height:30px; }
+  .view { display:none; flex-direction:column; flex:1; min-height:0; }
+  .view.on { display:flex; }
+  .top { padding:6px 18px 10px; display:flex; align-items:center; gap:10px; }
+  .back { width:34px; height:34px; border-radius:12px; background:#fff; display:grid; place-items:center; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  .ttl { font-weight:700; font-size:17px; }
+  .body { flex:1; overflow-y:auto; padding:4px 18px 18px; }
+  h2 { font-size:20px; margin:4px 0 8px; } h3 { font-size:14px; margin:16px 0 8px; }
+  p, li { font-size:13px; line-height:1.55; } .mut { color:var(--mut); font-size:12px; }
+  .card { background:var(--card); border-radius:16px; padding:12px 14px; margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; cursor:pointer; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .ev { background:#fff; border-radius:14px; padding:10px; font-size:13px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .ev b { display:block; font-size:20px; }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:8px; margin:2px 4px 2px 0; background:#eef2f0; }
+  .r-likely { background:var(--pl); color:var(--pd); } .r-check { background:var(--bluebg); color:var(--blue); }
+  .r-need { background:var(--warnbg); color:var(--warn); } .r-unlikely { background:#eee; color:#666; }
+  .t-mock { background:#ffedd5; color:#9a3412; font-weight:700; } .t-draft { background:var(--badbg); color:var(--bad); }
+  .amt { font-weight:700; color:var(--pd); }
+  .btn { display:block; width:100%; border:0; border-radius:14px; padding:12px; font-size:14px; font-weight:600; background:var(--p); color:#fff; cursor:pointer; margin-top:8px; }
+  .btn.sec { background:#fff; color:var(--pd); border:1px solid var(--pl); }
+  .warn { background:var(--warnbg); color:var(--warn); border-radius:12px; padding:9px 12px; font-size:12px; margin:8px 0; }
+  .scam { background:var(--badbg); color:var(--bad); border-radius:12px; padding:9px 12px; font-size:12px; margin:8px 0; }
+  .sheet { position:absolute; left:0; right:0; bottom:0; background:#fff; border-radius:24px 24px 0 0; padding:18px; box-shadow:0 -8px 30px rgba(0,0,0,.2); display:none; z-index:10; }
+  .sheet.on { display:block; }
+  .tabs { display:flex; border-top:1px solid #dfe7e3; background:#fff; }
+  .tabs div { flex:1; text-align:center; font-size:11px; padding:8px 0 12px; cursor:pointer; color:var(--mut); }
+  .tabs div.on { color:var(--pd); font-weight:700; }
+  #mapArea { position:relative; height:360px; background:repeating-linear-gradient(0deg,#e6eee9 0 1px,transparent 1px 40px),repeating-linear-gradient(90deg,#e6eee9 0 1px,#f7faf8 1px 40px); border-radius:16px; overflow:hidden; }
+  .pin { position:absolute; transform:translate(-50%,-100%); font-size:22px; cursor:pointer; }
+  .me { position:absolute; left:50%; top:50%; width:14px; height:14px; border-radius:50%; background:var(--blue); border:3px solid #fff; transform:translate(-50%,-50%); }
+  table { width:100%; border-collapse:collapse; font-size:12px; } td { padding:5px 4px; border-bottom:1px solid #eef2f0; }
+  input, select { width:100%; padding:8px; border-radius:10px; border:1px solid #cfdcd5; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="side">
+  <h1>บริการรัฐเรื่องเงิน</h1>
+  <p>Mockup ตาม <code>docs/design/gov-services-inventory.md</code> ข้อมูลผู้ใช้เป็น persona สมมติ ยอดเงินเป็นอัตราที่ประกาศ ยังไม่ได้ยืนยันสิทธิ์จริง</p>
+  <div class="grp">Persona (สมมติ)</div>
+  <div id="personaNav"></div>
+  <div class="grp">หน้าจอ</div>
+  <div id="viewNav"></div>
+</div>
+
+<div class="phone"><div class="screen">
+  <div class="pill" id="pill">DEMO / MOCK</div>
+  <div class="status"></div>
+
+  <!-- G1 + G7 -->
+  <div class="view" id="v-home"><div class="body">
+    <h2 id="hello">สวัสดี</h2>
+    <div id="windowAlert"></div>
+    <div class="card"><div class="mut">เงินที่คุณอาจได้ (ประมาณจากอัตราที่ประกาศ)</div>
+      <div class="amt" style="font-size:24px" id="sumMonthly">-</div><div class="mut" id="sumOnce">-</div>
+      <div id="readySummary"></div></div>
+    <h3>เกิดอะไรขึ้นกับคุณ</h3>
+    <div class="grid" id="events"></div>
+  </div></div>
+
+  <!-- G2 -->
+  <div class="view" id="v-money"><div class="top"><div class="ttl" id="moneyTitle">เงินของฉัน</div></div><div class="body" id="moneyList"></div></div>
+
+  <!-- G3 -->
+  <div class="view" id="v-detail"><div class="top"><div class="back" data-back>←</div><div class="ttl" id="dTitle"></div></div><div class="body" id="dBody"></div></div>
+
+  <!-- G4 -->
+  <div class="view" id="v-ready"><div class="top"><div class="ttl">ความพร้อมก่อนไปรับเงิน</div></div><div class="body">
+    <p class="mut">บางรายการรับเงินไม่ได้ถ้ายังไม่มีของพวกนี้ เช็คครั้งเดียวใช้ได้ทุกรายการ</p>
+    <div id="readyList"></div></div></div>
+
+  <!-- G8 -->
+  <div class="view" id="v-map"><div class="top"><div class="ttl">จุดบริการใกล้คุณ</div></div><div class="body">
+    <select id="officeType"></select>
+    <div class="warn">ตำแหน่งสำนักงานเป็นข้อมูลจำลอง (MOCK) ยังไม่ได้ต่อแหล่งจริง</div>
+    <div id="mapArea"><div class="me"></div></div>
+    <div id="officeInfo" class="card" style="margin-top:10px"><span class="mut">แตะหมุดเพื่อดูรายละเอียด</span></div>
+  </div></div>
+
+  <!-- G9 -->
+  <div class="view" id="v-layoff"><div class="top"><div class="back" data-back>←</div><div class="ttl">ถูกเลิกจ้าง: เงินที่ควรได้</div></div><div class="body">
+    <div class="warn">อย่าเพิ่งเซ็นเอกสารสละสิทธิ์หรือใบลาออก ถ้ายังไม่แน่ใจ</div>
+    <div class="card"><label class="mut">ทำงานที่ล่าสุดกี่ปี</label><input id="lyYears" type="number" min="0" step="0.5">
+      <label class="mut">ค่าจ้างเดือนสุดท้าย (บาท/เดือน)</label><input id="lyWage" type="number" min="0">
+      <div id="lyResult" style="margin-top:8px"></div></div>
+    <h3>เช็คลิสต์</h3><div id="lyList"></div>
+  </div></div>
+
+  <!-- G10 -->
+  <div class="view" id="v-heir"><div class="top"><div class="back" data-back>←</div><div class="ttl">เมื่อคนในครอบครัวเสียชีวิต</div></div><div class="body">
+    <p>เสียใจด้วยครับ รายการด้านล่างเป็นสิ่งที่ครอบครัวอาจมีสิทธิ์ ค่อยๆ ทำได้ ไม่ต้องรีบ</p>
+    <p class="mut">แอปไม่เก็บชื่อหรือเลขบัตรของผู้เสียชีวิต</p>
+    <div id="heirList"></div></div></div>
+
+  <div class="tabs" id="tabs">
+    <div data-tab="home">หน้าแรก</div><div data-tab="money">โอกาส</div><div data-tab="map">แผนที่</div><div data-tab="ready">ฉัน</div>
+  </div>
+
+  <!-- G5 -->
+  <div class="sheet" id="handoff"><h3 id="hoTitle" style="margin-top:0"></h3><ol id="hoSteps"></ol>
+    <div class="scam">หน่วยงานรัฐไม่ขอรหัส OTP หรือให้โอนเงินก่อนรับเงิน</div>
+    <button class="btn" id="hoGo">เปิด</button><button class="btn sec" data-close>ยกเลิก</button></div>
+  <!-- G6 -->
+  <div class="sheet" id="returned"><h3 style="margin-top:0" id="rtTitle">กลับมาแล้ว ได้ผลอย่างไร</h3>
+    <button class="btn" data-report="done">ยื่นแล้ว / ได้แล้ว</button>
+    <button class="btn sec" data-report="rejected">ไม่ผ่าน</button>
+    <button class="btn sec" data-report="later">ยังไม่ได้ทำ</button>
+    <p class="mut">คำตอบนี้บันทึกเป็น "คุณแจ้ง" (USER_REPORTED)</p></div>
+</div></div>
+
+<script>
+// ---------- data (mirrors docs/design/gov-services-inventory.md) ----------
+const PUBLISHED = 'ตามอัตราที่ประกาศ ยังไม่ได้ยืนยันสิทธิ์ของคุณ';
+const USERCALC = 'คำนวณจากตัวเลขที่คุณกรอก';
+const CATS = { welfare:'เงินช่วยเหลือรายเดือนจากรัฐ', sso:'ประกันสังคม', work:'เงินจากงานและนายจ้าง', refund:'เงินคืนและเงินที่ลืม', savings:'รัฐเติมเงินออมให้', relief:'เงินช่วยเหลือเฉพาะกิจ' };
+const CONF = { official:'ทางการ', spokesperson:'โฆษก', secondary2:'แหล่งรอง 2 แหล่ง', secondary:'แหล่งรอง ต้องเช็ค', unverified:'ยังไม่ได้ตรวจ' };
+const NEEDS = { thaid:'ThaID', tangrat:'ทางรัฐ', paotang:'เป๋าตัง', promptpay_id:'พร้อมเพย์ผูกบัตร', sso_account:'บัญชีประกันสังคม', rd_account:'บัญชีสรรพากร', line:'LINE', office:'ไปสำนักงาน' };
+const CHANNELS = {
+  local_gov:{ name:'อปท. / สำนักงานเขต', steps:['ไปสำนักงานใกล้บ้าน (ดูแผนที่)','ยื่นแบบคำขอพร้อมบัตรประชาชน'], office:'local_gov' },
+  child_app:{ name:'แอปเงินเด็ก', steps:['เปิดแอปเงินเด็ก','เข้าระบบด้วย ThaID','กรอกคำขอและแนบเอกสาร'] },
+  tangrat:{ name:'ทางรัฐ', steps:['เปิดแอปทางรัฐ','เข้าระบบด้วย ThaID','เลือกบริการตามที่ระบุ'] },
+  paotang:{ name:'เป๋าตัง', steps:['เปิดแอปเป๋าตัง','เลือกบริการบัตรสวัสดิการแห่งรัฐ','ทำตามขั้นตอนในแอป'] },
+  sso:{ name:'ประกันสังคม e-Self Service / 1506', steps:['เข้าเว็บประกันสังคม (สมัครสมาชิกถ้ายังไม่มี)','เลือกยื่นคำขอรับประโยชน์ทดแทน','หรือโทร 1506 (24 ชม.)'], office:'sso_office' },
+  doe:{ name:'empui.doe.go.th', steps:['เข้าเว็บกรมการจัดหางาน','ขึ้นทะเบียนผู้ว่างงานภายใน 30 วัน'], office:'doe_office' },
+  labour:{ name:'สำนักงานสวัสดิการและคุ้มครองแรงงาน', steps:['ทวงนายจ้างเป็นหนังสือก่อน','ถ้าไม่จ่าย ยื่นคำร้อง คร.7 ที่สำนักงาน'], office:'labour_office' },
+  rd:{ name:'My Tax Account', steps:['เข้าเว็บกรมสรรพากร','ดูสถานะคืนภาษี'] },
+  oic:{ name:'LINE @OICConnect', steps:['เพิ่มเพื่อน LINE @OICConnect','เลือก My Policies (ของตัวเอง) หรือ Policy Search by Heirs (ทายาท ใช้ ThaID)','ได้ชื่อบริษัทและเลขกรมธรรม์ แล้วติดต่อบริษัท'] },
+  bank:{ name:'ธนาคารที่เคยเปิดบัญชี', steps:['นึกถึงบัญชีเก่า (บัญชีเงินเดือนเก่า บัญชีสมัยเรียน)','ไปสาขาพร้อมบัตรประชาชน'] },
+  wiset:{ name:'แอป Wiset (My Wealth)', steps:['ติดตั้งแอป Wiset ของตลาดหลักทรัพย์','เปิดเมนู My Wealth ดูหลักทรัพย์ที่ถืออยู่'] },
+  nsf:{ name:'แอป กอช. / 02-490-9000', steps:['ติดตั้งแอป กอช. หรือไปออมสิน/กรุงไทย/ธ.ก.ส./อำเภอ','สมัครสมาชิก แล้วเริ่มออม (ขั้นต่ำครั้งละ 50 บาท)'], office:'nsf_point' },
+  pvd:{ name:'บริษัทจัดการกองทุนสำรองเลี้ยงชีพ', steps:['ขอชื่อบริษัทจัดการกองทุนจากฝ่ายบุคคล','แจ้งขอรับเงินหรือคงเงินไว้ในกองทุน'] },
+  welfare:{ name:'welfare.mof.go.th / เป๋าตัง / ทางรัฐ', steps:['เช็คผลหรือยื่นอุทธรณ์','ถ้ารอบปิดแล้ว รอรอบหน้า'] },
+  flood:{ name:'ทางรัฐ: ลงทะเบียนช่วยเหลือน้ำท่วม 2569', steps:['เปิดทางรัฐ เข้าระบบด้วย ThaID','เลือกลงทะเบียนช่วยเหลือน้ำท่วม 2569','ดูสถานะที่ คำขอของฉัน','เงินเข้าพร้อมเพย์ที่ผูกเลขบัตร'] }
+};
+const bracket = a => a >= 90 ? 1000 : a >= 80 ? 800 : a >= 70 ? 700 : 600;
+const sevDays = y => y >= 20 ? 400 : y >= 10 ? 300 : y >= 6 ? 240 : y >= 3 ? 180 : y >= 1 ? 90 : y >= 0.33 ? 30 : 0;
+const ins = f => f.ssoSection === '33' || f.ssoSection === '39';
+const R = (r, why, extra) => Object.assign({ r, why }, extra || {});
+const PROGRAMS = [
+  { id:'old_age', cat:'welfare', name:'เบี้ยยังชีพผู้สูงอายุ', conf:'secondary2', needs:['office'], ch:'local_gov',
+    ev:f => f.age >= 60 ? R('likely','อายุ ' + f.age + ' ปี', { monthly:bracket(f.age), basis:PUBLISHED }) : R('unlikely','ต้องอายุ 60 ปีขึ้นไป') },
+  { id:'child_support', cat:'welfare', name:'เงินอุดหนุนเด็กแรกเกิด', conf:'secondary2', needs:['thaid'], ch:'child_app',
+    ev:f => f.childrenUnder6 > 0 ? R('check','มีลูกเล็ก ต้องผ่านเกณฑ์รายได้ครัวเรือน') : R('unlikely','ไม่มีลูกอายุต่ำกว่า 6 ปี') },
+  { id:'disability', cat:'welfare', name:'เบี้ยความพิการ', conf:'secondary', needs:['office'], ch:'local_gov',
+    ev:f => f.hasDisabilityCard ? R('likely','มีบัตรคนพิการ', { monthly:f.hasWelfareCard ? 1000 : 800, basis:PUBLISHED }) : R('unlikely','ต้องมีบัตรประจำตัวคนพิการ') },
+  { id:'state_welfare_card', cat:'welfare', name:'บัตรสวัสดิการแห่งรัฐ 2569', conf:'secondary2', needs:['paotang'], ch:'welfare',
+    ev:f => f.lowIncome ? R('check','รอบลงทะเบียน 4-21 มิ.ย. 2569 ปิดแล้ว เช็คผล/อุทธรณ์ หรือรอรอบหน้า') : R('unlikely','รายได้ไม่อยู่ในกลุ่มเป้าหมาย') },
+  { id:'unemployment', cat:'sso', name:'เงินทดแทนว่างงาน ม.33', conf:'secondary2', needs:['office'], ch:'doe', urgent:'ขึ้นทะเบียนภายใน 30 วัน',
+    ev:f => f.ssoSection === '33' && (f.lostJobReason === 'layoff' || f.lostJobReason === 'resign') ? R('likely','ออกจากงานและเป็นผู้ประกันตน ม.33') : R('unlikely','ใช้เมื่อออกจากงานและเป็น ม.33') },
+  { id:'sso_child', cat:'sso', name:'เงินสงเคราะห์บุตร ม.33/39', conf:'spokesperson', needs:['sso_account'], ch:'sso',
+    ev:f => { if (!ins(f)) return R('unlikely', f.ssoSection === '40' ? 'ม.40 ดูรายการสงเคราะห์บุตร ม.40' : 'ต้องเป็นผู้ประกันตน ม.33/39');
+      if (!(f.childrenUnder6 > 0)) return R('unlikely','ไม่มีลูกอายุต่ำกว่า 6 ปี');
+      if (f.ssoMonths36 == null) return R('need','ใน 3 ปีที่ผ่านมาส่งเงินประกันสังคมกี่เดือน');
+      return f.ssoMonths36 >= 12 ? R('likely','ส่งเงินสมทบ ' + f.ssoMonths36 + ' เดือนใน 36 เดือน', { monthly:1000 * Math.min(f.childrenUnder6, 3), basis:PUBLISHED }) : R('unlikely','ต้องส่ง 12 เดือนใน 36 เดือน'); } },
+  { id:'sso_maternity', cat:'sso', name:'ค่าคลอดบุตร ม.33/39', conf:'spokesperson', needs:['sso_account'], ch:'sso',
+    ev:f => !ins(f) || !f.newBaby ? R('unlikely','ใช้เมื่อเป็น ม.33/39 และมีลูกเกิด/กำลังคลอด') : f.ssoMonths15 == null ? R('need','ใน 15 เดือนที่ผ่านมาส่งเงินประกันสังคมกี่เดือน') : f.ssoMonths15 >= 5 ? R('likely','ส่ง ' + f.ssoMonths15 + ' เดือนใน 15 เดือน', { once:15000, basis:PUBLISHED }) : R('unlikely','ต้องส่ง 5 เดือนใน 15 เดือน') },
+  { id:'sso_prenatal', cat:'sso', name:'ค่าฝากครรภ์ ม.33/39', conf:'spokesperson', needs:['sso_account'], ch:'sso',
+    ev:f => ins(f) && f.newBaby ? R('likely','เบิกตามจริงตามอายุครรภ์ รวมไม่เกิน 1,500', { onceMax:1500, basis:PUBLISHED }) : R('unlikely','ใช้เมื่อเป็น ม.33/39 และตั้งครรภ์') },
+  { id:'sso_funeral', cat:'sso', name:'ค่าทำศพ (ทายาทผู้ประกันตน)', conf:'secondary2', needs:['office'], ch:'sso', heir:true,
+    ev:f => !f.familyDeath ? R('unlikely','ใช้เมื่อผู้ประกันตนในครอบครัวเสียชีวิต') : f.deceasedInsured == null ? R('need','ผู้เสียชีวิตมีประกันสังคมไหม') : f.deceasedInsured ? R('likely','ผู้จัดการศพยื่นได้', { once:50000, basis:PUBLISHED }) : R('unlikely','ผู้เสียชีวิตไม่มีประกันสังคม') },
+  { id:'sso_old_age', cat:'sso', name:'บำเหน็จ/บำนาญชราภาพ', conf:'secondary2', needs:['sso_account'], ch:'sso',
+    ev:f => ins(f) && f.age >= 55 ? R('check','อายุ 55+ ยอดขึ้นกับเงินสมทบ เช็คยอดสะสมในทางรัฐ') : R('unlikely','ใช้เมื่ออายุ 55 ปีขึ้นไปและสิ้นสภาพผู้ประกันตน') },
+  { id:'sso40_child', cat:'sso', name:'เงินสงเคราะห์บุตร ม.40 (ทางเลือก 3)', conf:'secondary', needs:['sso_account'], ch:'sso',
+    ev:f => f.ssoSection === '40' && f.childrenUnder6 > 0 ? R('check','ต้องจ่ายทางเลือก 3 ยอดต้องเช็คกับประกันสังคม') : R('unlikely','ใช้กับ ม.40 ทางเลือก 3 ที่มีลูกเล็ก') },
+  { id:'severance', cat:'work', name:'ค่าชดเชยเลิกจ้าง ม.118', conf:'secondary2', needs:['office'], ch:'labour',
+    ev:f => { if (f.lostJobReason !== 'layoff') return R('unlikely','ใช้เมื่อถูกเลิกจ้างโดยไม่ได้ทำผิด (ลาออกเองไม่ได้)');
+      if (f.yearsWorked == null || !f.lastWage) return R('need','ทำงานมากี่ปี และค่าจ้างสุดท้ายเท่าไหร่');
+      const d = sevDays(f.yearsWorked); return R('likely', d + ' วันของค่าจ้างสุดท้าย (อายุงาน ' + f.yearsWorked + ' ปี)', { once:Math.round(f.lastWage / 30 * d), basis:USERCALC }); } },
+  { id:'notice_pay', cat:'work', name:'ค่าจ้างแทนการบอกกล่าวล่วงหน้า', conf:'secondary', needs:['office'], ch:'labour',
+    ev:f => f.lostJobReason === 'layoff' ? R('check','ถ้าถูกให้ออกทันทีโดยไม่บอกล่วงหน้า 1 งวดค่าจ้าง') : R('unlikely','ใช้เมื่อถูกเลิกจ้าง') },
+  { id:'unused_leave', cat:'work', name:'ค่าวันลาพักร้อนที่ไม่ได้ใช้', conf:'secondary', needs:['office'], ch:'labour',
+    ev:f => f.lostJobReason === 'layoff' ? R('check','นับวันพักร้อนคงเหลือปีนี้') : R('unlikely','ใช้เมื่อถูกเลิกจ้าง') },
+  { id:'unpaid_wages', cat:'work', name:'ค่าจ้างค้างจ่าย', conf:'secondary2', needs:['office'], ch:'labour',
+    ev:f => f.hasUnpaid ? R('likely','คุณแจ้งว่ามีค่าจ้างค้าง', { once:f.unpaidAmount, basis:USERCALC }) : f.lostJobReason === 'layoff' ? R('need','มีค่าจ้างหรือ OT ที่ยังไม่ได้ไหม') : R('unlikely','ไม่มีค่าจ้างค้าง') },
+  { id:'pvd', cat:'work', name:'กองทุนสำรองเลี้ยงชีพ', conf:'secondary', needs:[], ch:'pvd',
+    ev:f => f.hasPvd === true ? R('check','เงินส่วนของคุณได้ครบ ส่วนนายจ้างตามข้อบังคับกองทุน') : f.hasPvd == null && f.lostJobReason ? R('need','ที่ทำงานมีกองทุนสำรองเลี้ยงชีพไหม') : R('unlikely','ไม่มีกองทุนสำรองเลี้ยงชีพ') },
+  { id:'ewf', cat:'work', name:'กองทุนสงเคราะห์ลูกจ้าง', conf:'secondary', needs:['office'], ch:'labour',
+    ev:f => f.lostJobReason && f.leftAfterOct2026 ? R('check','เริ่มสะสม 1 ต.ค. 2569 ยอดยังน้อย') : R('unlikely','ใช้กับคนออกจากงานหลัง 1 ต.ค. 2569') },
+  { id:'tax_refund', cat:'refund', name:'เงินคืนภาษี', conf:'secondary2', needs:['rd_account'], ch:'rd',
+    ev:f => f.taxWithheld ? R('check','ถูกหักภาษี ณ ที่จ่าย อาจได้คืนเมื่อยื่นแบบ') : R('unlikely','ไม่ได้ถูกหักภาษี') },
+  { id:'lost_insurance', cat:'refund', name:'กรมธรรม์ที่คุณอาจลืม', conf:'spokesperson', needs:['line'], ch:'oic',
+    ev:() => R('check','ดูกรมธรรม์ทุกบริษัทในชื่อคุณได้ที่เดียว') },
+  { id:'heir_insurance', cat:'refund', name:'กรมธรรม์ของผู้เสียชีวิต', conf:'spokesperson', needs:['line','thaid'], ch:'oic', heir:true,
+    ev:f => f.familyDeath ? R('check','ทายาทค้นได้ ยืนยันตัวตนด้วย ThaID') : R('unlikely','ใช้เมื่อคนในครอบครัวเสียชีวิต') },
+  { id:'dormant_account', cat:'refund', name:'เงินในบัญชีธนาคารเก่า', conf:'secondary2', needs:['office'], ch:'bank',
+    ev:f => f.oldAccounts ? R('check','บัญชียอดต่ำกว่า 2,000 ที่ไม่เคลื่อนไหวเกิน 1 ปี อาจโดนค่ารักษาบัญชีทุกเดือน') : R('unlikely','ไม่มีบัญชีเก่า') },
+  { id:'lost_securities', cat:'refund', name:'หุ้น/กองทุนที่อาจลืม', conf:'secondary', needs:[], ch:'wiset',
+    ev:f => f.everInvested ? R('check','ดูหลักทรัพย์ที่ถือทุกที่ในแอป Wiset') : R('unlikely','ไม่เคยลงทุน') },
+  { id:'nsf', cat:'savings', name:'กอช. รัฐเติมเงินออม', conf:'secondary', needs:[], ch:'nsf',
+    ev:f => f.age >= 15 && f.age < 60 && !ins(f) && !f.govEmployee ? R('likely','ถ้าคุณออมเอง รัฐเติมให้ ' + (f.age < 30 ? '50%' : f.age < 50 ? '80%' : '100%'), { yearlyMax:1800, basis:PUBLISHED + ' ต้องออมเองก่อน' }) : R('unlikely', f.age >= 60 ? 'สมัครได้ถึงอายุ 60 ปี' : 'มีประกันสังคม ม.33/39 หรือเป็นข้าราชการ') },
+  { id:'flood_2569', cat:'relief', name:'เงินช่วยเหลือน้ำท่วม 2569', conf:'spokesperson', needs:['thaid','tangrat','promptpay_id'], ch:'flood', window:{ opens:'2026-10-02', closes:null },
+    ev:f => f.floodAffected ? R('check','บ้านหลักท่วมในพื้นที่ประกาศภัย 15 พ.ค.-30 ก.ย. 2569 ได้ 9,000 หรือ 5,000 ต่อครัวเรือนตามเกณฑ์') : R('unlikely','ใช้เมื่อบ้านโดนน้ำท่วมในพื้นที่ประกาศภัย') },
+  { id:'disaster_advance', cat:'relief', name:'เงินทดรองราชการช่วยผู้ประสบภัย', conf:'spokesperson', needs:['office'], ch:'local_gov',
+    ev:f => f.floodAffected ? R('check','ซ่อมบ้าน ค่าเช่าที่พัก เครื่องมือทำกิน มีเพดานแต่ละข้อ') : R('unlikely','ใช้เมื่อประสบภัย') }
+];
+const EVENTS = [
+  { id:'layoff', icon:'📦', name:'ถูกเลิกจ้าง', view:'layoff' },
+  { id:'resign', icon:'🚪', name:'ลาออกเอง', ids:['unemployment','pvd','unused_leave'] },
+  { id:'baby', icon:'👶', name:'มีลูก / กำลังคลอด', ids:['sso_maternity','sso_prenatal','sso_child','sso40_child','child_support'] },
+  { id:'age', icon:'🎂', name:'อายุ 55 / 60', ids:['sso_old_age','old_age','nsf'] },
+  { id:'death', icon:'🕯️', name:'คนในครอบครัวเสียชีวิต', view:'heir' },
+  { id:'flood', icon:'🌊', name:'บ้านโดนน้ำท่วม', ids:['flood_2569','disaster_advance'] },
+  { id:'low', icon:'🧾', name:'รายได้น้อย', ids:['state_welfare_card','old_age','child_support','nsf'] },
+  { id:'free', icon:'🛵', name:'ทำงานอิสระ', ids:['nsf','tax_refund'] },
+  { id:'jobs', icon:'🏢', name:'เคยทำงานหลายที่', ids:['pvd','dormant_account','sso_old_age'] },
+  { id:'lost', icon:'🔎', name:'ไม่รู้ว่ามีเงินที่ไหน', ids:['lost_insurance','dormant_account','lost_securities','tax_refund'] }
+];
+const READY = [
+  { key:'hasThaid', need:'thaid', name:'ThaID ยืนยันตัวตนแล้ว', task:'สมัคร ThaID (โหลดแอป ThaID แล้วยืนยันตัวตน หรือไปที่อำเภอ)' },
+  { key:'promptpayId', need:'promptpay_id', name:'พร้อมเพย์ผูกเลขบัตรประชาชน', task:'ผูกพร้อมเพย์กับเลขบัตรในแอปธนาคาร' },
+  { key:'hasPaotang', need:'paotang', name:'มีแอปเป๋าตัง', task:'ติดตั้งเป๋าตัง' },
+  { key:'ssoAccount', need:'sso_account', name:'บัญชีเว็บประกันสังคม', task:'สมัครสมาชิกเว็บประกันสังคม' },
+  { key:'rdAccount', need:'rd_account', name:'บัญชี My Tax Account', task:'สมัคร My Tax Account' },
+  { key:'hasLine', need:'line', name:'มี LINE', task:'ติดตั้ง LINE' }
+];
+const OFFICE_TYPES = { sso_office:'สำนักงานประกันสังคม', doe_office:'สำนักงานจัดหางาน', local_gov:'อปท. / สำนักงานเขต', labour_office:'สวัสดิการและคุ้มครองแรงงาน', dsd_center:'ศูนย์พัฒนาฝีมือแรงงาน', nsf_point:'จุดสมัคร กอช.', district_office:'ที่ว่าการอำเภอ (ThaID)' };
+const OFFICES = Object.keys(OFFICE_TYPES).flatMap((t, i) => [0, 1].map(k => ({ type:t, name:OFFICE_TYPES[t] + ' (จำลอง ' + (k + 1) + ')', x:12 + ((i * 37 + k * 53) % 76), y:12 + ((i * 23 + k * 41) % 76), km:(1.2 + i * 0.7 + k * 1.9).toFixed(1), mock:true })));
+const PERSONAS = [
+  { id:'g1', name:'สมชาย (สมมติ)', note:'42 ปี ถูกเลิกจ้าง', f:{ age:42, ssoSection:'33', lostJobReason:'layoff', yearsWorked:7, lastWage:15000, hasPvd:null, leftAfterOct2026:true, hasThaid:true, promptpayId:true, hasPaotang:false, ssoAccount:false, rdAccount:true, hasLine:true, taxWithheld:true } },
+  { id:'g2', name:'มาลี (สมมติ)', note:'29 ปี เพิ่งคลอด', f:{ age:29, ssoSection:'33', ssoMonths36:30, ssoMonths15:15, childrenUnder6:1, newBaby:true, hasThaid:true, promptpayId:true, hasPaotang:true, ssoAccount:true, rdAccount:false, hasLine:true } },
+  { id:'g3', name:'ป้าสาย (สมมติ)', note:'67 ปี บ้านโดนน้ำท่วม', f:{ age:67, ssoSection:'none', floodAffected:true, lowIncome:true, hasThaid:false, promptpayId:false, hasPaotang:true, ssoAccount:false, rdAccount:false, hasLine:true } },
+  { id:'g4', name:'ต้น (สมมติ)', note:'24 ปี ไรเดอร์', f:{ age:24, ssoSection:'none', hasThaid:true, promptpayId:true, hasPaotang:true, ssoAccount:false, rdAccount:false, hasLine:true, taxWithheld:true } },
+  { id:'g5', name:'นิด (สมมติ)', note:'38 ปี พ่อเสียชีวิต', f:{ age:38, ssoSection:'33', familyDeath:true, deceasedInsured:true, hasThaid:true, promptpayId:true, hasPaotang:false, ssoAccount:false, rdAccount:false, hasLine:true } },
+  { id:'g6', name:'เอ (สมมติ)', note:'31 ปี มีงานประจำ', f:{ age:31, ssoSection:'33', everInvested:true, oldAccounts:true, taxWithheld:true, hasThaid:true, promptpayId:true, hasPaotang:true, ssoAccount:true, rdAccount:true, hasLine:true } }
+];
+const VIEWS = [['home','G1 หน้าแรก + เหตุการณ์ชีวิต'],['money','G2 เงินของฉัน แบ่งหมวด'],['ready','G4 ความพร้อม'],['map','G8 แผนที่จุดบริการ'],['layoff','G9 เช็คลิสต์เลิกจ้าง'],['heir','G10 ทายาท']];
+
+// ---------- state + logic ----------
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n).toLocaleString('th-TH');
+const S = { persona:PERSONAS[0], view:'home', prev:'home', filter:null, current:null, reports:{} };
+function evalAll(f) { return PROGRAMS.map(p => Object.assign({ p }, p.ev(f))); }
+function amountText(x) {
+  if (x.monthly) return fmt(x.monthly) + ' บาท/เดือน';
+  if (x.once) return fmt(x.once) + ' บาท';
+  if (x.onceMax) return 'ไม่เกิน ' + fmt(x.onceMax) + ' บาท';
+  if (x.yearlyMax) return 'สูงสุด ' + fmt(x.yearlyMax) + ' บาท/ปี';
+  return '';
+}
+const RLABEL = { likely:'น่าจะได้', check:'ต้องเช็คยอดจริง', need:'ตอบอีกข้อ', unlikely:'ไม่น่าได้' };
+const missing = (p, f) => READY.filter(r => p.needs.includes(r.need) && !f[r.key]);
+function go(v) {
+  if (v !== S.view) S.prev = S.view;
+  S.view = v;
+  document.querySelectorAll('.view').forEach(e => e.classList.toggle('on', e.id === 'v-' + v));
+  document.querySelectorAll('#tabs div').forEach(e => e.classList.toggle('on', e.dataset.tab === v));
+  document.querySelectorAll('#viewNav button').forEach(e => e.classList.toggle('on', e.dataset.v === v));
+  render();
+}
+function setPersona(id) { S.persona = PERSONAS.find(p => p.id === id); S.filter = null; S.reports = {}; document.querySelectorAll('#personaNav button').forEach(b => b.classList.toggle('on', b.dataset.p === id)); go('home'); }
+function rowHtml(x) {
+  const rep = S.reports[x.p.id];
+  return '<div class="card row" data-open="' + x.p.id + '"><div><b style="font-size:14px">' + x.p.name + '</b><div class="mut">' + x.why + '</div>' +
+    (rep ? '<span class="tag">คุณแจ้ง: ' + rep + '</span>' : '') + '</div><div style="text-align:right"><span class="tag r-' + x.r + '">' + RLABEL[x.r] + '</span>' +
+    (x.r === 'likely' && amountText(x) ? '<div class="amt">' + amountText(x) + '</div>' : '') + '</div></div>';
+}
+function render() {
+  const f = S.persona.f, all = evalAll(f);
+  // G1
+  $('hello').textContent = 'สวัสดี ' + S.persona.name;
+  const likely = all.filter(x => x.r === 'likely');
+  $('sumMonthly').textContent = fmt(likely.reduce((s, x) => s + (x.monthly || 0), 0)) + ' บาท/เดือน';
+  $('sumOnce').textContent = 'ครั้งเดียว ' + fmt(likely.reduce((s, x) => s + (x.once || 0), 0)) + ' บาท · ' + PUBLISHED;
+  const notReady = READY.filter(r => !f[r.key]);
+  $('readySummary').innerHTML = notReady.length ? '<div class="warn" data-goto="ready">ยังขาด ' + notReady.length + ' อย่างก่อนไปรับเงิน: ' + notReady.map(r => r.name).join(', ') + '</div>' : '';
+  const win = all.filter(x => x.p.window && x.r !== 'unlikely');
+  $('windowAlert').innerHTML = win.map(x => '<div class="warn" data-open="' + x.p.id + '">เปิดรับคำขอ: ' + x.p.name + ' (เปิด ' + x.p.window.opens + ', วันปิดยังไม่ยืนยัน)</div>').join('');
+  $('events').innerHTML = EVENTS.map(e => '<div class="ev" data-event="' + e.id + '"><b>' + e.icon + '</b>' + e.name + '</div>').join('');
+  // G2
+  const shown = S.filter ? all.filter(x => S.filter.ids.includes(x.p.id)) : all.filter(x => x.r !== 'unlikely');
+  $('moneyTitle').textContent = S.filter ? S.filter.name : 'เงินของฉัน';
+  $('moneyList').innerHTML = (S.filter ? '<button class="btn sec" data-clear>ดูทั้งหมด</button>' : '') +
+    Object.keys(CATS).map(c => { const xs = shown.filter(x => x.p.cat === c); return xs.length ? '<h3>' + CATS[c] + '</h3>' + xs.map(rowHtml).join('') : ''; }).join('') +
+    (S.filter ? '' : '<p class="mut">ซ่อน ' + all.filter(x => x.r === 'unlikely').length + ' รายการที่ไม่น่าได้</p>');
+  // G3
+  if (S.current) {
+    const x = all.find(y => y.p.id === S.current), p = x.p, ch = CHANNELS[p.ch], miss = missing(p, f);
+    $('dTitle').textContent = p.name;
+    $('dBody').innerHTML = '<div class="card"><span class="tag r-' + x.r + '">' + RLABEL[x.r] + '</span>' +
+      (amountText(x) ? '<div class="amt" style="font-size:20px">' + amountText(x) + '</div><div class="mut">' + x.basis + '</div>' : '') +
+      '<p>' + x.why + '</p><div class="mut">ความเชื่อของข้อมูล: ' + CONF[p.conf] + ' · ตรวจ 26 พ.ย. 2569</div></div>' +
+      (p.urgent ? '<div class="warn">' + p.urgent + '</div>' : '') +
+      '<h3>ต้องใช้</h3>' + (p.needs.length ? p.needs.map(n => '<span class="tag">' + NEEDS[n] + '</span>').join('') : '<span class="mut">ไม่มี</span>') +
+      (miss.length ? '<div class="warn">ยังไม่มี: ' + miss.map(r => r.name).join(', ') + '</div>' : '') +
+      '<h3>ยื่นที่</h3><div class="card">' + ch.name + '</div>' +
+      (ch.office ? '<button class="btn sec" data-map="' + ch.office + '">ดูสำนักงานใกล้บ้าน</button>' : '') +
+      '<button class="btn" data-start="' + p.id + '">' + (miss.length ? 'เตรียมให้พร้อมก่อน' : 'เริ่มรับเงิน') + '</button>' +
+      '<div class="scam">หน่วยงานรัฐไม่ขอรหัส OTP หรือให้โอนเงินก่อนรับเงิน</div>';
+  }
+  // G4
+  $('readyList').innerHTML = READY.map(r => '<div class="card row"><div>' + r.name + (f[r.key] ? '' : '<div class="mut">ใช้กับ ' + PROGRAMS.filter(p => p.needs.includes(r.need)).length + ' รายการ</div>') + '</div>' +
+    (f[r.key] ? '<span class="tag r-likely">มีแล้ว</span>' : '<button class="btn" style="width:auto;margin:0;padding:6px 10px;font-size:12px" data-task="' + r.key + '">ทำให้</button>') + '</div>').join('') +
+    '<div class="card"><span class="tag t-mock">DEMO / MOCK</span> ThaID ในแอปนี้เป็นข้อมูลจำลอง ไม่ใช่ข้อมูลจริงจากรัฐ</div>';
+  // G8
+  const t = $('officeType').value || 'local_gov';
+  $('mapArea').querySelectorAll('.pin').forEach(e => e.remove());
+  OFFICES.filter(o => o.type === t).forEach((o, i) => { const el = document.createElement('div'); el.className = 'pin'; el.textContent = '📍'; el.style.left = o.x + '%'; el.style.top = o.y + '%'; el.dataset.office = OFFICES.indexOf(o); $('mapArea').appendChild(el); });
+  // G9
+  const yrs = parseFloat($('lyYears').value), wage = parseFloat($('lyWage').value);
+  if (yrs >= 0 && wage > 0) { const d = sevDays(yrs); $('lyResult').innerHTML = d ? '<div class="amt" style="font-size:20px">' + fmt(Math.round(wage / 30 * d)) + ' บาท</div><div class="mut">ค่าชดเชย ' + d + ' วัน · ' + USERCALC + '</div>' : '<div class="mut">อายุงานไม่ถึง 120 วัน ยังไม่มีสิทธิ์ค่าชดเชย</div>'; }
+  else $('lyResult').innerHTML = '<div class="mut">กรอกอายุงานและค่าจ้างเพื่อคำนวณ</div>';
+  $('lyList').innerHTML = all.filter(x => ['severance','notice_pay','unpaid_wages','unused_leave','unemployment','pvd','ewf'].includes(x.p.id)).map(rowHtml).join('') +
+    '<div class="card">ขอหนังสือรับรองการทำงานและสลิปเงินเดือนจากนายจ้าง</div>';
+  // G10
+  $('heirList').innerHTML = all.filter(x => x.p.heir).map(rowHtml).join('') + '<div class="card"><b style="font-size:14px">เงินชราภาพสะสมของผู้เสียชีวิต</b><div class="mut">ทายาทอาจได้ ยอดต้องเช็คกับประกันสังคม</div><span class="tag r-check">ต้องเช็คยอดจริง</span></div>';
+}
+function openSheet(id, on) { $(id).classList.toggle('on', on); }
+function startHandoff(pid) {
+  const p = PROGRAMS.find(x => x.id === pid), miss = missing(p, S.persona.f);
+  if (miss.length) { go('ready'); return; }
+  const ch = CHANNELS[p.ch];
+  $('hoTitle').textContent = 'จะเปิด ' + ch.name;
+  $('hoSteps').innerHTML = ch.steps.map(s => '<li>' + s + '</li>').join('') + '<li>กลับมาแล้วบอกผลด้วย</li>';
+  $('hoGo').dataset.pid = pid; openSheet('handoff', true);
+}
+
+// ---------- wiring ----------
+$('personaNav').innerHTML = PERSONAS.map(p => '<button data-p="' + p.id + '">' + p.name + '<br><span style="font-size:11px;opacity:.8">' + p.note + '</span></button>').join('');
+$('viewNav').innerHTML = VIEWS.map(v => '<button data-v="' + v[0] + '">' + v[1] + '</button>').join('');
+$('officeType').innerHTML = Object.keys(OFFICE_TYPES).map(k => '<option value="' + k + '">' + OFFICE_TYPES[k] + '</option>').join('');
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-p],[data-v],[data-tab],[data-open],[data-event],[data-back],[data-clear],[data-start],[data-close],[data-report],[data-task],[data-map],[data-goto],[data-office],#hoGo');
+  if (!t) return; const d = t.dataset;
+  if (d.p) setPersona(d.p);
+  else if (d.v) { S.filter = null; go(d.v); }
+  else if (d.tab) { S.filter = null; go(d.tab); }
+  else if (d.open) { S.current = d.open; go('detail'); }
+  else if (d.event) { const ev = EVENTS.find(x => x.id === d.event); if (ev.view) go(ev.view); else { S.filter = ev; go('money'); } }
+  else if ('back' in d) go(S.prev === 'detail' ? 'money' : S.prev);
+  else if ('clear' in d) { S.filter = null; render(); }
+  else if (d.start) startHandoff(d.start);
+  else if ('close' in d) openSheet('handoff', false);
+  else if (t.id === 'hoGo') { window.open('about:blank'); openSheet('handoff', false); S.returnFor = d.pid; openSheet('returned', true); }
+  else if (d.report) { S.reports[S.returnFor] = { done:'ยื่นแล้ว', rejected:'ไม่ผ่าน', later:'ยังไม่ได้ทำ' }[d.report]; openSheet('returned', false); render(); }
+  else if (d.task) { S.persona.f[d.task] = true; render(); }
+  else if (d.map) { $('officeType').value = d.map; go('map'); }
+  else if (d.goto) go(d.goto);
+  else if (d.office) { const o = OFFICES[+d.office]; $('officeInfo').innerHTML = '<b>' + o.name + '</b><div class="mut">ห่าง ' + o.km + ' กม. (จำลอง)</div><span class="tag t-mock">MOCK</span>'; }
+});
+$('officeType').addEventListener('change', render);
+$('lyYears').addEventListener('input', render); $('lyWage').addEventListener('input', render);
+window.GS = { PROGRAMS, PERSONAS, EVENTS, READY, OFFICES, evalAll, setPersona, go, sevDays, state:S };
+setPersona('g1');
+</script>
+</body>
+</html>

@@ -110,6 +110,8 @@
 | TF.12 | ปุ่ม AI ใหญ่กดครั้งเดียว + กฎคุม AI ไม่ให้ออกนอกเรื่อง (policy ไฟล์เดียวใช้ทั้ง server และ mock) | AI | TF.11 | `contracts/fixtures/assistant-policy.json`, API 0.5, smoke test 84/84 | DONE |
 | TF.13 | หาข้อมูลที่ยังไม่ชัวร์ D1-D12 | AI | TF.5 | D1 D4 D6 ยืนยันแล้ว ที่เหลือใน `docs/plan/open-items.md` | DOING |
 | TF.14 | ผู้รู้กฎหมายตรวจข้อความ PDPA และการยินยอมแบบกดปุ่มเดียว (M6, M8) | OWNER | TF.12 | บันทึกผลตรวจ | TODO |
+| TF.15 | บัญชีบริการรัฐเรื่องเงิน (25 รายการ 6 หมวด, เหตุการณ์ชีวิต, ความพร้อม ThaID/พร้อมเพย์/เป๋าตัง, หน้าจอ G1-G10, ข้อเสนอ API) + mockup แยก | AI | TF.13 | `docs/design/gov-services-inventory.md`, `docs/mockups/gov-services.html`, smoke 37/37 | DONE |
+| TF.16 | ต่อรายการใหม่เข้า `reference.json` + API + แอป (เริ่มจาก `sso_child`, `sso_maternity`, `severance`, `nsf`) หลังยืนยัน D13-D15 | AI | TF.15 | `npm.cmd run check` + smoke | TODO |
 | TB.19 | หลังบ้านตามให้ตรงกับ mock: `POST /v1/money/preview`, `child_support`, `disability`, `alreadyReceiving` | AI | TF.11 | API 0.6.0 `npm test` 115/115, 48/48 operations | DONE |
 | TB.20 | ให้ id รายการเงินใน mock ตรงกับ API (`old`→`old_age`, `child`→`child_support` ฯลฯ) ก่อนเขียน Flutter | AI | TB.19 | smoke test | TODO |
 | TB.17 | P1: scheduler, คุมค่า AI, log/หลักฐาน, env, Dart client, ผลลัพธ์งาน, ตรวจลิงก์, dedupe, คำแนะนำเมื่อไม่พบผล, personas | AI | TB.16 | ทำแล้วใน TB.18 ยกเว้น Dart client (ย้ายไป T4.1 เพราะต้องมี Flutter) | DONE |
