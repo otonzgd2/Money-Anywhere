@@ -8,6 +8,8 @@ Object? toFactValue(Map<String, dynamic> question, String answer) {
       final options = (question['options'] as List).cast<String>();
       return answer == options.first;
     case 'number':
+      // "ไม่มี / ไม่ค้าง" to a number question means 0 (otherwise the same question would come back).
+      if (RegExp(r'^\s*(ไม่มี|ไม่ค้าง|ไม่เคย)').hasMatch(answer)) return 0;
       return int.tryParse(answer.replaceAll(RegExp(r'[^0-9]'), ''));
     default:
       return answer;
@@ -43,13 +45,16 @@ List<Map<String, dynamic>> rankMoney(List<dynamic> items) {
   return xs;
 }
 
-/// The next question to ask: the first program still waiting for an answer, skipping what the person skipped.
-Map<String, dynamic>? nextQuestion(List<dynamic> items, Set<String> skipped) {
-  for (final i in items.cast<Map<String, dynamic>>()) {
-    final q = i['nextQuestion'] as Map<String, dynamic>?;
-    if (i['status'] == 'need' && q != null && !skipped.contains(q['fact'])) return q;
-  }
-  return null;
+/// The next question to ask, skipping what the person skipped. [prefer] (a money item id) finishes the program
+/// that was just being asked about first, e.g. "child under 6" then "family income", before moving on.
+Map<String, dynamic>? nextQuestion(List<dynamic> items, Set<String> skipped, {String? prefer}) {
+  final open = [
+    for (final i in items.cast<Map<String, dynamic>>())
+      if (i['status'] == 'need' && i['nextQuestion'] != null && !skipped.contains((i['nextQuestion'] as Map)['fact'])) i
+  ];
+  if (open.isEmpty) return null;
+  final pick = open.firstWhere((i) => i['id'] == prefer, orElse: () => open.first);
+  return {...(pick['nextQuestion'] as Map<String, dynamic>), 'moneyId': pick['id']};
 }
 
 const statusLabel = {
@@ -62,7 +67,7 @@ const statusLabel = {
 
 /// Label for where the data came from (always shown, never hidden).
 String dataLabel(String? dataStatus) => switch (dataStatus) {
-      'live' => 'ข้อมูลจากหน่วยงาน',
+      'live' => 'ข้อมูลจริงจากแหล่งต้นทาง',
       'curated' => 'เกณฑ์จากแหล่งสาธารณะ ยังไม่ยืนยันสิทธิ์',
       _ => 'DEMO / MOCK',
     };

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.7.0
+  version: 0.8.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -691,6 +691,12 @@ components:
         unpaidDays: { type: number, nullable: true }
         dailyWage: { type: number, nullable: true }
         wage: { type: number, nullable: true }
+        oldAgeGets: { type: boolean, nullable: true }
+        kidUnder6: { type: boolean, nullable: true }
+        lowIncome: { type: boolean, nullable: true }
+        disabilityCard: { type: boolean, nullable: true }
+        welfareCard: { type: boolean, nullable: true }
+        hasUnpaid: { type: boolean, nullable: true, description: "0.8: asked before unpaidDays so people without unpaid wages are not asked for a number" }
 
     MemoryItem:
       type: object
@@ -733,6 +739,7 @@ components:
         fact: { type: string }
         question: { type: string }
         type: { type: string, enum: [enum, bool, number] }
+        help: { type: string, description: "0.8: plain explanation shown when the person does not understand the question" }
         options: { type: array, items: { type: string } }
 
     MoneyItem:
@@ -988,7 +995,7 @@ components:
       required: [kind, policyVersion]
       description: "How fixtures/assistant-policy.json classified the message. Only in_scope and ai_scope reach the AI. skip = the person is not sure, the question moves to the end (0.7). ai_scope = no keyword matched and nothing was refused, so the configured model judged it under the scope prompt and declines off-topic text (0.7; without a model this is unclear and redirected)."
       properties:
-        kind: { type: string, enum: [answer, skip, in_scope, ai_scope, injection, sensitive, guarantee, scam, off_topic, unclear] }
+        kind: { type: string, enum: [answer, skip, explain, in_scope, ai_scope, injection, sensitive, guarantee, scam, off_topic, unclear] }
         policyVersion: { type: string }
 
     AgentTurn:

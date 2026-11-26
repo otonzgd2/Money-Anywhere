@@ -32,7 +32,7 @@ function amountOf(p, facts) {
 
 function createMoney(ref) {
   const programs = ref.moneyPrograms, factDefs = ref.facts;
-  const question = f => ({ fact: f, question: factDefs[f].question, type: factDefs[f].type, options: factDefs[f].options });
+  const question = f => ({ fact: f, question: factDefs[f].question, type: factDefs[f].type, options: factDefs[f].options, help: factDefs[f].help });
 
   function evaluate(p, facts, govData) {
     const g = govData && govData[p.id];

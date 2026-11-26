@@ -32,6 +32,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
   Map<String, dynamic>? preview;
   String? error;
   bool loading = true, keepAsking = false;
+  String? lastMoneyId;
 
   @override
   void initState() {
@@ -61,6 +62,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
   void _answer(Map<String, dynamic> q, String raw) {
     final v = toFactValue(q, raw);
     if (v == null) return;
+    lastMoneyId = q['moneyId'] as String?;
     facts[q['fact'] as String] = v;
     numberInput.clear();
     if (widget.consented) {
@@ -87,7 +89,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
     }
     final items = (preview!['items'] as List).cast<Map<String, dynamic>>();
     final ranked = rankMoney(items);
-    final q = nextQuestion(items, skipped);
+    final q = nextQuestion(items, skipped, prefer: lastMoneyId);
     final hasAnswer = ranked.isNotEmpty && tierOf(ranked.first) <= 1;
     if (q != null && (!hasAnswer || keepAsking)) return _question(context, q);
     return _result(context, ranked, items, q);
@@ -100,13 +102,25 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
       Text('ตอบเท่าที่รู้ ข้ามได้ทุกข้อ', style: t.bodySmall),
       const SizedBox(height: 6),
       Text('${q['question']}', style: t.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+      if (q['help'] != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: const Color(0xFFF1F5F4), borderRadius: BorderRadius.circular(10)),
+            child: Text('💡 ${q['help']}'),
+          ),
+        ),
       const SizedBox(height: 16),
-      if (q['type'] == 'number')
+      if (q['type'] == 'number') ...[
         Row(children: [
-          Expanded(child: TextField(controller: numberInput, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'เช่น 12000', border: OutlineInputBorder()))),
+          Expanded(child: TextField(controller: numberInput, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'ใส่ตัวเลข เช่น 10', border: OutlineInputBorder()))),
           const SizedBox(width: 8),
           FilledButton(onPressed: () => _answer(q, numberInput.text), child: const Text('ตกลง')),
-        ])
+        ]),
+        const SizedBox(height: 8),
+        OutlinedButton(onPressed: () => _answer(q, 'ไม่มี'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)), child: const Text('ไม่มี (0)')),
+      ]
       else
         for (final o in options)
           Padding(

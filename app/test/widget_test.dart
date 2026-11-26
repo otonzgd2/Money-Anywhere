@@ -37,6 +37,17 @@ void main() {
     expect(nextQuestion(items, {'work', 'taxWithheld'}), isNull);
   });
 
+  test('nextQuestion finishes the program it was asking about first', () {
+    final items = [
+      {'id': 'unpaid_wages', 'status': 'need', 'nextQuestion': {'fact': 'hasUnpaid'}},
+      {'id': 'child_support', 'status': 'need', 'nextQuestion': {'fact': 'lowIncome'}},
+    ];
+    expect(nextQuestion(items, {})?['fact'], 'hasUnpaid');
+    expect(nextQuestion(items, {}, prefer: 'child_support')?['fact'], 'lowIncome');
+  });
+
+  test('"ไม่มี" to a number question is 0', () => expect(toFactValue({'type': 'number'}, 'ไม่มีค่ะ'), 0));
+
   test('baht formats with commas', () {
     expect(baht(7200), '฿7,200');
     expect(baht(600), '฿600');

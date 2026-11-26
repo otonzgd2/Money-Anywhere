@@ -255,7 +255,7 @@ function createServer(opts = {}) {
       complete_step: { mode: 'confirm', description: 'บันทึกว่าทำขั้นปัจจุบันเสร็จ (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
         label: () => 'บันทึกว่าทำขั้นนี้เสร็จแล้ว', exec: a => svc.taskEvent(d, device, a.taskId, { type: 'complete_step' }) },
       update_facts: { mode: 'confirm', description: 'บันทึกข้อมูลสถานการณ์ที่ผู้ใช้บอก (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { facts: { type: 'object' } }, required: ['facts'] },
-        label: a => 'บันทึกข้อมูล: ' + Object.keys(a.facts || {}).join(', '), exec: a => svc.patchFacts(d, a.facts) },
+        label: a => 'บันทึกคำตอบ: ' + Object.entries(a.facts || {}).map(([k, v]) => ((ref.facts[k] || {}).short || k) + ' = ' + (v === true ? 'ใช่' : v === false ? 'ไม่ใช่' : v)).join(', '), exec: a => svc.patchFacts(d, a.facts) },
       remember: { mode: 'memory', description: 'จำความชอบหรือข้อจำกัดสั้นๆ ของผู้ใช้', parameters: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } }
     };
   }
@@ -413,7 +413,13 @@ function createServer(opts = {}) {
   // AI assistant (agent)
   // Guided checklist: the next missing fact, in program order, from the money engine itself.
   // Facts the person already gave (anywhere in the app) are never asked again; skipped ones wait until the end.
-  const nextStep = (d, skipped = []) => { const it = money.list(d.facts, govData(d)).items.find(i => i.status === 'need' && i.nextQuestion && !skipped.includes(i.nextQuestion.fact)); return it ? { ...it.nextQuestion, moneyId: it.id } : null; };
+  // After an answer, finish the same program first ("has a child under 6" -> "family income"), so a likely
+  // benefit is not left half-asked while other programs' questions come in between.
+  const nextStep = (d, skipped = [], prefer) => {
+    const open = money.list(d.facts, govData(d)).items.filter(i => i.status === 'need' && i.nextQuestion && !skipped.includes(i.nextQuestion.fact));
+    const it = open.find(i => i.id === prefer) || open[0];
+    return it ? { ...it.nextQuestion, moneyId: it.id } : null;
+  };
   const ANSWER_START = /^(ใช่|ไม่|มี|เคย|ได้|ทำ|ยัง|เป็น|อายุ)/;
   const DIRECT_RE = /ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง|ทำไง|ต้องทำ|ทำอะไรต่อ|ขั้นตอน|บริบท/i;
   const stepQuick = s => s && s.options ? [...s.options, guard.skipQuickReply] : undefined;
@@ -441,6 +447,10 @@ function createServer(opts = {}) {
       const looksLikeAnswer = /\d/.test(text) || ANSWER_START.test(text) || (r.value !== undefined && text.includes(String(r.value)));
       if (looksLikeAnswer && ((c.expect.options && c.expect.options.includes(r.value)) || (c.expect.type === 'number' && typeof r.value === 'number'))) v = { kind: 'answer', value: String(r.value) };
     }
+    if (v.kind === 'explain') {
+      const q = c.expect;
+      return turn('ข้อนี้ถามว่า: ' + q.question + (q.help ? '\n' + q.help : '') + (q.options ? '\nตอบได้: ' + q.options.join(' / ') : '\nตอบเป็นตัวเลข') + '\nไม่แน่ใจ กด "' + guard.skipQuickReply + '" ได้', 'explain');
+    }
     if (v.kind === 'skip') {
       c.skipped = [...(c.skipped || []), c.expect.fact];
       c.expect = nextStep(d, c.skipped);
@@ -450,7 +460,7 @@ function createServer(opts = {}) {
       // The person picked an option the app offered: this is their own entry, not an AI write.
       const [st, res] = svc.patchFacts(d, { [c.expect.fact]: toFact(c.expect, v.value || text) });
       if (st >= 400) return turn('คำตอบนี้ใช้ไม่ได้ ลองเลือกจากตัวเลือกอีกครั้ง\n' + c.expect.question, 'answer');
-      c.expect = nextStep(d, c.skipped || []);
+      c.expect = nextStep(d, c.skipped || [], c.expect.moneyId);
       if (c.expect) return turn('บันทึกแล้ว\nข้อต่อไป: ' + c.expect.question, 'answer');
       const sum = await require('./adapters/agent').rulesAgent({ text: 'เงินฉันอยู่ไหน', tools });
       return turn('บันทึกแล้ว ตอบครบแล้ว\n' + sum.reply + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่นตามช่องทางในแอป', 'answer', { toolCalls: sum.toolCalls.map(t => ({ tool: t.tool })), quickReplies: ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'] });
