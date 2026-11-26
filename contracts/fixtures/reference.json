@@ -34,7 +34,19 @@
       { "id": "pathum_wan", "name": "ปทุมวัน", "lat": 13.7446, "lng": 100.5300, "note": "พิกัดกลางเขตโดยประมาณ ใช้เป็นจุดค้นหาเท่านั้น ไม่ใช้ปักหมุดโอกาส" },
       { "id": "bang_kapi", "name": "บางกะปิ", "lat": 13.7659, "lng": 100.6470 },
       { "id": "lat_phrao", "name": "ลาดพร้าว", "lat": 13.8036, "lng": 100.6076 },
-      { "id": "bang_na", "name": "บางนา", "lat": 13.6681, "lng": 100.6347 }
+      { "id": "bang_na", "name": "บางนา", "lat": 13.6681, "lng": 100.6347 },
+      { "id": "chatuchak", "name": "จตุจักร", "lat": 13.8285, "lng": 100.5600 },
+      { "id": "din_daeng", "name": "ดินแดง", "lat": 13.7700, "lng": 100.5530 },
+      { "id": "huai_khwang", "name": "ห้วยขวาง", "lat": 13.7760, "lng": 100.5790 },
+      { "id": "khlong_toei", "name": "คลองเตย", "lat": 13.7080, "lng": 100.5840 },
+      { "id": "bang_rak", "name": "บางรัก", "lat": 13.7300, "lng": 100.5240 },
+      { "id": "sathon", "name": "สาทร", "lat": 13.7080, "lng": 100.5260 },
+      { "id": "thon_buri", "name": "ธนบุรี", "lat": 13.7240, "lng": 100.4860 },
+      { "id": "bang_khae", "name": "บางแค", "lat": 13.6960, "lng": 100.4090 },
+      { "id": "min_buri", "name": "มีนบุรี", "lat": 13.8130, "lng": 100.7480 },
+      { "id": "lat_krabang", "name": "ลาดกระบัง", "lat": 13.7220, "lng": 100.7590 },
+      { "id": "don_mueang", "name": "ดอนเมือง", "lat": 13.9130, "lng": 100.5890 },
+      { "id": "bang_khen", "name": "บางเขน", "lat": 13.8730, "lng": 100.5960 }
     ]
   },
   "checklists": {
@@ -76,7 +88,15 @@
     { "provider": "bma_open", "name": "data.go.th โรงเรียนฝึกอาชีพ กทม.", "kind": "Open data", "attribution": "ระบุที่มาตามสัญญาอนุญาต" },
     { "provider": "osm", "name": "OpenStreetMap", "kind": "Open data", "attribution": "© OpenStreetMap contributors" },
     { "provider": "curated", "name": "ทีมคัดเอง (Curated)", "kind": "ไฟล์ข้อมูล", "attribution": "ระบุ URL ต้นทางทุกรายการ" },
-    { "provider": "mock", "name": "Mock", "kind": "ข้อมูลจำลอง", "attribution": "DEMO / MOCK" }
+    { "provider": "official", "name": "บริการของหน่วยงานรัฐ (จัดหางาน, ฝึกอาชีพ)", "kind": "ไฟล์ข้อมูล ตรวจลิงก์ด้วยมือ", "attribution": "เว็บไซต์กรมการจัดหางาน และกรมพัฒนาฝีมือแรงงาน" },
+    { "provider": "mock", "name": "Mock", "kind": "ข้อมูลจำลอง", "attribution": "DEMO / MOCK" },
+    { "provider": "mock_doe", "name": "ระบบประกาศงานภาครัฐ (จำลอง แทน API กรมการจัดหางาน)", "kind": "Mock adapter รอต่อ API จริง", "attribution": "DEMO / MOCK" },
+    { "provider": "mock_jobboard", "name": "เว็บหางานเอกชน (จำลอง แทน API ผู้ให้บริการหางาน)", "kind": "Mock adapter รอต่อ API จริง", "attribution": "DEMO / MOCK" },
+    { "provider": "mock_gig", "name": "แพลตฟอร์มงานรายครั้งและฟรีแลนซ์ (จำลอง)", "kind": "Mock adapter รอต่อ API จริง", "attribution": "DEMO / MOCK" },
+    { "provider": "mock_dsd", "name": "หลักสูตรฝึกอาชีพ (จำลอง แทน API กรมพัฒนาฝีมือแรงงาน)", "kind": "Mock adapter รอต่อ API จริง", "attribution": "DEMO / MOCK" },
+    { "provider": "mock_market", "name": "ตลาดนัดและจุดรับซื้อ (จำลอง)", "kind": "Mock adapter รอต่อข้อมูลจริง", "attribution": "DEMO / MOCK" },
+    { "provider": "mock_fund", "name": "กองทุนและทุนให้เปล่า (จำลอง)", "kind": "Mock adapter รอต่อข้อมูลจริง", "attribution": "DEMO / MOCK" },
+    { "provider": "thaid_mock", "name": "ThaID และข้อมูลสิทธิ์จากหน่วยงาน (จำลอง รอข้อตกลงกับผู้ให้บริการ)", "kind": "Mock adapter รอต่อ API จริง", "attribution": "DEMO / MOCK" }
   ],
 
   "privacyNotice": {
@@ -202,8 +222,11 @@
   ],
 
   "govMock": {
-    "old_age": { "amount": 600, "text": "ลงทะเบียนแล้ว จ่ายทุกเดือน" },
-    "tax_refund": { "amount": 1850, "text": "มียอดคืนภาษีรอโอน" }
+    "old_age": { "amount": 600, "text": "ลงทะเบียนแล้ว จ่ายทุกเดือน (ข้อมูลจำลองจาก ThaID)", "skipIf": { "ageBand": "ต่ำกว่า 60" } },
+    "tax_refund": { "amount": 1850, "text": "มียอดคืนภาษีรอโอน (ข้อมูลจำลองจาก ThaID)" },
+    "child_support": { "amount": 600, "text": "อนุมัติแล้ว จ่ายทุกเดือนจนเด็กอายุครบ 6 ปี (ข้อมูลจำลอง)", "requires": { "kidUnder6": true } },
+    "disability": { "amount": 1000, "text": "ลงทะเบียนแล้ว รวมเงินเพิ่มบัตรสวัสดิการ (ข้อมูลจำลอง)", "requires": { "disabilityCard": true } },
+    "unemployment": { "amount": 7200, "text": "อนุมัติเงินทดแทนว่างงาน รายงานตัวทุกเดือน (ข้อมูลจำลอง)", "requires": { "work": "ถูกเลิกจ้าง" } }
   },
 
   "skillIdeas": [
@@ -211,12 +234,25 @@
     { "id": "idea_typing", "title": "รับพิมพ์และกรอกข้อมูล", "skills": ["พิมพ์เอกสาร", "กรอกข้อมูล", "Excel/ตาราง"], "grossPerMonth": [2400, 4000], "costPerMonth": [0, 300], "payDays": 10, "effort": 1, "risk": "งานไม่สม่ำเสมอ", "assumptions": ["8 งาน/เดือน"] },
     { "id": "idea_driver", "title": "ขับรถรับส่งของในชุมชน", "skills": ["ขับรถยนต์", "ขับมอเตอร์ไซค์", "ส่งของ/ส่งอาหาร"], "grossPerMonth": [5000, 8000], "costPerMonth": [1500, 2500], "payDays": 7, "effort": 3, "risk": "ค่าน้ำมันขึ้นลง", "assumptions": ["3 วัน/สัปดาห์", "ค่าน้ำมันเป็นค่าสมมติ"] },
     { "id": "idea_tutor", "title": "สอนพิเศษเด็กในละแวกบ้าน", "skills": ["สอนพิเศษ", "ภาษาอังกฤษ", "ภาษาจีน"], "grossPerMonth": [3000, 6000], "costPerMonth": [0, 200], "payDays": 30, "effort": 2, "risk": "ต้องหาผู้เรียนเอง", "assumptions": ["2 คน × 2 ชม./สัปดาห์"] },
-    { "id": "idea_care", "title": "ดูแลผู้สูงอายุหรือเด็กเป็นรายชั่วโมง", "skills": ["ดูแลผู้สูงอายุ", "เลี้ยงเด็ก"], "grossPerMonth": [4000, 8000], "costPerMonth": [0, 300], "payDays": 7, "effort": 2, "risk": "ต้องสร้างความไว้ใจกับครอบครัว", "assumptions": ["10 ชม./สัปดาห์"] }
+    { "id": "idea_care", "title": "ดูแลผู้สูงอายุหรือเด็กเป็นรายชั่วโมง", "skills": ["ดูแลผู้สูงอายุ", "เลี้ยงเด็ก"], "grossPerMonth": [4000, 8000], "costPerMonth": [0, 300], "payDays": 7, "effort": 2, "risk": "ต้องสร้างความไว้ใจกับครอบครัว", "assumptions": ["10 ชม./สัปดาห์"] },
+    { "id": "idea_snack", "title": "ทำขนมขายออนไลน์และฝากร้านในชุมชน", "skills": ["ทำขนม/เบเกอรี่", "ขายของออนไลน์"], "grossPerMonth": [4000, 9000], "costPerMonth": [1500, 3000], "payDays": 7, "effort": 2, "risk": "ต้องหาลูกค้าประจำ ของเสียถ้าขายไม่หมด", "assumptions": ["ขาย 3 วัน/สัปดาห์", "ต้นทุนวัตถุดิบเป็นค่าสมมติ"] },
+    { "id": "idea_clean", "title": "รับทำความสะอาดบ้านเป็นครั้ง", "skills": ["ทำความสะอาด"], "grossPerMonth": [3000, 7000], "costPerMonth": [200, 500], "payDays": 1, "effort": 3, "risk": "งานไม่สม่ำเสมอช่วงแรก", "assumptions": ["2-4 บ้าน/สัปดาห์ บ้านละ 400-500 บาท"] },
+    { "id": "idea_repair", "title": "รับซ่อมเครื่องใช้ไฟฟ้าและงานช่างในหมู่บ้าน", "skills": ["ช่างซ่อม"], "grossPerMonth": [4000, 10000], "costPerMonth": [500, 1500], "payDays": 1, "effort": 2, "risk": "ต้องมีเครื่องมือ", "assumptions": ["8-15 งาน/เดือน"] },
+    { "id": "idea_sew", "title": "รับเย็บซ่อมเสื้อผ้า", "skills": ["เย็บผ้า"], "grossPerMonth": [2000, 5000], "costPerMonth": [100, 300], "payDays": 3, "effort": 1, "risk": "รายได้ต่องานต่ำ", "assumptions": ["ใช้จักรที่มีอยู่"] },
+    { "id": "idea_veg", "title": "ปลูกผักขายในตลาดชุมชน", "skills": ["ทำสวน"], "grossPerMonth": [1500, 4000], "costPerMonth": [300, 800], "payDays": 7, "effort": 2, "risk": "ขึ้นกับสภาพอากาศ", "assumptions": ["พื้นที่หลังบ้าน", "ขายสัปดาห์ละ 2 ครั้ง"] },
+    { "id": "idea_hair", "title": "ตัดผมนอกสถานที่ (ผู้สูงอายุ ติดเตียง)", "skills": ["ตัดผม"], "grossPerMonth": [3000, 8000], "costPerMonth": [200, 500], "payDays": 1, "effort": 2, "risk": "ต้องเดินทาง", "assumptions": ["20-40 หัว/เดือน"] },
+    { "id": "idea_sellonline", "title": "ขายของมือสองหรือของในบ้านออนไลน์", "skills": ["ขายของออนไลน์"], "grossPerMonth": [1000, 4000], "costPerMonth": [0, 300], "payDays": 3, "effort": 1, "risk": "ของหมดแล้วรายได้หยุด", "assumptions": ["ขายของที่มีอยู่แล้ว"] },
+    { "id": "idea_rider", "title": "รับงานส่งของหรือส่งอาหารผ่านแอป", "skills": ["ขับมอเตอร์ไซค์", "ส่งของ/ส่งอาหาร"], "grossPerMonth": [6000, 15000], "costPerMonth": [2000, 4000], "payDays": 7, "effort": 3, "risk": "ค่าน้ำมันและอุบัติเหตุ", "assumptions": ["4-6 ชม./วัน 5 วัน/สัปดาห์"] }
   ],
 
   "demoPersonas": {
     "p1": { "label": "สมชาย 65 ปี (track A)", "profile": { "displayName": "สมชาย (สมมติ)", "district": "ปทุมวัน", "skills": ["ขับรถยนต์", "ทำอาหาร"], "hoursPerWeek": "10-20", "incomeGoalPerMonth": 5000, "goals": ["ตรวจเงินที่ควรได้"] }, "facts": { "ageBand": "60-69", "govPension": false, "oldAgeGets": false, "work": "ไม่ได้ทำงาน", "taxWithheld": false }, "tasks": ["mock_w2"] },
     "p2": { "label": "สุดา 28 ปี (track B)", "profile": { "displayName": "สุดา (สมมติ)", "district": "บางกะปิ", "skills": ["พิมพ์เอกสาร", "ขับรถยนต์"], "hoursPerWeek": "เต็มเวลา", "incomeGoalPerMonth": 10000, "goals": ["หางาน"] }, "facts": { "ageBand": "ต่ำกว่า 60", "govPension": false, "work": "ถูกเลิกจ้าง", "ss33": true, "wage": 12000, "unpaidDays": 5, "dailyWage": 400 }, "tasks": ["mock_j1"] },
+    "p4": { "label": "วิชัย 45 ปี ถูกเลิกจ้าง นายจ้างค้างค่าจ้าง", "profile": { "displayName": "วิชัย (สมมติ)", "district": "บางแค", "skills": ["ขับรถยนต์", "ช่างซ่อม"], "hoursPerWeek": "เต็มเวลา", "incomeGoalPerMonth": 15000, "goals": ["หางาน"] }, "facts": { "ageBand": "ต่ำกว่า 60", "govPension": false, "work": "ถูกเลิกจ้าง", "ss33": true, "wage": 15000, "hasUnpaid": true, "unpaidDays": 12, "dailyWage": 500, "kidUnder6": false, "disabilityCard": false, "taxWithheld": true }, "tasks": [] },
+    "p5": { "label": "นิด 32 ปี แม่เลี้ยงเดี่ยว ลูก 3 ขวบ", "profile": { "displayName": "นิด (สมมติ)", "district": "ดินแดง", "skills": ["ทำขนม/เบเกอรี่", "ขายของออนไลน์"], "hoursPerWeek": "10-20", "incomeGoalPerMonth": 9000, "goals": ["หารายได้จากทักษะ"] }, "facts": { "ageBand": "ต่ำกว่า 60", "govPension": false, "work": "ไม่ได้ทำงาน", "kidUnder6": true, "lowIncome": true, "hasUnpaid": false, "disabilityCard": false, "taxWithheld": false }, "tasks": [] },
+    "p6": { "label": "สมศักดิ์ 52 ปี ผู้พิการ มีบัตรสวัสดิการ", "profile": { "displayName": "สมศักดิ์ (สมมติ)", "district": "มีนบุรี", "skills": ["กรอกข้อมูล", "พิมพ์เอกสาร"], "hoursPerWeek": "20-40", "incomeGoalPerMonth": 8000, "goals": ["ตรวจเงินที่ควรได้"] }, "facts": { "ageBand": "ต่ำกว่า 60", "govPension": false, "work": "ไม่ได้ทำงาน", "kidUnder6": false, "hasUnpaid": false, "disabilityCard": true, "welfareCard": true, "taxWithheld": false }, "tasks": [] },
+    "p7": { "label": "ต้น 20 ปี นักศึกษา หางานพาร์ตไทม์", "profile": { "displayName": "ต้น (สมมติ)", "district": "จตุจักร", "skills": ["ภาษาอังกฤษ", "สอนพิเศษ", "ขับมอเตอร์ไซค์"], "hoursPerWeek": "ไม่เกิน 10", "incomeGoalPerMonth": 4000, "goals": ["หางาน"] }, "facts": { "ageBand": "ต่ำกว่า 60", "govPension": false, "work": "ไม่ได้ทำงาน", "kidUnder6": false, "hasUnpaid": false, "disabilityCard": false, "taxWithheld": false }, "tasks": [] },
+    "p8": { "label": "ยายบุญมี 78 ปี ได้เบี้ยอยู่แล้ว อยากมีรายได้เสริม", "profile": { "displayName": "ยายบุญมี (สมมติ)", "district": "ธนบุรี", "skills": ["ทำอาหาร", "ทำสวน"], "hoursPerWeek": "ไม่เกิน 10", "incomeGoalPerMonth": 3000, "goals": ["หารายได้จากทักษะ"] }, "facts": { "ageBand": "70-79", "govPension": false, "oldAgeGets": true, "work": "ไม่ได้ทำงาน", "kidUnder6": false, "hasUnpaid": false, "disabilityCard": false, "taxWithheld": false }, "tasks": [] },
     "p3": { "label": "มานี 40 ปี (track C)", "profile": { "displayName": "มานี (สมมติ)", "district": "ลาดพร้าว", "skills": ["ทำอาหาร"], "hoursPerWeek": "20-40", "incomeGoalPerMonth": 5000, "goals": ["หารายได้จากทักษะ"] }, "facts": { "ageBand": "ต่ำกว่า 60", "govPension": false, "work": "ทำงานอิสระ", "ss33": false, "taxWithheld": true }, "tasks": ["mock_m2"] }
   }
 }

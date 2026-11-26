@@ -2,6 +2,9 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'income_plan_screen.dart';
+import 'profile_screen.dart';
+import 'thaid.dart';
 
 const purposeLabel = {'ai': 'ให้ AI ช่วยวิเคราะห์', 'reminders': 'เตือนงานค้าง', 'location': 'ใช้ตำแหน่งค้นหา'};
 
@@ -19,6 +22,7 @@ class _MeTabState extends State<MeTab> {
   List<Map<String, dynamic>> memory = [];
   ApiException? error;
   bool loaded = false;
+  GovState gov = GovState.disabled;
   Api get api => widget.app.api;
 
   @override
@@ -41,6 +45,7 @@ class _MeTabState extends State<MeTab> {
       final m = await api.get('/v1/me/memory');
       final s = await api.get('/v1/me/settings');
       widget.app.largeText.value = s['largeText'] == true;
+      gov = await govState(api);
       if (!mounted) return;
       setState(() {
         purposes = cur == null ? null : (cur['purposes'] as Map).map((k, v) => MapEntry('$k', v == true));
@@ -155,6 +160,35 @@ class _MeTabState extends State<MeTab> {
       appBar: AppBar(title: const Text('ฉัน')),
       body: ListView(padding: const EdgeInsets.all(12), children: [
         if (error != null && error!.isNetwork) OfflineCard(app: widget.app, onRetry: _load),
+        _head('ข้อมูลของฉัน'),
+        ListTile(
+          leading: const Text('🧑', style: TextStyle(fontSize: 22)),
+          title: const Text('โปรไฟล์และทักษะ'),
+          subtitle: const Text('ทักษะ เวลาว่าง เป้ารายได้ เขตที่อยู่ ใช้หางานและวางแผนรายได้'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(app: widget.app))),
+        ),
+        ListTile(
+          leading: const Text('📈', style: TextStyle(fontSize: 22)),
+          title: const Text('แผนรายได้'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IncomePlanScreen(app: widget.app))),
+        ),
+        _head('บัญชีที่เชื่อมต่อ'),
+        if (gov == GovState.disabled) const ListTile(title: Text('ThaID'), subtitle: Text('server ปิดโหมดนี้อยู่')),
+        if (gov == GovState.notConnected)
+          ListTile(leading: const Text('🪪', style: TextStyle(fontSize: 22)), title: const Text('เชื่อม ThaID'), subtitle: const Text('โหมดสาธิต ใช้ข้อมูลจำลอง'),
+              trailing: const Icon(Icons.chevron_right), onTap: () => connectThaid(context, widget.app)),
+        if (gov == GovState.connected)
+          ListTile(leading: const Text('🪪', style: TextStyle(fontSize: 22)), title: const Text('ThaID เชื่อมแล้ว (ข้อมูลจำลอง)'),
+              trailing: TextButton(onPressed: () => disconnectThaid(context, widget.app), child: const Text('ยกเลิก'))),
+        ListTile(
+          leading: const Text('🔌', style: TextStyle(fontSize: 22)),
+          title: const Text('แหล่งข้อมูลที่เชื่อมต่อ'),
+          subtitle: const Text('API ภาครัฐ เอกชน ข้อมูลจริง และข้อมูลจำลอง'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SourcesScreen(app: widget.app))),
+        ),
         _head('การใช้งาน'),
         ValueListenableBuilder<bool>(
           valueListenable: widget.app.largeText,
@@ -191,7 +225,16 @@ class _MeTabState extends State<MeTab> {
           onTap: () => _info('สัญญาณเตือน', '• ให้โอนเงินก่อน ค่ามัดจำ ค่าธรรมเนียม\n• ขอเลขบัตร รหัสผ่าน OTP ทางแชท\n• รายได้สูงผิดปกติ งานง่ายเกินจริง\n• เงินกู้คือหนี้ ไม่ใช่รายได้\nสงสัยโทรสายด่วนตำรวจไซเบอร์ 1441'),
         ),
         _head('สำหรับสาธิต (DEMO)'),
-        for (final p in const [['p1', 'สมชาย 65 ปี (เงินสวัสดิการ)'], ['p2', 'สุดา 28 ปี (หางาน)'], ['p3', 'มานี 40 ปี (รายได้จากทักษะ)']])
+        for (final p in const [
+          ['p1', 'สมชาย 65 ปี ยังไม่ได้เบี้ยผู้สูงอายุ'],
+          ['p2', 'สุดา 28 ปี ถูกเลิกจ้าง หางาน'],
+          ['p3', 'มานี 40 ปี อาชีพอิสระ รายได้จากทักษะ'],
+          ['p4', 'วิชัย 45 ปี ถูกเลิกจ้าง นายจ้างค้างค่าจ้าง'],
+          ['p5', 'นิด 32 ปี แม่เลี้ยงเดี่ยว ลูก 3 ขวบ'],
+          ['p6', 'สมศักดิ์ 52 ปี ผู้พิการ มีบัตรสวัสดิการ'],
+          ['p7', 'ต้น 20 ปี นักศึกษา หางานพาร์ตไทม์'],
+          ['p8', 'ยายบุญมี 78 ปี ได้เบี้ยอยู่แล้ว อยากมีรายได้เสริม'],
+        ])
           ListTile(title: Text('โหลดผู้ใช้ตัวอย่าง: ${p[1]}'), leading: const Icon(Icons.person_outline), onTap: () => _persona(p[0], p[1])),
         ListTile(
           title: const Text('ที่อยู่ server'),
@@ -201,6 +244,64 @@ class _MeTabState extends State<MeTab> {
         ),
         const Padding(padding: EdgeInsets.all(8), child: DemoPill(text: 'เวอร์ชันสาธิต · ผู้ใช้สมมติ · ไม่มีการเข้าสู่ระบบ')),
       ]),
+    );
+  }
+}
+
+/// ฉัน > แหล่งข้อมูลที่เชื่อมต่อ: every source the server uses, what kind it is, and its state (GET /v1/sources).
+class SourcesScreen extends StatefulWidget {
+  const SourcesScreen({super.key, required this.app});
+  final AppState app;
+  @override
+  State<SourcesScreen> createState() => _SourcesScreenState();
+}
+
+class _SourcesScreenState extends State<SourcesScreen> {
+  List<Map<String, dynamic>>? items;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final r = await widget.app.api.get('/v1/sources');
+      setState(() => items = (r['items'] as List).cast<Map<String, dynamic>>());
+    } on ApiException catch (e) {
+      setState(() => error = e.message);
+    }
+  }
+
+  static String _kind(Map<String, dynamic> s) {
+    final p = '${s['provider']}';
+    if (p.startsWith('mock') || p.endsWith('_mock')) return '🧪 ข้อมูลจำลอง รอต่อ API จริง';
+    if (s['direction'] == 'pull') return '🌐 ดึงจาก API จริง';
+    if (p == 'official') return '🏛️ ลิงก์หน่วยงานรัฐ (ตรวจด้วยมือ)';
+    return '📄 ${s['kind'] ?? ''}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('แหล่งข้อมูลที่เชื่อมต่อ')),
+      body: error != null
+          ? Center(child: Text(error!))
+          : items == null
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(padding: const EdgeInsets.all(12), children: [
+                  for (final s in items!)
+                    Card(
+                      child: ListTile(
+                        title: Text('${s['name'] ?? s['provider']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('${_kind(s)}\nสถานะ: ${s['state']}${s['itemCount'] != null ? ' · ${s['itemCount']} รายการ' : ''}'),
+                        isThreeLine: true,
+                      ),
+                    ),
+                  Text('ข้อมูลจำลองแทนระบบที่ยังต่อไม่ได้ (ต้องมีข้อตกลงหรือ API key) ทุกรายการจากแหล่งนี้ติดป้าย DEMO / MOCK ในแอป', style: Theme.of(context).textTheme.bodySmall),
+                ]),
     );
   }
 }

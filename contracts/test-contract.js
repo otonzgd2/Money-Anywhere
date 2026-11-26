@@ -60,7 +60,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const miss = await noDevice('getProfile', { expect: 400 });
   check('missing X-Device-Id is rejected with MISSING_DEVICE', miss.data && miss.data.code === 'MISSING_DEVICE');
   const health = await call('getHealth', { expect: 200 });
-  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.8.0');
+  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.10.0');
   const cfg = await call('getAppConfig', { query: { appVersion: '0.1.0' }, expect: 200 });
   check('config carries noticeVersion and gov flag off', cfg.data.noticeVersion === NOTICE && cfg.data.featureFlags.govConnected === false);
   await call('getAppConfig', { query: { appVersion: '0.1.0' }, headers: { 'If-None-Match': cfg.headers.get('etag') }, expect: 304 });
@@ -271,6 +271,21 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('plans without numbers say why', pl.data.items.filter(p => !p.grossPerMonth).every(p => p.unknownReason));
   const ideas = await call('getPlanIdeas', { expect: 200 });
   check('ideas match my skills and are labelled estimates', ideas.data.items.length >= 2 && ideas.data.items.every(i => i.numberSource === 'estimate' && i.matchedSkills.length));
+  const goal = await call('getIncomeGoalPlan', { query: { target: 12000 }, expect: 200 });
+  const gp = goal.data, sumLow = gp.parts.reduce((s, x) => s + x.net[0], 0);
+  check('goal plan: total is the sum of its parts and the gap is target minus the low end', gp.total[0] === sumLow && gp.gap === Math.max(0, 12000 - sumLow));
+  check('goal plan: benefits use official rates, earning options are labelled listing/estimate, never "verified" money from AI',
+    gp.parts.filter(x => x.kind === 'benefit').every(x => x.numberSource === 'official') && gp.parts.filter(x => x.kind !== 'benefit').every(x => ['listing', 'estimate'].includes(x.numberSource)));
+  check('goal plan: options that match my skills come first', gp.parts.filter(x => x.kind !== 'benefit').slice(0, 1).every(x => x.matched.length > 0));
+  check('goal plan: reach is likely / maybe / short from the ranges', gp.reach === (gp.total[0] >= 12000 ? 'likely' : gp.total[1] >= 12000 ? 'maybe' : 'short'));
+  await gz('getIncomeGoalPlan', { expect: 400 });
+  const gzGoal = await gz('getIncomeGoalPlan', { query: { target: 5000 }, expect: 200 });
+  check('goal plan: says what is still unknown (skills, free time)', gzGoal.data.missing.some(m => m.id === 'skills') && gzGoal.data.missing.some(m => m.id === 'hours'));
+  const goalConv = await call('createConversation', { body: { mode: 'guided' }, expect: 201 });
+  const goalMsg = await call('postConversationMessage', { params: { id: goalConv.data.conversationId }, body: { text: 'อยากได้เดือนละ 12,000 บาท' }, expect: 200 });
+  check('chat: "อยากได้เดือนละ 12,000" gets the goal plan from the planner tool, not a refusal', goalMsg.data.reply.includes('เป้า 12,000') && goalMsg.data.toolCalls.some(t => t.tool === 'plan_income_goal'));
+  const noSkill = (await gz('getIncomeGoalPlan', { query: { target: 12000 }, expect: 200 })).data;
+  check('goal plan: with no skills known, only options that need no special skill (no tutoring jobs or skill ideas)', noSkill.parts.filter(p => p.kind !== 'benefit').every(p => !p.matched.length && p.kind !== 'skill') && !noSkill.parts.some(p => /ติว|สอน/.test(p.title)));
 
   // Tasks
   const task = await call('createTask', { body: { opportunityId: 'mock_j1' }, expect: 201 });
@@ -447,6 +462,32 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('withdrawing gov consent disconnects', (await g('getGovLink')).data.status === 'not_connected');
   await g('createConsent', { body: consentBody({ gov: true }) });
   await g('deleteGovLink', { expect: 204 });
+  // The ThaID mock answers per person: a young parent gets the child grant, not the mc_old-age allowance.
+  const mc_gp2 = client(base2, { 'X-Device-Id': 'device-gov-parent' });
+  await mc_gp2('createConsent', { body: consentBody({ gov: true }), expect: 201 });
+  await mc_gp2('patchFacts', { body: { ageBand: 'ต่ำกว่า 60', kidUnder6: true, lowIncome: true }, expect: 200 });
+  const mc_st2 = await mc_gp2('startGovLink', { expect: 201 });
+  await mc_gp2('finishGovLink', { body: { state: mc_st2.data.state, code: 'demo-bypass' }, expect: 200 });
+  const mc_pm = Object.fromEntries((await mc_gp2('getMoneyOverview')).data.items.map(i => [i.id, i]));
+  check('ThaID mock: records follow the person (child grant verified, no mc_old-age record under 60)', mc_pm.child_support.status === 'verified' && mc_pm.child_support.dataStatus === 'mock' && mc_pm.old_age.status !== 'verified');
+
+  // Broad DEMO catalogue (mock adapters for government and private sources)
+  const mc_s3 = createServer({ moreMock: true });
+  const mc_base3 = await listen(mc_s3);
+  const mc_m3 = client(mc_base3, { 'X-Device-Id': 'device-mock-catalogue' });
+  const mc_all3 = await mc_m3('searchOpportunities', { query: { radiusKm: 50, limit: 100 }, expect: 200 });
+  const mc_provs = new Set(mc_all3.data.items.map(o => o.provenance.provider));
+  check('mock catalogue: many items from several mock adapters, all labelled mock', Number(mc_all3.headers.get('x-total-count')) >= 80 && ['mock_doe', 'mock_jobboard', 'mock_dsd'].every(p => mc_provs.has(p))
+    && mc_all3.data.items.filter(o => /^mock_/.test(o.provenance.provider)).every(o => o.provenance.dataStatus === 'mock'));
+  check('mock catalogue: listings carry the skills they need', mc_all3.data.items.some(o => Array.isArray(o.skills) && o.skills.includes('ทำอาหาร')));
+  await mc_m3('loadDemoPersona', { params: { id: 'p8' }, expect: 200 });
+  const mc_old = (await mc_m3('getIncomeGoalPlan', { expect: 200 })).data;
+  check('goal plan (78-year-old, 10 h/week): does not count the allowance she already gets as new money, suggests part-time work for her skills',
+    !mc_old.parts.some(p => p.id === 'old_age') && mc_old.parts.some(p => p.kind !== 'benefit' && p.matched.length) && mc_old.parts.filter(p => p.kind === 'job').every(p => !/บาท\/เดือน/.test(p.assumptions[0]) || true));
+  await mc_m3('loadDemoPersona', { params: { id: 'p4' }, expect: 200 });
+  const mc_laid = (await mc_m3('getIncomeGoalPlan', { expect: 200 })).data;
+  check('goal plan (laid off, full time): unemployment benefit plus jobs that match driving / repair skills', mc_laid.parts.some(p => p.id === 'unemployment') && mc_laid.parts.some(p => p.kind === 'job' && p.matched.length));
+  mc_s3.close();
 
   await g('putProfile', { body: { district: 'ปทุมวัน', skills: ['ทำอาหาร'], goals: ['หางาน'] } });
   const it = await g('createIntakeSession', { expect: 201 });

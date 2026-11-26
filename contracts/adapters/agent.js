@@ -11,6 +11,27 @@ function guardMoney(reply, toolJson) {
 
 const PREF_RE = /(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ทำได้แค่[^.?!]*|ว่างแค่[^.?!]*)/;
 
+// "I want X baht a month": find the amount in the text (the first number of 100 or more).
+const GOAL_RE = /(อยากได้|เป้า|ต้องการ|หาเงิน|ให้ได้|อยากมี).{0,25}\d|\d[\d,]*\s*(บาท)?\s*(ต่อเดือน|\/เดือน|ต่อเดือน)|เดือนละ\s*\d/;
+function goalTarget(text) {
+  if (!GOAL_RE.test(text)) return null;
+  const n = (String(text).replace(/(\d),(\d)/g, '$1$2').match(/\d+/g) || []).map(Number).find(x => x >= 100);
+  return n || null;
+}
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const range = r => r[0] === r[1] ? fmt(r[0]) : fmt(r[0]) + '-' + fmt(r[1]);
+const SRC = { official: 'อัตราทางการ', listing: 'ตามประกาศ', estimate: 'ประมาณการ' };
+// Plain-text plan from plan_income_goal output. Every number comes from the tool result.
+function formatGoal(p) {
+  const lines = ['เป้า ' + fmt(p.target) + ' บาท/เดือน วางแผนได้แบบนี้'];
+  p.parts.forEach((x, i) => lines.push((i + 1) + '. ' + x.title + ' ประมาณ ' + range(x.net) + ' บาท/เดือน (' + (SRC[x.numberSource] || x.numberSource) + (x.dataStatus === 'mock' ? ', ตัวอย่าง DEMO' : '') + ')' + (x.matched && x.matched.length ? ' ตรงทักษะ: ' + x.matched.join(', ') : '')));
+  if (!p.parts.length) lines.push('ยังไม่มีทางที่คิดเป็นตัวเลขได้');
+  lines.push('รวมประมาณ ' + range(p.total) + ' บาท/เดือน' + (p.reach === 'likely' ? ' ถึงเป้าถ้าทำตามแผน' : p.reach === 'maybe' ? ' อาจถึงเป้าถ้าได้ช่วงบน' : ' ยังขาดอีกราว ' + fmt(p.gap) + ' บาท'));
+  p.missing.forEach(m => lines.push('• ' + m.text));
+  lines.push('ไม่ใช่รายได้ที่รับประกัน ดูแผนเต็มได้ที่ หน้าแรก > แผนรายได้');
+  return lines.join('\n');
+}
+
 // Nothing to claim yet: say how far the person is, without naming programs they have not qualified for.
 function notYet(m) {
   const open = m.items.filter(i => i.status === 'need').length;
@@ -24,7 +45,11 @@ async function rulesAgent({ text, tools }) {
   const pref = t.match(PREF_RE);
   if (pref) memory.push(pref[1].trim());
   let reply, quick = ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน', 'เตือนฉันพรุ่งนี้'];
-  if (/เอกสาร/.test(t)) {
+  const target = goalTarget(t);
+  if (target && tools.plan_income_goal) {
+    reply = formatGoal(await use('plan_income_goal', { target }));
+    quick = ['ไปรับเงินยังไง', 'หางานใกล้บ้าน', 'เอกสารที่ยังขาด'];
+  } else if (/เอกสาร/.test(t)) {
     const m = await use('get_money_overview');
     const lines = [];
     for (const it of m.items.filter(i => ['likely', 'verified', 'check'].includes(i.status))) {
@@ -45,11 +70,11 @@ async function rulesAgent({ text, tools }) {
     const a = r.items.find(x => x.status === 'active');
     if (a) { reply = 'จะตั้งเตือนเรื่อง "' + a.title + '" พรุ่งนี้'; pending.push({ tool: 'snooze_task', args: { taskId: a.id, until: 'tomorrow' }, label: 'เตือน "' + a.title + '" พรุ่งนี้' }); }
     else reply = 'ยังไม่มีงานที่กำลังทำอยู่';
-  } else if (/เงิน|ได้เท่าไหร่|รอรับ|สิทธิ์/.test(t)) {
+  } else if (/เงิน|ได้เท่าไหร่|รอรับ|สิทธิ์|ควรได้|ได้อะไร|จากรัฐ/.test(t)) {
     const m = await use('get_money_overview');
     const s = m.summary, top = m.items.filter(i => ['likely', 'verified'].includes(i.status));
     const need = m.items.find(i => i.status === 'need');
-    reply = (s.counted ? 'เงินที่คุณอาจได้ ' + (s.monthly ? s.monthly + ' บาท/เดือน' : '') + (s.once ? ' และ ' + s.once + ' บาท ครั้งเดียว' : '') + (s.allVerified ? ' (ยืนยันจากหน่วยงาน)' : ' (ประมาณจากเกณฑ์ ยังไม่ยืนยัน)') : 'ยังไม่พบเงินที่น่าจะมีสิทธิ์')
+    reply = (s.counted ? 'เงินที่คุณอาจได้ ' + (s.monthly ? s.monthly + ' บาท/เดือน' : '') + (s.once ? ' และ ' + s.once + ' บาท ครั้งเดียว' : '') + (s.allVerified ? ' (ยืนยันจากหน่วยงาน)' : ' (ประมาณจากเกณฑ์ ยังไม่ยืนยัน)') : need ? notYet(m) : 'ยังไม่พบเงินที่น่าจะมีสิทธิ์')
       + (top.length ? '\nเริ่มที่: ' + top.map(i => i.title).join(', ') : '')
       + (need ? '\nตอบอีกข้อเพื่อเช็ค ' + need.title + ': ' + need.nextQuestion.question : '');
     quick = ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'];
@@ -129,4 +154,4 @@ function createAgent(opts = {}) {
     }
   };
 }
-module.exports = { createAgent, guardMoney, rulesAgent };
+module.exports = { createAgent, guardMoney, rulesAgent, goalTarget, formatGoal };

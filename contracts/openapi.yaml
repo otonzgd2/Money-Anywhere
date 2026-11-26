@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.8.0
+  version: 0.10.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -451,6 +451,17 @@ paths:
       responses:
         '200': { description: Ideas, content: { application/json: { schema: { $ref: '#/components/schemas/IdeaList' } } } }
         '400': { $ref: '#/components/responses/Error' }
+  /v1/plans/goal:
+    get:
+      operationId: getIncomeGoalPlan
+      tags: [Planner]
+      summary: "0.9: วางแผนให้ได้รายได้ต่อเดือนตามเป้า (เงินสวัสดิการที่น่าจะได้ + งาน + ทักษะ) เป็นช่วงตัวเลข ไม่ใช่การรับประกัน"
+      parameters:
+        - { $ref: '#/components/parameters/DeviceId' }
+        - { name: target, in: query, required: false, description: "บาทต่อเดือน ถ้าไม่ส่ง ใช้ incomeGoalPerMonth ในโปรไฟล์", schema: { type: integer, minimum: 1, maximum: 1000000 } }
+      responses:
+        '200': { description: Plan, content: { application/json: { schema: { $ref: '#/components/schemas/IncomeGoalPlan' } } } }
+        '400': { $ref: '#/components/responses/Error' }
 
   /v1/tasks:
     get:
@@ -874,6 +885,8 @@ components:
         suspicious: { type: boolean }
         suspiciousReasons: { type: array, items: { type: string } }
         checklistTemplateId: { type: string }
+        skills: { type: array, items: { type: string }, description: "0.10: skills the listing asks for (used to rank by my skills and in the income plan)" }
+        forOlder: { type: boolean, description: "0.10: the listing accepts older workers" }
 
     OpportunityInput:
       type: object
@@ -990,6 +1003,32 @@ components:
           properties:
             moneyId: { type: string }
 
+    IncomeGoalPart:
+      type: object
+      required: [kind, id, title, net, numberSource, dataStatus, why]
+      properties:
+        kind: { type: string, enum: [benefit, job, skill] }
+        id: { type: string }
+        title: { type: string }
+        net: { type: array, items: { type: number }, minItems: 2, maxItems: 2, description: "บาท/เดือน [ต่ำ, สูง] หลังหักค่าใช้จ่ายโดยประมาณ" }
+        numberSource: { type: string, enum: [official, listing, estimate, none] }
+        dataStatus: { $ref: '#/components/schemas/DataStatus' }
+        matched: { type: array, items: { type: string }, description: "ทักษะของผู้ใช้ที่ตรงกับทางนี้" }
+        assumptions: { type: array, items: { type: string } }
+        why: { type: string }
+        action: { type: object, properties: { type: { type: string, enum: [money_route, opportunity, idea] }, id: { type: string } } }
+    IncomeGoalPlan:
+      type: object
+      required: [target, parts, total, gap, reach, missing, note]
+      properties:
+        target: { type: integer }
+        parts: { type: array, items: { $ref: '#/components/schemas/IncomeGoalPart' } }
+        total: { type: array, items: { type: number }, minItems: 2, maxItems: 2 }
+        gap: { type: number, description: "เป้า ลบ ยอดต่ำสุดของแผน (0 ถ้าถึง)" }
+        reach: { type: string, enum: [likely, maybe, short], description: "likely = ยอดต่ำสุดถึงเป้า, maybe = ยอดสูงสุดถึงเป้า, short = ยังไม่ถึง" }
+        missing: { type: array, items: { type: object, required: [id, text], properties: { id: { type: string, enum: [money_check, skills, hours] }, text: { type: string } } } }
+        hoursPerWeek: { type: number }
+        note: { type: string }
     GuardResult:
       type: object
       required: [kind, policyVersion]

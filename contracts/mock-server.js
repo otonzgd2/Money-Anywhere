@@ -85,14 +85,29 @@ function createServer(opts = {}) {
       id, title: input.title, organization: input.organization, category: input.category, mapGroup: input.mapGroup,
       location: input.location || { precision: 'none' }, money: input.money, conditions: input.conditions || [],
       provenance: { provider, dataStatus, sourceUrl: input.sourceUrl, updatedAt: input.updatedAt, expiresAt: input.expiresAt, fetchedAt: nowIso(), ageDays: daysAgo(input.updatedAt), attribution },
-      suspicious: reasons.length > 0, suspiciousReasons: reasons, checklistTemplateId: input.category
+      suspicious: reasons.length > 0, suspiciousReasons: reasons, checklistTemplateId: input.category,
+      skills: Array.isArray(input.skills) && input.skills.length ? input.skills : undefined, forOlder: input.forOlder || undefined
     });
     return { id, merged: false };
   }
   fx.items.forEach(r => upsert('mock', 'mock', 'DEMO / MOCK', {
     externalId: r.id.replace(/^mock_/, ''), title: r.title, organization: r.organization, category: r.category, mapGroup: r.mapGroup,
     location: r.dxKm === undefined ? { precision: 'none' } : { precision: 'exact', text: 'ที่อยู่ตัวอย่าง (สมมติ)', lat: +(fx.center.lat - r.dyKm * 0.009).toFixed(6), lng: +(fx.center.lng + r.dxKm * 0.00926).toFixed(6) },
-    money: r.money, conditions: r.conditions, sourceUrl: 'https://example.org/demo/' + r.id, updatedAt: new Date(Date.now() - r.ageDays * 864e5).toISOString(), suspiciousText: r.suspiciousText
+    money: r.money, conditions: r.conditions, sourceUrl: 'https://example.org/demo/' + r.id, updatedAt: new Date(Date.now() - r.ageDays * 864e5).toISOString(), suspiciousText: r.suspiciousText, skills: r.skills
+  }));
+  // Broad DEMO catalogue standing in for government and private APIs we cannot connect to yet
+  // (fixtures/opportunities-mock.json, generated). On with MOCK_CATALOGUE=1 (the Demo .env); contract tests turn
+  // it on for one server only, so counts in the other tests stay stable.
+  const moreMock = opts.moreMock !== undefined ? opts.moreMock : process.env.MOCK_CATALOGUE === '1';
+  if (moreMock && fs.existsSync(path.join(__dirname, 'fixtures/opportunities-mock.json'))) {
+    readJson('fixtures/opportunities-mock.json').items.forEach(r => upsert(r.provider, 'mock', 'DEMO / MOCK (' + r.provider + ')', {
+      ...r, sourceUrl: 'https://example.org/mock/' + r.provider + '/' + r.externalId, updatedAt: new Date(Date.now() - r.ageDays * 864e5).toISOString()
+    }));
+  }
+  // Official services with real links (job centre, job fairs, free training), checked by hand. Not mock.
+  (fx.official || []).forEach(r => upsert('official', 'curated', 'เว็บไซต์หน่วยงานราชการ (ตรวจลิงก์ ' + r.checkedAt + ')', {
+    externalId: r.id, title: r.title, organization: r.organization, category: r.category, mapGroup: r.mapGroup,
+    location: { precision: 'none', text: 'ออนไลน์ หรือสำนักงานใกล้บ้าน' }, money: r.money, conditions: r.conditions, sourceUrl: r.sourceUrl, updatedAt: new Date(r.checkedAt).toISOString()
   }));
   const srcState = ref.sources.map(s => ({ provider: s.provider, name: s.name, kind: s.kind, attribution: s.attribution,
     direction: s.url ? 'pull' : s.provider === 'curated' ? 'push' : 'static', state: s.url ? 'idle' : 'static',
@@ -246,6 +261,8 @@ function createServer(opts = {}) {
       get_money_route: { mode: 'read', description: 'ขั้นตอนรับเงินของรายการหนึ่ง', parameters: { type: 'object', properties: { moneyId: { type: 'string' } }, required: ['moneyId'] }, run: a => money.route(a.moneyId, d.facts, govData(d), d.docsReady[a.moneyId]) || { error: 'not found' } },
       search_opportunities: { mode: 'read', description: 'ค้นหาโอกาสใกล้ผู้ใช้', parameters: { type: 'object', properties: { q: { type: 'string' }, group: { type: 'string' }, limit: { type: 'integer' } } },
         run: a => { const q = new URLSearchParams(); if (a.q) q.set('q', a.q); if (a.group) q.set('group', a.group); const r = search(d, q); return { items: r.xs.slice(0, Math.min(5, a.limit || 3)).map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) }; } },
+      plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
+        parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => goalPlan(d, Math.max(1, Math.min(1000000, Math.round(+a.target || 0)))) },
       list_tasks: { mode: 'read', description: 'งานในแผนของผู้ใช้', parameters: { type: 'object', properties: {} }, run: () => ({ items: d.tasks.map(taskOut) }) },
       get_profile: { mode: 'read', description: 'โปรไฟล์ของผู้ใช้ (ไม่มีชื่อ)', parameters: { type: 'object', properties: {} }, run: () => { const { displayName, ...p } = d.profile || {}; return p; } },
       create_task: { mode: 'confirm', description: 'บันทึกโอกาสหรือรายการเงินเข้าแผน (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { opportunityId: { type: 'string' }, moneyId: { type: 'string' } } },
@@ -327,7 +344,7 @@ function createServer(opts = {}) {
   on('POST', '/v1/me/gov-link', ({ d, device }) => { const g = govGate() || need(d, 'gov'); if (g) return g; const s = govAdapter.start(device); d.gov = { status: 'pending' }; return [201, { status: s.status, provider: govAdapter.provider, mock: true, authUrl: s.authUrl, state: s.state }]; });
   on('POST', '/v1/me/gov-link/callback', ({ d, device, body }) => {
     const g = govGate() || need(d, 'gov'); if (g) return g;
-    const r = govAdapter.finish(device, body && body.state, body && body.code); if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
+    const r = govAdapter.finish(device, body && body.state, body && body.code, d.facts); if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
     d.gov = r; return [200, { status: r.status, provider: r.provider, mock: true, connectedAt: r.connectedAt }];
   });
   on('DELETE', '/v1/me/gov-link', ({ d }) => { const g = govGate(); if (g) return g; d.gov = { status: 'not_connected' }; return [204]; });
@@ -421,7 +438,9 @@ function createServer(opts = {}) {
     return it ? { ...it.nextQuestion, moneyId: it.id } : null;
   };
   const ANSWER_START = /^(ใช่|ไม่|มี|เคย|ได้|ทำ|ยัง|เป็น|อายุ)/;
-  const DIRECT_RE = /ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง|ทำไง|ต้องทำ|ทำอะไรต่อ|ขั้นตอน|บริบท/i;
+  // Answered from data, never by the model: next steps, contacts, and "what money should I get" (the model
+  // listed every program, including ones the person has not qualified for).
+  const DIRECT_RE = /ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง|ทำไง|ต้องทำ|ทำอะไรต่อ|ขั้นตอน|บริบท|ควรได้|ได้อะไร|สิทธิ์อะไร|เงินอะไร|จากรัฐ/i;
   const stepQuick = s => s && s.options ? [...s.options, guard.skipQuickReply] : undefined;
   on('POST', '/v1/ai/conversations', ({ d, body }) => {
     const g = need(d, 'ai'); if (g) return g;
@@ -439,6 +458,13 @@ function createServer(opts = {}) {
     const turn = (reply, kind, extra = {}) => [200, { aiStatus: 'guarded', reply, toolCalls: [], pendingActions: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
       step: c.expect || undefined, quickReplies: stepQuick(c.expect) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], ...extra }];
     let v = guard.check(text, c.expect);
+    // "อยากได้เดือนละ 10,000": the goal plan, computed from data (not the model), before any answer parsing.
+    const { goalTarget } = require('./adapters/agent');
+    if (['unclear', 'in_scope', 'answer'].includes(v.kind) && !(c.expect && c.expect.options && c.expect.options.includes(text)) && goalTarget(text)) {
+      const r = await rulesAgent.respond({ text, tools });
+      c.goal = goalTarget(text);
+      return turn(r.reply + (c.expect ? '\n\nเพื่อให้แผนแม่นขึ้น ตอบข้อนี้ต่อ: ' + c.expect.question : ''), 'in_scope', { toolCalls: r.toolCalls.map(t => ({ tool: t.tool })), quickReplies: stepQuick(c.expect) || r.quickReplies });
+    }
     // A free-text reply to the current question ("อายุ 65") may still be an answer: normalise it, keep it only if valid.
     if (v.kind === 'unclear' && c.expect) {
       const r = await aiFor(d).ai.extract({ question: c.expect.question, options: c.expect.options, number: c.expect.type === 'number' }, text);
@@ -507,9 +533,69 @@ function createServer(opts = {}) {
 
   // Planner
   const hoursOf = d => HOURS[(d && d.profile && d.profile.hoursPerWeek) || ''];
-  on('GET', '/v1/plans/options', ({ d, q }) => {
-    const want = (q.get('opportunityIds') || '').split(',').filter(Boolean), h = hoursOf(d);
-    return [200, { items: ref.plans.filter(p => !want.length || want.includes(p.opportunityId)).map(p => {
+  on('GET', '/v1/plans/options', ({ d, q }) => [200, { items: planOptions(d, (q.get('opportunityIds') || '').split(',').filter(Boolean)) }]);
+  on('GET', '/v1/plans/goal', ({ d, q }) => {
+    const t = q.has('target') ? +q.get('target') : d.profile && d.profile.incomeGoalPerMonth;
+    if (!(t > 0) || t > 1000000) return E(400, 'VALIDATION', 'ต้องมี target เป็นจำนวนเงินต่อเดือน (บาท) หรือบันทึกเป้ารายได้ในโปรไฟล์');
+    return [200, goalPlan(d, Math.round(t))];
+  });
+  // "I want X baht this month": benefits the person likely qualifies for (sourced rates) + the best-fitting
+  // earning options for their skills and free time, until the low end reaches the goal. Ranges, never a promise.
+  function goalPlan(d, target) {
+    const skills = (d.profile && d.profile.skills) || [], h = hoursOf(d);
+    const mList = money.list(d.facts, govData(d)).items;
+    const benefits = mList.filter(i => ['likely', 'verified'].includes(i.status) && i.kind === 'monthly' && typeof i.amount.value === 'number')
+      .map(i => ({ kind: 'benefit', id: i.id, title: i.title, net: [i.amount.value, i.amount.value], numberSource: 'official', dataStatus: i.dataStatus,
+        why: i.status === 'verified' ? 'ยืนยันจากหน่วยงาน' : 'เงินสวัสดิการที่น่าจะมีสิทธิ์ ยังไม่ยืนยัน', action: { type: 'money_route', id: i.id } }));
+    const ideas = ref.skillIdeas.map(i => ({ kind: 'skill', id: i.id, title: i.title, net: [i.grossPerMonth[0] - i.costPerMonth[1], i.grossPerMonth[1] - i.costPerMonth[0]],
+      numberSource: 'estimate', dataStatus: 'mock', requires: i.skills, matched: i.skills.filter(s => skills.includes(s)), assumptions: i.assumptions, why: 'ประมาณการ ยังไม่มีผู้ซื้อยืนยัน', action: { type: 'idea', id: i.id } }));
+    const jobs = jobOptions(d);
+    // Skill matches first, then (for people 60+) jobs that accept older workers, then the higher low end.
+    // Free time limits how many earning options fit.
+    const older = d.facts.ageBand && d.facts.ageBand !== 'ต่ำกว่า 60';
+    // Only options the person can do: no special skill needed, or at least one of their skills matches.
+    const pool = [...ideas, ...jobs].filter(x => !(x.requires || []).length || x.matched.length)
+      .filter((x, i, a) => a.findIndex(y => y.title === x.title) === i)
+      .sort((a, b) => (b.matched.length > 0) - (a.matched.length > 0) || (older ? (!!b.forOlder) - (!!a.forOlder) : 0) || b.net[0] - a.net[0]);
+    const room = h === undefined ? 2 : h >= 40 ? 3 : h >= 15 ? 2 : 1;
+    const parts = [...benefits];
+    let low = benefits.reduce((s, x) => s + x.net[0], 0);
+    for (const x of pool) { if (low >= target || parts.length - benefits.length >= room) break; parts.push(x); low += x.net[0]; }
+    parts.forEach(x => { delete x.requires; delete x.forOlder; });
+    const total = [parts.reduce((s, x) => s + x.net[0], 0), parts.reduce((s, x) => s + x.net[1], 0)];
+    const missing = [];
+    if (!Object.keys(d.facts).length) missing.push({ id: 'money_check', text: 'ยังไม่ได้เช็คเงินที่ควรได้จากรัฐ อาจมีเงินเพิ่ม' });
+    else if (mList.some(i => i.status === 'need')) missing.push({ id: 'money_check', text: 'ยังมีคำถามเรื่องเงินจากรัฐที่ยังไม่ได้ตอบ อาจมีเงินเพิ่ม' });
+    if (!skills.length) missing.push({ id: 'skills', text: 'ยังไม่รู้ทักษะของคุณ บอกทักษะแล้วแผนจะตรงตัวขึ้น' });
+    if (h === undefined) missing.push({ id: 'hours', text: 'ยังไม่รู้เวลาว่างต่อสัปดาห์ จึงคิดไว้ไม่เกิน 2 ทาง' });
+    return { target, parts, total, gap: Math.max(0, target - total[0]), reach: total[0] >= target ? 'likely' : total[1] >= target ? 'maybe' : 'short',
+      missing, hoursPerWeek: h, note: 'เป็นการวางแผนจากเกณฑ์ที่ประกาศ ค่าจ้างในประกาศ และประมาณการ ไม่ใช่รายได้ที่รับประกัน งานและลูกค้าต้องหาเองตามขั้นในแผน' };
+  }
+  // Monthly range for every job listing that states a wage, from the person's free time (default 20 h/week).
+  // A full-time monthly job only fits with 30+ free hours. Travel cost is not deducted (said in assumptions).
+  function jobOptions(d) {
+    const h = hoursOf(d), hw = h === undefined ? 20 : h, skills = (d.profile && d.profile.skills) || [];
+    const best = new Map();
+    for (const o of opps.values()) {
+      if (o.mapGroup !== 'job' || o.suspicious || o.money.basis !== 'listing' || typeof o.money.min !== 'number') continue;
+      const unit = o.money.unit || '';
+      let f, basis;
+      if (/เดือน/.test(unit)) { if (hw < 30 && o.category === 'job_full') continue; f = 1; basis = 'ค่าจ้างรายเดือนตามประกาศ'; }
+      else if (/วัน/.test(unit)) { const days = Math.min(6, Math.max(1, Math.round(hw / 8))); f = days * 4.33; basis = days + ' วัน/สัปดาห์ ตามเวลาว่าง ' + hw + ' ชม.'; }
+      else if (/ชั่วโมง/.test(unit)) { f = hw * 4.33; basis = hw + ' ชม./สัปดาห์ ตามเวลาว่าง'; }
+      else continue;
+      const net = [Math.round(o.money.min * f), Math.round((o.money.max || o.money.min) * f)];
+      const x = { kind: 'job', id: o.id, title: o.title, net, numberSource: 'listing', dataStatus: o.provenance.dataStatus, forOlder: o.forOlder, requires: o.skills,
+        matched: (o.skills || []).filter(s => skills.includes(s)), assumptions: [basis, 'ยังไม่หักค่าเดินทางและค่าใช้จ่าย' + (/ก่อนหัก/.test(unit) ? ' (' + unit + ')' : '')],
+        why: 'ค่าจ้างตามประกาศ' + (o.provenance.dataStatus === 'mock' ? ' (ประกาศตัวอย่าง)' : '') + ' · ' + (o.organization || ''), action: { type: 'opportunity', id: o.id } };
+      const k = norm(o.title), prev = best.get(k);
+      if (!prev || x.matched.length > prev.matched.length || (x.matched.length === prev.matched.length && x.net[0] > prev.net[0])) best.set(k, x);
+    }
+    return [...best.values()];
+  }
+  function planOptions(d, want = []) {
+    const h = hoursOf(d);
+    return ref.plans.filter(p => !want.length || want.includes(p.opportunityId)).map(p => {
       let x = { ...p }; const o = p.opportunityId && opps.get(p.opportunityId);
       if (h && o && o.money.basis === 'listing' && /วัน|ชั่วโมง/.test(o.money.unit || '')) {
         const units = /ชั่วโมง/.test(o.money.unit) ? h * 4.33 : (h / 6) * 4.33;
@@ -517,8 +603,8 @@ function createServer(opts = {}) {
         x.assumptions = ['คิดจากเวลาว่างของคุณ ' + h + ' ชม./สัปดาห์', ...(p.assumptions || []).filter(a => !/วัน\/สัปดาห์/.test(a))];
       }
       return x.grossPerMonth ? { ...x, netPerMonth: [x.grossPerMonth[0] - x.costPerMonth[1], x.grossPerMonth[1] - x.costPerMonth[0]] } : x;
-    }) }];
-  });
+    });
+  }
   on('GET', '/v1/plans/ideas', async ({ d }) => {
     const skills = (d.profile && d.profile.skills) || [];
     const pool = ref.skillIdeas.filter(i => !skills.length || i.skills.some(s => skills.includes(s)));

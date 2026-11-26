@@ -28,6 +28,9 @@ void main() {
   });
 
   testWidgets('ฉัน tab shows delete-all and large text', (tester) async {
+    tester.view.physicalSize = const Size(1080, 4000);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(MoneyAnywhereApp(app: AppState(Api(baseUrl: 'http://127.0.0.1:9'))));
     await settle(tester);
     await tester.tap(find.text('ฉัน').last);

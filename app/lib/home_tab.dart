@@ -3,10 +3,12 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'chat.dart';
 import 'common.dart';
+import 'income_plan_screen.dart';
 import 'money.dart';
 import 'money_check.dart';
 import 'route_screen.dart';
 import 'task_screen.dart';
+import 'thaid.dart';
 
 /// Which saved plan the home "ขั้นต่อไป" card shows: active first, then snoozed, then blocked.
 /// Finished plans never show. Returns null when nothing is unfinished (ui-states.md §3).
@@ -34,6 +36,7 @@ class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? overview;
   List<Map<String, dynamic>> tasks = [];
   bool consented = false, loaded = false;
+  GovState gov = GovState.disabled;
   ApiException? error;
 
   AppState get app => widget.app;
@@ -59,8 +62,11 @@ class _HomeTabState extends State<HomeTab> {
       final ok = cur?['core'] == true;
       final m = f.isNotEmpty ? await api.get('/v1/money') : null;
       final t = ok ? ((await api.get('/v1/tasks'))['items'] as List).cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
+      final g = await govState(api);
+      // Connected ThaID: show the money overview even before any answer (the agency data fills it).
+      final m2 = m ?? (g == GovState.connected ? await api.get('/v1/money') : null);
       if (!mounted) return;
-      setState(() { facts = f; overview = m; tasks = t; consented = ok; error = null; loaded = true; });
+      setState(() { facts = f; overview = m2; tasks = t; consented = ok; gov = g; error = null; loaded = true; });
     } on ApiException catch (e) {
       if (mounted) setState(() { error = e; loaded = true; });
     }
@@ -80,7 +86,7 @@ class _HomeTabState extends State<HomeTab> {
     final openQuestions = items.where((i) => i['status'] == 'need').length;
     // Returning layout only when there is something to show: an answer, a plan, or a real chat.
     // Consent alone (pressing the AI button and leaving) keeps the new-person layout.
-    final started = facts.isNotEmpty || tasks.isNotEmpty || app.chat.talked;
+    final started = facts.isNotEmpty || tasks.isNotEmpty || app.chat.talked || gov == GovState.connected;
     final talked = app.chat.talked;
     final next = nextTask(tasks);
     final others = tasks.where((x) => x['status'] != 'finished' && x != next).length;
@@ -98,6 +104,7 @@ class _HomeTabState extends State<HomeTab> {
               const SizedBox(height: 8),
               if (error != null && error!.isNetwork) OfflineCard(app: app, onRetry: _load),
               if (!loaded) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
+              if (loaded) ThaidCard(app: app, state: gov),
               if (loaded && !started) ...[
                 const Text('💸', textAlign: TextAlign.center, style: TextStyle(fontSize: 44)),
                 Text('เงินฉันอยู่ไหน?', textAlign: TextAlign.center, style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
@@ -108,7 +115,7 @@ class _HomeTabState extends State<HomeTab> {
               if (loaded && started) ...[
                 Text('เงินของฉัน', style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
                 const SizedBox(height: 8),
-                if (facts.isNotEmpty) _Summary(overview: overview),
+                if (overview != null) _Summary(overview: overview),
                 // 1) unfinished plan → its next step; 2) otherwise the first money item not yet planned; 3) all done.
                 if (next != null)
                   _NextStepCard(
@@ -139,6 +146,20 @@ class _HomeTabState extends State<HomeTab> {
                   onTap: () => _open(ChatScreen(api: api, session: app.chat)),
                   onNotice: () => showNotice(context, app),
                 ),
+              if (loaded) ...[
+                const SizedBox(height: 12),
+                Card(
+                  color: const Color(0xFFEFF6FF),
+                  child: ListTile(
+                    minVerticalPadding: 12,
+                    leading: const Text('📈', style: TextStyle(fontSize: 30)),
+                    title: const Text('แผนรายได้: อยากได้เดือนละเท่าไหร่', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('บอกเป้า แล้วดูว่าเงินจากรัฐ งาน และทักษะของคุณ รวมได้เท่าไหร่ ยังขาดเท่าไหร่'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _open(IncomePlanScreen(app: app)),
+                  ),
+                ),
+              ],
               // Manual check is always reachable: full check with no answers, "ตอบเพิ่ม" while questions are open,
               // "แก้คำตอบของฉัน" once everything is answered.
               if (loaded && facts.isNotEmpty && openQuestions == 0)

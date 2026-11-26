@@ -4,6 +4,9 @@ import 'api.dart';
 import 'common.dart';
 import 'money.dart';
 import 'opp_map.dart';
+import 'profile_screen.dart';
+
+const _fit = {'high': 'ตรงมาก', 'good': 'ตรง', 'fair': 'พอได้'};
 
 const oppGroups = {'all': 'ทั้งหมด', 'job': 'งาน', 'skill': 'ทักษะ', 'sell': 'ขายของ', 'money': 'เงิน/สิทธิ์'};
 
@@ -29,7 +32,35 @@ class _OppTabState extends State<OppTab> {
   final TextEditingController q = TextEditingController();
   Map<String, dynamic>? page;
   ApiException? error;
-  bool mapView = false;
+  bool mapView = false, bySkill = false;
+
+  /// opportunityId -> {fit, reason} from POST /v1/ai/rankings (AI with consent, rules otherwise).
+  Map<String, Map<String, dynamic>> rank = {};
+
+  Future<void> _rankBySkill() async {
+    if (bySkill) {
+      setState(() { bySkill = false; rank = {}; });
+      return;
+    }
+    try {
+      final prof = await widget.app.api.get('/v1/me/profile');
+      if (((prof['skills'] as List?) ?? const []).isEmpty) throw ApiException(404, 'NO_SKILLS', '');
+    } on ApiException {
+      if (!mounted) return;
+      toast(context, 'บอกทักษะของคุณก่อน แล้วจะเรียงงานให้ตรงทักษะ');
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(app: widget.app)));
+      return;
+    }
+    final items = ((page?['items'] as List?) ?? const []).cast<Map<String, dynamic>>().where((o) => o['suspicious'] != true).take(50).toList();
+    if (items.isEmpty) return;
+    try {
+      final r = await widget.app.api.post('/v1/ai/rankings', {'opportunityIds': [for (final o in items) o['id']]});
+      final ranked = ((r['ranked'] as List?) ?? const []).cast<Map<String, dynamic>>();
+      setState(() { bySkill = true; rank = {for (final x in ranked) '${x['opportunityId']}': x}; });
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message);
+    }
+  }
 
   @override
   void initState() {
@@ -58,7 +89,13 @@ class _OppTabState extends State<OppTab> {
 
   @override
   Widget build(BuildContext context) {
-    final items = ((page?['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    var items = ((page?['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
+    if (bySkill && rank.isNotEmpty) {
+      // Ranked items first in the ranking's order, then the rest.
+      final order = rank.keys.toList();
+      items = [...items.where((o) => rank.containsKey(o['id'])).toList()..sort((a, b) => order.indexOf('${a['id']}').compareTo(order.indexOf('${b['id']}'))),
+        ...items.where((o) => !rank.containsKey(o['id']))];
+    }
     final g = widget.app.oppGroup.value;
     void open(Map<String, dynamic> o) => Navigator.push(context, MaterialPageRoute(builder: (_) => OppScreen(app: widget.app, opp: o)));
     return Scaffold(
@@ -84,6 +121,10 @@ class _OppTabState extends State<OppTab> {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: FilterChip(avatar: const Text('🎯'), label: const Text('ตรงทักษะของฉัน'), selected: bySkill, onSelected: (_) => _rankBySkill()),
+                ),
                 for (final e in oppGroups.entries)
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
@@ -123,7 +164,8 @@ class _OppTabState extends State<OppTab> {
                 title: Text('${o['title']}', style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text('${o['organization'] ?? ''}\n${oppMoney(o)}'
                     '${(o['location'] as Map?)?['distanceKm'] is num ? ' · ${((o['location'] as Map)['distanceKm'] as num).toStringAsFixed(1)} กม.' : ''}'
-                    '\n${dataLabel((o['provenance'] as Map)['dataStatus'] as String?)}'),
+                    '\n${dataLabel((o['provenance'] as Map)['dataStatus'] as String?)}'
+                    '${rank[o['id']] != null ? '\n🎯 ${_fit[rank[o['id']]!['fit']] ?? ''} · ${rank[o['id']]!['reason']}' : ''}'),
                 isThreeLine: true,
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(o),
