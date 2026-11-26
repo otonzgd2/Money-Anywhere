@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money Anywhere API: แก้ปัญหาด้วย logic และการเชื่อมการทำงานที่ชัดเจน</title>
+<!-- Presentation. Keys: ← → / Space / Home / End. F = fullscreen. Print (Ctrl+P, landscape) = 1 slide per page. -->
+<style>
+  :root { --p:#0e9f6e; --pd:#047857; --pl:#d1fae5; --ink:#0f1f1a; --mut:#5b6b65; --bg:#f3f7f5; --warn:#b45309; --warnbg:#fff4e0; --bad:#b42318; --badbg:#fdecea; --blue:#2563eb; --bluebg:#e8efff; --vio:#7c3aed; --viobg:#f1eafe; }
+  * { box-sizing:border-box; margin:0; }
+  html, body { height:100%; background:#0b1512; font-family:"Segoe UI","Noto Sans Thai","Leelawadee UI",system-ui,sans-serif; color:var(--ink); }
+  .deck { position:relative; width:100vw; height:100vh; overflow:hidden; }
+  .slide { position:absolute; inset:0; margin:auto; width:min(100vw, 177.78vh); height:min(56.25vw, 100vh); background:var(--bg); padding:4.2% 5.5%; display:none; flex-direction:column; overflow:hidden; }
+  .slide.on { display:flex; animation:in .35s ease; }
+  @keyframes in { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  .kick { font-size:1.05vw; letter-spacing:.12em; text-transform:uppercase; color:var(--pd); font-weight:700; margin-bottom:.6vw; }
+  h1 { font-size:3.3vw; line-height:1.2; } h2 { font-size:2.5vw; line-height:1.25; margin-bottom:1.4vw; }
+  h3 { font-size:1.35vw; margin-bottom:.5vw; }
+  p, li, td, th { font-size:1.18vw; line-height:1.55; } .sm { font-size:.98vw; color:var(--mut); }
+  ul { padding-left:1.4vw; } li { margin-bottom:.35vw; }
+  .row { display:flex; gap:2vw; flex:1; min-height:0; align-items:stretch; } .col { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .card { background:#fff; border-radius:1.1vw; padding:1.2vw 1.4vw; box-shadow:0 .2vw .8vw rgba(6,40,28,.08); }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1.2vw; } .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1.2vw; } .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:1vw; }
+  .big { font-size:3vw; font-weight:800; color:var(--pd); line-height:1.1; }
+  .tag { display:inline-block; font-size:.9vw; padding:.15vw .7vw; border-radius:.6vw; font-weight:600; margin:.1vw .3vw .1vw 0; }
+  .g { background:var(--pl); color:var(--pd); } .b { background:var(--bluebg); color:var(--blue); } .w { background:var(--warnbg); color:var(--warn); } .r { background:var(--badbg); color:var(--bad); } .v { background:var(--viobg); color:var(--vio); } .n { background:#eceff0; color:#555; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:1vw; overflow:hidden; }
+  th { background:var(--pd); color:#fff; text-align:left; padding:.55vw .8vw; font-size:1.02vw; } td { padding:.5vw .8vw; border-bottom:1px solid #e6ece9; font-size:1.02vw; vertical-align:top; }
+  code { font-family:Consolas,monospace; background:#e9f1ed; padding:0 .3vw; border-radius:.3vw; font-size:.92em; }
+  .title { background:linear-gradient(140deg,#0e9f6e,#035c43); color:#fff; justify-content:center; }
+  .title h1 { font-size:4.2vw; color:#fff; } .title p { color:#d1fae5; font-size:1.5vw; }
+  .title .kick { color:#a7f3d0; }
+  svg { width:100%; height:100%; display:block; } svg text { font-family:"Segoe UI","Noto Sans Thai",sans-serif; }
+  .ill { flex:1; min-height:0; }
+  .foot { position:absolute; left:5.5%; right:5.5%; bottom:2.2%; display:flex; justify-content:space-between; font-size:.85vw; color:var(--mut); }
+  .title .foot { color:#a7f3d0; }
+  .bar { position:fixed; left:0; bottom:0; height:4px; background:var(--p); transition:width .3s; z-index:9; }
+  .nav { position:fixed; right:14px; bottom:12px; z-index:9; display:flex; gap:6px; }
+  .nav button { border:0; background:#ffffffcc; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:14px; }
+  .quote { border-left:.35vw solid var(--p); padding-left:1vw; font-size:1.4vw; font-weight:600; }
+  .step { display:flex; gap:.9vw; align-items:flex-start; margin-bottom:.8vw; } .step b.num { flex:none; width:2.3vw; height:2.3vw; border-radius:50%; background:var(--p); color:#fff; display:grid; place-items:center; font-size:1.1vw; }
+  @media print { @page { size:landscape; margin:0; } html, body { background:#fff; } .deck { height:auto; overflow:visible; } .slide { display:flex !important; position:relative; width:100vw; height:56.25vw; page-break-after:always; animation:none; } .bar, .nav { display:none; } }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 -->
+<section class="slide title">
+  <div class="kick">Money Anywhere · API pitch</div>
+  <h1>API ที่บอกว่า "เงินของคุณอยู่ที่ไหน"<br>และพาไปเอามาจนจบ</h1>
+  <p style="margin-top:1.4vw">แก้ปัญหาด้วย logic ที่ตรวจสอบได้ และการเชื่อมการทำงานที่ชัดเจน ตั้งแต่ถามข้อมูล ไปจนถึงเงินเข้า</p>
+  <div style="margin-top:2.4vw;display:flex;gap:1vw;flex-wrap:wrap">
+    <span class="tag g" style="font-size:1.1vw">49 API operations</span><span class="tag g" style="font-size:1.1vw">10 adapters สลับได้</span><span class="tag g" style="font-size:1.1vw">Contract test 139/139</span><span class="tag g" style="font-size:1.1vw">AI ห้ามสร้างตัวเลขเงิน</span>
+  </div>
+  <div class="foot"><span>Competition Demo · ข้อมูลผู้ใช้ทั้งหมดเป็น persona สมมติ</span><span>กด → เพื่อไปต่อ</span></div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kick">ปัญหา</div>
+  <h2>เงินที่คนควรได้มีอยู่จริง แต่คนไปไม่ถึง</h2>
+  <div class="row">
+    <div class="col" style="flex:1.05">
+      <div class="step"><b class="num">1</b><div><h3>ไม่รู้ว่ามีสิทธิ์</h3><p>สิทธิ์กระจายอยู่หลายหน่วยงาน: พม., ประกันสังคม, กรมสรรพากร, กรมบัญชีกลาง, อปท., คปภ., กอช. ฯลฯ คนส่วนใหญ่รู้แค่ว่า "เกิดอะไรกับตัวเอง" ไม่รู้ชื่อโครงการ</p></div></div>
+      <div class="step"><b class="num">2</b><div><h3>รู้แล้วก็ทำไม่จบ</h3><p>ไม่รู้ว่าต้องใช้เอกสารอะไร ยื่นที่ไหน ต้องมี ThaID / พร้อมเพย์ผูกบัตรไหม ไม่ผ่านแล้วทำอะไรต่อ</p></div></div>
+      <div class="step"><b class="num">3</b><div><h3>ข้อมูลรัฐรายบุคคลยังไม่เปิดให้ใช้</h3><p>ThaID และ GDX ต้องมีข้อตกลงกับหน่วยงาน นักพัฒนาทั่วไปเรียกเองไม่ได้</p></div></div>
+      <div class="step"><b class="num">4</b><div><h3>AI ตอบเร็ว แต่ตัวเลขเงินเชื่อไม่ได้</h3><p>ถ้าให้ AI บอกยอดเงินเอง เสี่ยงสัญญาเงินที่ไม่มีจริง</p></div></div>
+    </div>
+    <div class="col ill">
+      <svg viewBox="0 0 520 420" aria-label="คนหนึ่งคนกับหน่วยงานที่กระจัดกระจาย">
+        <defs><marker id="q" markerWidth="8" markerHeight="8" refX="4" refY="4"><circle cx="4" cy="4" r="3" fill="#b45309"/></marker></defs>
+        <g stroke="#cbd8d2" stroke-width="2" stroke-dasharray="6 6" fill="none">
+          <path d="M260 220 L90 70"/><path d="M260 220 L260 40"/><path d="M260 220 L430 70"/><path d="M260 220 L470 220"/><path d="M260 220 L430 370"/><path d="M260 220 L90 370"/><path d="M260 220 L50 220"/>
+        </g>
+        <g font-size="15" text-anchor="middle" font-weight="600">
+          <g><rect x="35" y="45" width="110" height="48" rx="12" fill="#fff"/><text x="90" y="75">พม.</text></g>
+          <g><rect x="195" y="15" width="130" height="48" rx="12" fill="#fff"/><text x="260" y="45">ประกันสังคม</text></g>
+          <g><rect x="375" y="45" width="110" height="48" rx="12" fill="#fff"/><text x="430" y="75">สรรพากร</text></g>
+          <g><rect x="410" y="196" width="105" height="48" rx="12" fill="#fff"/><text x="462" y="226">คปภ.</text></g>
+          <g><rect x="365" y="346" width="130" height="48" rx="12" fill="#fff"/><text x="430" y="376">กรมบัญชีกลาง</text></g>
+          <g><rect x="35" y="346" width="110" height="48" rx="12" fill="#fff"/><text x="90" y="376">อปท./เขต</text></g>
+          <g><rect x="2" y="196" width="96" height="48" rx="12" fill="#fff"/><text x="50" y="226">กอช.</text></g>
+        </g>
+        <circle cx="260" cy="190" r="30" fill="#0e9f6e"/><rect x="225" y="222" width="70" height="60" rx="30" fill="#0e9f6e"/>
+        <g font-size="34" font-weight="800" fill="#b45309" text-anchor="middle"><text x="190" y="160">?</text><text x="330" y="160">?</text><text x="315" y="300">?</text></g>
+        <text x="260" y="320" text-anchor="middle" font-size="15" fill="#5b6b65">"ฉันควรได้อะไร ต้องไปที่ไหน"</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>Money Anywhere</span><span>2</span></div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kick">ทางแก้</div>
+  <h2>API เดียว ต่อ 5 ขั้นให้เป็นเส้นเดียวกัน</h2>
+  <div class="ill" style="flex:1">
+    <svg viewBox="0 0 1200 380" aria-label="ห้าขั้นของ API">
+      <defs><marker id="ar" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#0e9f6e"/></marker></defs>
+      <g font-size="22" text-anchor="middle">
+        <g><rect x="10" y="60" width="200" height="190" rx="24" fill="#fff"/><text x="110" y="120" font-size="42">🧑</text><text x="110" y="165" font-weight="700">1 รู้จักผู้ใช้</text><text x="110" y="195" font-size="16" fill="#5b6b65">/v1/me/facts</text><text x="110" y="220" font-size="16" fill="#5b6b65">/v1/intake/sessions</text></g>
+        <g><rect x="250" y="60" width="200" height="190" rx="24" fill="#fff"/><text x="350" y="120" font-size="42">💰</text><text x="350" y="165" font-weight="700">2 หาเงิน</text><text x="350" y="195" font-size="16" fill="#5b6b65">/v1/money</text><text x="350" y="220" font-size="16" fill="#5b6b65">/v1/opportunities</text></g>
+        <g><rect x="490" y="60" width="200" height="190" rx="24" fill="#fff"/><text x="590" y="120" font-size="42">🤖</text><text x="590" y="165" font-weight="700">3 อธิบาย</text><text x="590" y="195" font-size="16" fill="#5b6b65">/v1/ai/conversations</text><text x="590" y="220" font-size="16" fill="#5b6b65">/v1/ai/explanations</text></g>
+        <g><rect x="730" y="60" width="200" height="190" rx="24" fill="#fff"/><text x="830" y="120" font-size="42">🗺️</text><text x="830" y="165" font-weight="700">4 พาทำ</text><text x="830" y="195" font-size="16" fill="#5b6b65">/v1/tasks</text><text x="830" y="220" font-size="16" fill="#5b6b65">/v1/plans/goal</text></g>
+        <g><rect x="970" y="60" width="200" height="190" rx="24" fill="#0e9f6e"/><text x="1070" y="120" font-size="42">✅</text><text x="1070" y="165" font-weight="700" fill="#fff">5 ติดตามผล</text><text x="1070" y="195" font-size="16" fill="#d1fae5">/v1/tasks/{id}/events</text><text x="1070" y="220" font-size="16" fill="#d1fae5">reminders</text></g>
+      </g>
+      <g stroke="#0e9f6e" stroke-width="4" marker-end="url(#ar)"><path d="M212 155 H246"/><path d="M452 155 H486"/><path d="M692 155 H726"/><path d="M932 155 H966"/></g>
+      <path d="M1070 255 C1070 340, 110 340, 110 258" stroke="#93c5ad" stroke-width="3" stroke-dasharray="8 8" fill="none" marker-end="url(#ar)"/>
+      <text x="590" y="360" text-anchor="middle" font-size="18" fill="#5b6b65">ผลที่ผู้ใช้แจ้งกลับเข้าไปเป็นข้อมูล → คิดใหม่ → แนะนำขั้นถัดไป</text>
+    </svg>
+  </div>
+  <p class="quote">ไม่ใช่แอปรวมลิงก์: บอกได้ว่าเงินอยู่ที่ไหน ได้ประมาณเท่าไหร่ ต้องทำอะไร และติดตามจนจบ</p>
+  <div class="foot"><span>Money Anywhere</span><span>3</span></div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kick">สถาปัตยกรรม</div>
+  <h2>แอปคุยกับสัญญา (contract) อย่างเดียว ส่วนข้างหลังสลับได้</h2>
+  <div class="ill">
+    <svg viewBox="0 0 1200 470" aria-label="แผนภาพสถาปัตยกรรม">
+      <defs><marker id="a2" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker></defs>
+      <!-- phone -->
+      <rect x="20" y="90" width="170" height="300" rx="26" fill="#111"/><rect x="32" y="104" width="146" height="272" rx="18" fill="#f3f7f5"/>
+      <rect x="45" y="125" width="120" height="50" rx="10" fill="#0e9f6e"/><text x="105" y="157" text-anchor="middle" fill="#fff" font-size="16" font-weight="700">ให้ AI หาเงิน</text>
+      <rect x="45" y="188" width="120" height="30" rx="8" fill="#fff"/><rect x="45" y="226" width="120" height="30" rx="8" fill="#fff"/><rect x="45" y="264" width="120" height="30" rx="8" fill="#fff"/>
+      <text x="105" y="420" text-anchor="middle" font-size="18" font-weight="700">แอป Flutter</text>
+      <!-- contract -->
+      <rect x="240" y="150" width="150" height="180" rx="16" fill="#e8efff" stroke="#2563eb" stroke-width="2"/>
+      <text x="315" y="195" text-anchor="middle" font-size="18" font-weight="700" fill="#2563eb">Contract</text>
+      <text x="315" y="225" text-anchor="middle" font-size="14">openapi.yaml</text><text x="315" y="248" text-anchor="middle" font-size="14">app-config</text>
+      <text x="315" y="280" text-anchor="middle" font-size="13" fill="#5b6b65">ตรวจทุก response</text><text x="315" y="300" text-anchor="middle" font-size="13" fill="#5b6b65">กับ schema</text>
+      <!-- core -->
+      <rect x="440" y="60" width="310" height="360" rx="22" fill="#fff" stroke="#0e9f6e" stroke-width="2"/>
+      <text x="595" y="98" text-anchor="middle" font-size="20" font-weight="700" fill="#047857">API core</text>
+      <g font-size="15"><rect x="465" y="118" width="260" height="40" rx="10" fill="#d1fae5"/><text x="595" y="144" text-anchor="middle">ความยินยอม (consent) ตรวจก่อนทุกอย่าง</text>
+      <rect x="465" y="168" width="260" height="40" rx="10" fill="#d1fae5"/><text x="595" y="194" text-anchor="middle">money engine: กฎเป็นข้อมูล</text>
+      <rect x="465" y="218" width="260" height="40" rx="10" fill="#d1fae5"/><text x="595" y="244" text-anchor="middle">guard → AI agent → guardMoney</text>
+      <rect x="465" y="268" width="260" height="40" rx="10" fill="#d1fae5"/><text x="595" y="294" text-anchor="middle">tasks + events (Idempotency-Key)</text>
+      <rect x="465" y="318" width="260" height="40" rx="10" fill="#d1fae5"/><text x="595" y="344" text-anchor="middle">income goal plan</text></g>
+      <text x="595" y="395" text-anchor="middle" font-size="13" fill="#5b6b65">error รูปเดียว · X-Request-Id ทุก response · ETag</text>
+      <!-- adapters -->
+      <g font-size="14">
+        <text x="905" y="40" text-anchor="middle" font-size="17" font-weight="700">Ports / adapters</text>
+        <g><rect x="800" y="55" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="78" text-anchor="middle">money · rules ใน reference.json</text></g>
+        <g><rect x="800" y="95" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="118" text-anchor="middle">ai · rules ⇄ Gemini</text></g>
+        <g><rect x="800" y="135" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="158" text-anchor="middle">agent · tools ของผู้ใช้คนเดียว</text></g>
+        <g><rect x="800" y="175" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="198" text-anchor="middle">guard · policy ไฟล์เดียว</text></g>
+        <g><rect x="800" y="215" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="238" text-anchor="middle">sources · งานจริง + mock</text></g>
+        <g><rect x="800" y="255" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="278" text-anchor="middle">gov · ThaID mock (flag)</text></g>
+        <g><rect x="800" y="295" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="318" text-anchor="middle">store · memory ⇄ file</text></g>
+        <g><rect x="800" y="335" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="358" text-anchor="middle">notifier · log ⇄ FCM</text></g>
+        <g><rect x="800" y="375" width="210" height="34" rx="9" fill="#fff"/><text x="905" y="398" text-anchor="middle">geocoder · jobs</text></g>
+      </g>
+      <!-- external -->
+      <g font-size="14" text-anchor="middle">
+        <rect x="1050" y="80" width="135" height="44" rx="10" fill="#f1eafe"/><text x="1117" y="107">Gemini API</text>
+        <rect x="1050" y="200" width="135" height="44" rx="10" fill="#f1eafe"/><text x="1117" y="220">Greenhouse/</text><text x="1117" y="238">Lever, open data</text>
+        <rect x="1050" y="250" width="135" height="44" rx="10" fill="#fff4e0"/><text x="1117" y="277">ThaID / GDX</text>
+        <rect x="1050" y="330" width="135" height="44" rx="10" fill="#f1eafe"/><text x="1117" y="357">OSM แผนที่</text>
+      </g>
+      <g stroke="#047857" stroke-width="3" marker-end="url(#a2)" fill="none"><path d="M192 240 H236"/><path d="M392 240 H436"/><path d="M752 240 H796"/></g>
+      <g stroke="#a78bfa" stroke-width="2" fill="none"><path d="M1012 112 H1048"/><path d="M1012 232 H1048"/><path d="M1012 352 H1048"/></g>
+      <path d="M1012 272 H1048" stroke="#b45309" stroke-width="2" stroke-dasharray="5 5"/>
+      <text x="1117" y="315" text-anchor="middle" font-size="12" fill="#b45309">ยังไม่เชื่อมจริง</text>
+    </svg>
+  </div>
+  <div class="foot"><span>แอปไม่รู้จัก Gemini, ไฟล์เก็บข้อมูล หรือแหล่งงาน รู้แค่ contract → เปลี่ยนข้างหลังได้โดยไม่แก้แอป</span><span>4</span></div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="kick">Logic 1 · money engine</div>
+  <h2>กฎเงินเป็น "ข้อมูล" ไม่ใช่โค้ด: ผลเหมือนเดิมทุกครั้ง ตรวจย้อนได้</h2>
+  <div class="row">
+    <div class="col">
+      <div class="card" style="margin-bottom:1vw"><h3>Input → Output</h3>
+        <p><b>Input:</b> คำตอบของผู้ใช้ (facts) เช่น อายุ, ประกันสังคม ม.33, ถูกเลิกจ้าง, ทำงาน 7 ปี, ค่าจ้าง 15,000</p>
+        <p><b>Rules:</b> <code>reference.json → moneyPrograms</code> มีเงื่อนไข อัตรา เอกสาร ช่องทาง และ <code>sources + checkedAt</code></p>
+        <p><b>Output ต่อรายการ:</b> ผล + ยอด + <code>basis</code> (มาจากอะไร) + แหล่งอ้างอิง + ขั้นตอนถัดไป</p></div>
+      <div class="card"><h3>ผลมี 4 แบบ (และ 1 แบบที่สงวนไว้)</h3>
+        <span class="tag g">likely น่าจะได้</span><span class="tag b">check ต้องเช็คยอดจริง</span><span class="tag w">need ตอบอีกข้อ</span><span class="tag n">unlikely ไม่น่าได้</span><span class="tag v">verified เฉพาะ gov adapter</span>
+        <p class="sm" style="margin-top:.6vw">ไม่มีคำว่า "ได้แน่นอน" ระบบไม่สัญญาเงิน</p></div>
+    </div>
+    <div class="col ill">
+      <svg viewBox="0 0 560 430" aria-label="ตัวอย่างการตัดสินค่าชดเชย">
+        <defs><marker id="a3" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5b6b65"/></marker></defs>
+        <text x="280" y="24" text-anchor="middle" font-size="17" font-weight="700">ตัวอย่าง: ค่าชดเชยเลิกจ้าง ม.118</text>
+        <g font-size="15" text-anchor="middle">
+          <rect x="170" y="40" width="220" height="46" rx="12" fill="#fff"/><text x="280" y="69">ถูกเลิกจ้าง (ไม่ได้ลาออก)?</text>
+          <rect x="10" y="130" width="160" height="46" rx="12" fill="#eceff0"/><text x="90" y="159">unlikely + เหตุผล</text>
+          <rect x="300" y="130" width="250" height="46" rx="12" fill="#fff"/><text x="425" y="159">รู้อายุงานและค่าจ้างไหม?</text>
+          <rect x="190" y="225" width="170" height="46" rx="12" fill="#fff4e0"/><text x="275" y="254">need → ถามข้อที่ขาด</text>
+          <rect x="380" y="225" width="170" height="46" rx="12" fill="#fff"/><text x="465" y="254">อายุงาน 7 ปี → 240 วัน</text>
+          <rect x="300" y="320" width="250" height="70" rx="12" fill="#d1fae5"/><text x="425" y="348" font-weight="700" fill="#047857">likely 120,000 บาท</text><text x="425" y="372" font-size="13">15,000 ÷ 30 × 240 · basis: user_input</text>
+        </g>
+        <g stroke="#5b6b65" stroke-width="2" fill="none" marker-end="url(#a3)"><path d="M230 88 L110 128"/><path d="M330 88 L420 128"/><path d="M390 178 L290 222"/><path d="M450 178 L465 222"/><path d="M465 273 L440 318"/></g>
+        <g font-size="13" fill="#5b6b65"><text x="150" y="100">ไม่</text><text x="385" y="100">ใช่</text><text x="315" y="195">ไม่รู้</text><text x="470" y="200">รู้</text></g>
+        <text x="280" y="420" text-anchor="middle" font-size="13" fill="#5b6b65">ตารางวันชดเชย 30/90/180/240/300/400 วันเก็บเป็นข้อมูล แก้ได้โดยไม่แตะโค้ด</text>
+      </svg>
+    </div>
+  </div>
+  <div class="foot"><span>adapter: contracts/adapters/money.js · ตัวอย่างนี้อยู่ใน mockup บริการรัฐ (ยังไม่อยู่ใน API)</span><span>5</span></div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="kick">Logic 2 · ถามเท่าที่จำเป็น</div>
+  <h2>ถามทีละข้อ เฉพาะข้อที่เปลี่ยนผลได้ แล้วคิดใหม่ทันที</h2>
+  <div class="row">
+    <div class="col ill">
+      <svg viewBox="0 0 560 420" aria-label="วงจรถามแล้วคิดใหม่">
+        <defs><marker id="a4" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0e9f6e"/></marker></defs>
+        <circle cx="280" cy="210" r="150" fill="none" stroke="#d1fae5" stroke-width="26"/>
+        <g font-size="16" text-anchor="middle" font-weight="600">
+          <rect x="190" y="40" width="180" height="50" rx="14" fill="#fff"/><text x="280" y="71">ผลมี need</text>
+          <rect x="390" y="185" width="160" height="50" rx="14" fill="#fff"/><text x="470" y="208">ถาม 1 ข้อ</text><text x="470" y="226" font-size="12" fill="#5b6b65">มีปุ่ม "ไม่แน่ใจ"</text>
+          <rect x="190" y="330" width="180" height="50" rx="14" fill="#fff"/><text x="280" y="361">บันทึก facts</text>
+          <rect x="10" y="185" width="160" height="50" rx="14" fill="#fff"/><text x="90" y="216">GET /v1/money</text>
+        </g>
+        <g stroke="#0e9f6e" stroke-width="3" fill="none" marker-end="url(#a4)"><path d="M372 80 Q450 120 465 180"/><path d="M465 238 Q450 310 374 345"/><path d="M188 350 Q110 310 95 240"/><path d="M95 182 Q110 110 188 72"/></g>
+        <text x="280" y="205" text-anchor="middle" font-size="40">🔁</text><text x="280" y="240" text-anchor="middle" font-size="14" fill="#5b6b65">จบเมื่อไม่มี need</text>
+      </svg>
+    </div>
+    <div class="col">
+      <div class="card" style="margin-bottom:1vw"><h3>ทำไมเป็นจุดแข็ง</h3>
+        <ul><li>ไม่มีฟอร์มยาว ผู้ใช้ตอบแค่ข้อที่ส่งผลต่อเงินของเขา</li>
+        <li>ทุกคำถามมีคำอธิบาย (<code>help</code>) กด "ไม่เข้าใจ" แล้ว AI อธิบายข้อนั้นได้</li>
+        <li>ตอบ "ไม่แน่ใจ" ได้ ผลกลายเป็น <span class="tag b">check</span> พร้อมบอกวิธีเช็ค ไม่ติดค้าง</li>
+        <li>ถามซ้ำไม่ได้: ข้อที่ตอบแล้วเก็บใน <code>/v1/me/facts</code> ใช้กับทุกรายการ</li></ul></div>
+      <div class="card"><h3>ใช้กับเหตุการณ์ชีวิตด้วย</h3><p>ผู้ใช้เลือก "ถูกเลิกจ้าง / มีลูก / น้ำท่วม" ระบบรู้ว่าต้องเช็ครายการไหน แล้วเริ่มถามข้อแรกของรายการนั้น</p></div>
+    </div>
+  </div>
+  <div class="foot"><span>Money Anywhere</span><span>6</span></div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kick">Logic 3 · AI ที่มีรั้ว</div>
+  <h2>AI ช่วยคุยและอธิบาย แต่ตัวเลขเงินมาจากกฎเท่านั้น</h2>
+  <div class="ill">
+    <svg viewBox="0 0 1200 400" aria-label="ลำดับการทำงานของ AI">
+      <defs><marker id="a5" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#047857"/></marker></defs>
+      <g font-size="17" text-anchor="middle">
+        <rect x="10" y="130" width="150" height="110" rx="18" fill="#fff"/><text x="85" y="175" font-size="34">💬</text><text x="85" y="215" font-weight="700">ข้อความผู้ใช้</text>
+        <rect x="200" y="110" width="190" height="150" rx="18" fill="#fdecea"/><text x="295" y="150" font-weight="700" fill="#b42318">1 guard</text><text x="295" y="178" font-size="14">ก่อนถึง LLM</text><text x="295" y="202" font-size="13">ปฏิเสธ: injection, ขอข้อมูลอ่อนไหว,</text><text x="295" y="222" font-size="13">สัญญาเงิน, เงินกู้, มิจฉาชีพ, นอกเรื่อง</text>
+        <rect x="430" y="110" width="190" height="150" rx="18" fill="#f1eafe"/><text x="525" y="150" font-weight="700" fill="#7c3aed">2 agent + LLM</text><text x="525" y="180" font-size="14">เห็นแค่ผลจาก tools</text><text x="525" y="202" font-size="14">ของผู้ใช้คนนี้</text><text x="525" y="226" font-size="13">ไม่มี key/ล่ม → ใช้กฎแทน</text>
+        <rect x="660" y="110" width="190" height="150" rx="18" fill="#d1fae5"/><text x="755" y="150" font-weight="700" fill="#047857">3 guardMoney</text><text x="755" y="180" font-size="14">ตัวเลขเงินที่ไม่อยู่ใน</text><text x="755" y="202" font-size="14">ผล tool → ลบทิ้ง</text>
+        <rect x="890" y="110" width="190" height="150" rx="18" fill="#fff4e0"/><text x="985" y="150" font-weight="700" fill="#b45309">4 ยืนยันก่อนทำ</text><text x="985" y="180" font-size="14">สร้างงาน, เลื่อน, อัปเดต facts</text><text x="985" y="202" font-size="14">= pending action</text><text x="985" y="226" font-size="13">ผู้ใช้กดยืนยันเอง</text>
+        <rect x="1110" y="140" width="80" height="90" rx="16" fill="#0e9f6e"/><text x="1150" y="195" font-size="30">✅</text>
+      </g>
+      <g stroke="#047857" stroke-width="3" marker-end="url(#a5)"><path d="M162 185 H196"/><path d="M392 185 H426"/><path d="M622 185 H656"/><path d="M852 185 H886"/><path d="M1082 185 H1106"/></g>
+      <g font-size="15" fill="#5b6b65" text-anchor="middle"><text x="295" y="300">policy ไฟล์เดียว ใช้ทั้ง server และ mock</text><text x="525" y="300">จำกัดจำนวนครั้งต่อวัน → กฎแทน</text><text x="755" y="300">ใช้กับทุกคำตอบ</text><text x="985" y="300">AI ทำเองไม่ได้</text></g>
+      <text x="600" y="360" text-anchor="middle" font-size="16">log การเรียก AI เก็บสถานะ + device id แบบ hash ไม่เก็บข้อความ prompt</text>
+    </svg>
+  </div>
+  <div class="foot"><span>adapters: guard.js, agent.js, ai.js · consent ai ไม่ให้ → aiStatus: skipped_no_consent</span><span>7</span></div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kick">การเชื่อมการทำงาน</div>
+  <h2>1 คำขอ เดินผ่านทุกส่วนอย่างไร (end-to-end)</h2>
+  <div class="ill">
+    <svg viewBox="0 0 1200 440" aria-label="sequence diagram">
+      <defs><marker id="a6" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f1f1a"/></marker><marker id="a7" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0e9f6e"/></marker></defs>
+      <g font-size="16" font-weight="700" text-anchor="middle">
+        <rect x="30" y="10" width="140" height="40" rx="10" fill="#111"/><text x="100" y="36" fill="#fff">แอป</text>
+        <rect x="270" y="10" width="140" height="40" rx="10" fill="#0e9f6e"/><text x="340" y="36" fill="#fff">API core</text>
+        <rect x="510" y="10" width="140" height="40" rx="10" fill="#fff"/><text x="580" y="36">money</text>
+        <rect x="750" y="10" width="140" height="40" rx="10" fill="#fff"/><text x="820" y="36">AI agent</text>
+        <rect x="990" y="10" width="170" height="40" rx="10" fill="#fff"/><text x="1075" y="36">tasks/notifier</text>
+      </g>
+      <g stroke="#cbd8d2" stroke-width="2" stroke-dasharray="5 6"><path d="M100 52 V430"/><path d="M340 52 V430"/><path d="M580 52 V430"/><path d="M820 52 V430"/><path d="M1075 52 V430"/></g>
+      <g font-size="14">
+        <path d="M100 85 H334" stroke="#0f1f1a" stroke-width="2" marker-end="url(#a6)"/><text x="110" y="78">POST /v1/me/consents (core, ai)</text>
+        <path d="M100 125 H334" stroke="#0f1f1a" stroke-width="2" marker-end="url(#a6)"/><text x="110" y="118">PATCH /v1/me/facts → GET /v1/money</text>
+        <path d="M340 165 H574" stroke="#0f1f1a" stroke-width="2" marker-end="url(#a6)"/><text x="350" y="158">ประเมินทุกรายการ</text>
+        <path d="M580 195 H106" stroke="#0e9f6e" stroke-width="2" marker-end="url(#a7)"/><text x="350" y="215" fill="#047857">likely / check / need + ยอด + basis + sources</text>
+        <path d="M100 250 H334" stroke="#0f1f1a" stroke-width="2" marker-end="url(#a6)"/><text x="110" y="243">"ช่วยวางแผนรับเงิน" (chat)</text>
+        <path d="M340 270 H814" stroke="#0f1f1a" stroke-width="2" marker-end="url(#a6)"/><text x="590" y="263">guard → agent เรียก tool money</text>
+        <path d="M820 300 H106" stroke="#0e9f6e" stroke-width="2" marker-end="url(#a7)"/><text x="350" y="320" fill="#047857">คำตอบ + pending action "สร้างแผน" (ยอดจาก tool เท่านั้น)</text>
+        <path d="M100 350 H1069" stroke="#0f1f1a" stroke-width="2" marker-end="url(#a6)"/><text x="110" y="343">ยืนยัน → POST /v1/tasks · events มี Idempotency-Key กดซ้ำไม่เกิดซ้ำ</text>
+        <path d="M1075 395 H106" stroke="#0e9f6e" stroke-width="2" marker-end="url(#a7)"/><text x="350" y="415" fill="#047857">เตือนตามกำหนด · กลับจากแอปรัฐ → ถามผล → event "ผู้ใช้แจ้ง"</text>
+      </g>
+    </svg>
+  </div>
+  <div class="foot"><span>ทุก response มี X-Request-Id · error รูปเดียว {code, message, status, retryable, requestId}</span><span>8</span></div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kick">การเชื่อมต่อภายนอก</div>
+  <h2>ทุกแหล่งข้อมูลเป็น adapter: เปลี่ยนด้วย env หรือไฟล์เดียว</h2>
+  <table>
+    <tr><th style="width:16%">Port</th><th style="width:26%">วันนี้ใช้</th><th style="width:26%">สลับเป็น</th><th>ผลต่อแอป</th></tr>
+    <tr><td><b>ai</b></td><td><span class="tag g">จริง</span> Gemini (OpenAI-compatible) เมื่อมี key</td><td>กฎล้วน (ไม่มี key / ล่ม / เกินโควตา)</td><td>ไม่ต้องแก้ · health บอก <code>ai: rules</code></td></tr>
+    <tr><td><b>sources</b></td><td><span class="tag g">จริง</span> Greenhouse, Lever, open data · <span class="tag w">mock</span> 6 แหล่ง 77 รายการ</td><td>API กรมการจัดหางาน / บริษัทอื่น ผ่าน pull หรือ batch push</td><td>ไม่ต้องแก้ · <code>/v1/sources</code> บอกจริง/จำลอง</td></tr>
+    <tr><td><b>gov</b></td><td><span class="tag w">mock</span> ThaID ต่อคน (flag <code>govConnected</code>)</td><td>ThaID / ทางรัฐจริง เมื่อมีข้อตกลง</td><td>ไม่ต้องแก้ · ผลเปลี่ยนเป็น verified ได้</td></tr>
+    <tr><td><b>store</b></td><td>memory (test) / file (demo)</td><td>ฐานข้อมูล</td><td>ไม่ต้องแก้</td></tr>
+    <tr><td><b>notifier</b></td><td><span class="tag w">mock</span> เก็บใน log</td><td>FCM หรือแจ้งเตือนในเครื่อง</td><td>ไม่ต้องแก้</td></tr>
+    <tr><td><b>money</b></td><td>กฎใน <code>reference.json</code></td><td>เพิ่ม/แก้รายการ = แก้ข้อมูล</td><td>ไม่ต้องแก้</td></tr>
+    <tr><td><b>app-config</b></td><td>เมนู ปุ่ม ข้อความจากหลังบ้าน (ETag)</td><td>เปลี่ยนเมนูได้โดยไม่ออกแอปใหม่</td><td>ต้องให้แอปอ่าน config (ยังไม่ทำ ดูหน้า 13)</td></tr>
+  </table>
+  <div class="foot"><span>Money Anywhere</span><span>9</span></div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div class="kick">ซื่อตรงกับข้อมูล</div>
+  <h2>ทุกตัวเลขบอกได้ว่ามาจากไหน</h2>
+  <div class="row">
+    <div class="col">
+      <div class="grid2">
+        <div class="card"><span class="tag g">1</span><h3>อัตราที่ประกาศ</h3><p class="sm">"ตามอัตราที่ประกาศ ยังไม่ได้ยืนยันสิทธิ์ของคุณ"</p></div>
+        <div class="card"><span class="tag g">2</span><h3>คำนวณจากที่ผู้ใช้กรอก</h3><p class="sm">"คำนวณจากตัวเลขที่คุณกรอก"</p></div>
+        <div class="card"><span class="tag b">3</span><h3>ต้องเช็คยอดจริง</h3><p class="sm">ไม่แสดงยอด มีปุ่มพาไปเช็ค</p></div>
+        <div class="card"><span class="tag n">4</span><h3>ผู้ใช้แจ้ง</h3><p class="sm">"คุณแจ้งว่า..." หลังกลับจากแอปรัฐ</p></div>
+        <div class="card"><span class="tag w">5</span><h3>ข้อมูลจำลอง</h3><p class="sm">ป้าย DEMO / MOCK ทุกที่</p></div>
+        <div class="card"><span class="tag v">-</span><h3>ยืนยันจากหน่วยงาน</h3><p class="sm">ทำได้เฉพาะ gov adapter จริง</p></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card" style="flex:1"><h3>บังคับด้วยโค้ดและเทสต์ ไม่ใช่แค่ข้อความ</h3>
+        <ul><li><code>dataStatus</code> และ <code>basis</code> อยู่ใน schema ของทุกผลเงิน</li>
+        <li>ทุกรายการเงินมี <code>sources</code> พร้อม <code>checkedAt</code></li>
+        <li>เรื่องที่ยังไม่ชัวร์ลงทะเบียนใน <code>open-items.md</code> พร้อมที่แก้</li>
+        <li>เทสต์ยืนยันว่าไม่มีรายการไหนได้ผล verified จากกฎ และผล check/need ไม่มียอด</li>
+        <li>persona ทุกคนชื่อมี "(สมมติ)" ไม่มีข้อมูลคนจริงใน repo</li></ul></div>
+    </div>
+  </div>
+  <div class="foot"><span>Money Anywhere</span><span>10</span></div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <div class="kick">ภาครัฐ</div>
+  <h2>วันนี้ทำได้จริงแค่ไหน และต่อของจริงได้โดยไม่แก้แอป</h2>
+  <div class="ill" style="flex:.9">
+    <svg viewBox="0 0 1200 300" aria-label="ขั้นการเชื่อมรัฐ">
+      <defs><marker id="a8" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#047857"/></marker></defs>
+      <g font-size="17" text-anchor="middle">
+        <rect x="20" y="40" width="340" height="210" rx="22" fill="#d1fae5"/><text x="190" y="80" font-weight="700" fill="#047857">วันนี้ (Demo)</text>
+        <text x="190" y="115" font-size="15">เกณฑ์และอัตราที่ประกาศ 25 รายการ</text><text x="190" y="142" font-size="15">พาไปแอปรัฐ 11 ช่องทาง</text><text x="190" y="169" font-size="15">ถามผลกลับ = ผู้ใช้แจ้ง</text><text x="190" y="196" font-size="15">ThaID mock + ป้าย DEMO / MOCK</text>
+        <rect x="430" y="40" width="340" height="210" rx="22" fill="#fff"/><text x="600" y="80" font-weight="700">ถัดไป (ฟรี)</text>
+        <text x="600" y="115" font-size="15">ย้าย 19 รายการจาก mockup เข้า API</text><text x="600" y="142" font-size="15">แผนที่จุดบริการจาก OSM Overpass</text><text x="600" y="169" font-size="15">ยืนยันอัตรากับเว็บหน่วยงาน</text><text x="600" y="196" font-size="15">แจ้งเตือนรอบใกล้ปิด</text>
+        <rect x="840" y="40" width="340" height="210" rx="22" fill="#fff4e0"/><text x="1010" y="80" font-weight="700" fill="#b45309">อนาคต (ต้องมีข้อตกลง)</text>
+        <text x="1010" y="115" font-size="15">ThaID / ทางรัฐ login จริง</text><text x="1010" y="142" font-size="15">GDX ข้อมูลสิทธิ์รายบุคคล</text><text x="1010" y="169" font-size="15">ผลเปลี่ยนเป็น verified</text><text x="1010" y="196" font-size="15">DPIA + งานความปลอดภัย</text>
+      </g>
+      <g stroke="#047857" stroke-width="4" marker-end="url(#a8)"><path d="M364 145 H426"/><path d="M774 145 H836"/></g>
+      <text x="600" y="290" text-anchor="middle" font-size="16" fill="#5b6b65">ทั้ง 3 ขั้นใช้ endpoint เดิม เปลี่ยนแค่ adapter gov + ข้อมูลใน reference.json</text>
+    </svg>
+  </div>
+  <div class="grid4" style="margin-top:1vw">
+    <div class="card"><div class="big">25</div><p class="sm">รายการเงิน 6 หมวด (6 อยู่ใน API)</p></div>
+    <div class="card"><div class="big">10</div><p class="sm">เหตุการณ์ชีวิตเป็นทางเข้า</p></div>
+    <div class="card"><div class="big">11</div><p class="sm">ช่องทางรัฐที่พาไป</p></div>
+    <div class="card"><div class="big">30</div><p class="sm">GDX API ในแคตตาล็อก (ยังไม่มีสิทธิ์เรียก)</p></div>
+  </div>
+  <div class="foot"><span>รายละเอียด: docs/design/gov-services-inventory.md</span><span>11</span></div>
+</section>
+
+<!-- 12 -->
+<section class="slide">
+  <div class="kick">หลักฐาน</div>
+  <h2>ตรวจได้ทุกข้อ ไม่ต้องเชื่อคำพูด</h2>
+  <div class="grid3" style="margin-bottom:1.3vw">
+    <div class="card"><div class="big">139/139</div><p>contract test ผ่าน ตรวจ schema, status, header ทุก call</p><p class="sm">รัน 26 พ.ย. 2569</p></div>
+    <div class="card"><div class="big">49/49</div><p>operation ใน openapi.yaml ถูกเรียกในเทสต์ (ขาดตัวเดียว เทสต์ fail)</p><p class="sm">รัน 26 พ.ย. 2569</p></div>
+    <div class="card"><div class="big">37/37</div><p>smoke test mockup บริการรัฐ (persona 6 คน + ทุก flow)</p><p class="sm">รัน 26 พ.ย. 2569</p></div>
+    <div class="card"><div class="big">28/28</div><p>flow test บน PC: profile → เงิน → AI → แผน → ความคืบหน้า</p><p class="sm">รันรอบก่อน</p></div>
+    <div class="card"><div class="big">14/14</div><p>Flutter test + analyze ไม่มี error ติดตั้งบนมือถือจริง</p><p class="sm">รันรอบก่อน</p></div>
+    <div class="card"><div class="big">1</div><p>คำสั่งเดียว <code>npm.cmd run check</code> = เทสต์ทั้งหมด + สร้างเอกสาร API ใหม่</p></div>
+  </div>
+  <p class="sm">เทสต์ใช้ memory store เสมอ ไม่แตะข้อมูลจริง · เอกสาร API สร้างจาก openapi.yaml อัตโนมัติ (docs/backend/index.html)</p>
+  <div class="foot"><span>Money Anywhere</span><span>12</span></div>
+</section>
+
+<!-- 13 -->
+<section class="slide">
+  <div class="kick">จุดแข็ง</div>
+  <h2>สรุปจุดแข็งที่ตอบโจทย์ "logic และการเชื่อมการทำงานชัดเจน"</h2>
+  <div class="grid3">
+    <div class="card"><h3>🧮 Logic ตรวจย้อนได้</h3><p>กฎเงินเป็นข้อมูลที่มีเวอร์ชันและแหล่งอ้างอิง ผลเหมือนเดิมทุกครั้ง อธิบายได้ว่าทำไม</p></div>
+    <div class="card"><h3>🔗 เส้นทางเดียวจบ</h3><p>รู้จัก → หาเงิน → อธิบาย → พาทำ → ติดตาม ใช้ข้อมูลชุดเดียวกัน ไม่ถามซ้ำ</p></div>
+    <div class="card"><h3>🛡️ AI มีรั้ว 4 ชั้น</h3><p>guard ก่อน LLM, เห็นแค่ข้อมูลผู้ใช้คนนั้น, ลบตัวเลขที่ไม่มีที่มา, ต้องยืนยันก่อนทำ</p></div>
+    <div class="card"><h3>🔌 สลับแหล่งได้</h3><p>10 adapters เปลี่ยนด้วย env แอปไม่รู้ว่าข้างหลังเป็น mock หรือของจริง</p></div>
+    <div class="card"><h3>🏷️ ซื่อตรงกับข้อมูล</h3><p>ทุกตัวเลขมี basis และป้ายระดับข้อมูล ไม่สัญญาเงิน ไม่แสดง mock เป็นของจริง</p></div>
+    <div class="card"><h3>✅ ทนทาน</h3><p>AI ล่ม → ใช้กฎ, กดซ้ำ → ไม่เกิดซ้ำ (Idempotency), error รูปเดียว, ไม่ให้ยินยอม → ยังใช้ได้บางส่วน</p></div>
+  </div>
+  <div class="foot"><span>Money Anywhere</span><span>13</span></div>
+</section>
+
+<!-- 14 -->
+<section class="slide">
+  <div class="kick">ต้องเพิ่ม / ต้องแก้</div>
+  <h2>สิ่งที่ยังขาด พร้อมวิธีแก้ (ทำหลังรอบนี้)</h2>
+  <table>
+    <tr><th style="width:6%">#</th><th style="width:34%">เรื่อง</th><th style="width:12%">ระดับ</th><th>วิธีแก้</th></tr>
+    <tr><td>1</td><td>19 รายการเงินใหม่ (สงเคราะห์บุตร, ค่าคลอด, ค่าชดเชย, กอช. ฯลฯ) ยังอยู่แค่ใน mockup</td><td><span class="tag r">สูง</span></td><td>ย้ายเข้า <code>reference.json</code> + endpoint <code>/v1/life-events</code>, <code>/v1/readiness</code> (TF.16)</td></tr>
+    <tr><td>2</td><td>แอปยังเขียนเมนูตายตัว ไม่อ่าน <code>/v1/app-config</code> (จุดขาย "backend-driven UI" ยังไม่ครบ)</td><td><span class="tag r">สูง</span></td><td>ให้แอปอ่าน config + ETag (M9)</td></tr>
+    <tr><td>3</td><td>อัตราหลายรายการมาจากข่าว/โฆษก ยังไม่ได้ตรวจกับเว็บหน่วยงาน (เช่น สงเคราะห์บุตร 1,000 หรือ 800)</td><td><span class="tag r">สูง</span></td><td>ตรวจ sso.go.th, nsf.or.th ด้วยเบราว์เซอร์ แล้วอัปเดต <code>sources</code> (D8, D13-D15)</td></tr>
+    <tr><td>4</td><td>ThaID bypass ขัดกับเอกสาร handoff ที่บอกห้ามแสดงว่าเชื่อมแล้ว</td><td><span class="tag w">กลาง</span></td><td>คงป้าย DEMO / MOCK หรือปิด <code>GOV_CONNECTED</code> ตอนพรีเซนต์ (M14)</td></tr>
+    <tr><td>5</td><td>จุดบริการบนแผนที่เป็นข้อมูลจำลอง</td><td><span class="tag w">กลาง</span></td><td>ลอง OSM Overpass (ฟรี) เป็น adapter <code>offices</code> (D16)</td></tr>
+    <tr><td>6</td><td>แจ้งเตือนยังไม่ส่งเข้ามือถือ</td><td><span class="tag w">กลาง</span></td><td>notifier → แจ้งเตือนในเครื่อง หรือ FCM (M3)</td></tr>
+    <tr><td>7</td><td>PDPA และการยินยอมแบบกดปุ่มเดียวยังไม่ผ่านผู้รู้กฎหมาย</td><td><span class="tag w">กลาง</span></td><td>ส่งตรวจ (TF.14) ข้อมูลสุขภาพ (ตั้งครรภ์) ต้องยินยอมชัดแจ้ง</td></tr>
+    <tr><td>8</td><td>ยังไม่มี endpoint บอกช่องทาง/เมนูในแอปรัฐ และวันปิดรอบ</td><td><span class="tag n">ต่ำ</span></td><td><code>/v1/channels</code> + ฟิลด์ <code>window</code> (D17, D19)</td></tr>
+  </table>
+  <div class="foot"><span>ทุกข้ออยู่ใน docs/plan/open-items.md และ work-breakdown.md</span><span>14</span></div>
+</section>
+
+<!-- 15 -->
+<section class="slide">
+  <div class="kick">แผนต่อ</div>
+  <h2>ลำดับงานหลังพรีเซนต์</h2>
+  <div class="grid3" style="flex:1">
+    <div class="card"><span class="tag r">ก่อนพรีเซนต์</span><ul style="margin-top:.6vw"><li>ตัดสินเรื่อง ThaID bypass (ข้อ 4)</li><li>เตรียม persona ที่จะโชว์: เลิกจ้าง, เพิ่งคลอด, ผู้สูงอายุน้ำท่วม</li><li>สำรอง: เปิด mockup ใน browser ถ้ามือถือต่อไม่ได้</li></ul></div>
+    <div class="card"><span class="tag w">ถัดไป</span><ul style="margin-top:.6vw"><li>TF.16 ย้าย 4 รายการแรกเข้า API: สงเคราะห์บุตร, ค่าคลอด, ค่าชดเชย, กอช.</li><li>แอปอ่าน app-config</li><li>ยืนยันอัตรากับเว็บหน่วยงาน</li></ul></div>
+    <div class="card"><span class="tag g">หลังจากนั้น</span><ul style="margin-top:.6vw"><li>แผนที่จาก OSM</li><li>แจ้งเตือนจริง</li><li>คุยกับหน่วยงานเรื่อง ThaID / GDX แล้วเปลี่ยน adapter gov</li></ul></div>
+  </div>
+  <p class="quote" style="margin-top:1.4vw">ต่อของจริงเพิ่มได้ทีละแหล่ง โดยแอปและ contract ไม่ต้องเปลี่ยน</p>
+  <div class="foot"><span>Money Anywhere</span><span>15</span></div>
+</section>
+
+<!-- 16 -->
+<section class="slide title">
+  <div class="kick">สรุป</div>
+  <h1>ไม่ได้แค่บอกลิงก์<br>แต่บอกว่าเงินอยู่ไหน ได้เท่าไหร่ และพาไปจนจบ</h1>
+  <p style="margin-top:1.6vw">Logic ตรวจย้อนได้ · เส้นทางเดียวจบ · AI มีรั้ว · สลับแหล่งข้อมูลได้ · ซื่อตรงกับตัวเลข</p>
+  <p style="margin-top:2vw;font-size:1.2vw">ดูเพิ่ม: <code style="background:#ffffff22;color:#fff">contracts/openapi.yaml</code> · <code style="background:#ffffff22;color:#fff">docs/backend/index.html</code> · <code style="background:#ffffff22;color:#fff">docs/mockups/gov-services.html</code></p>
+  <div class="foot"><span>ถาม-ตอบ</span><span>16</span></div>
+</section>
+
+</div>
+<div class="bar" id="bar"></div>
+<div class="nav"><button id="prev" aria-label="ก่อนหน้า">←</button><button id="cnt">1/16</button><button id="next" aria-label="ถัดไป">→</button></div>
+<script>
+  const slides = [...document.querySelectorAll('.slide')];
+  let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1), 10) || 1) - 1));
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('on', k === i));
+    document.getElementById('bar').style.width = ((i + 1) / slides.length * 100) + '%';
+    document.getElementById('cnt').textContent = (i + 1) + '/' + slides.length;
+    history.replaceState(null, '', '#' + (i + 1));
+  }
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); show(i + 1); }
+    else if (['ArrowLeft', 'PageUp'].includes(e.key)) show(i - 1);
+    else if (e.key === 'Home') show(0); else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+  });
+  document.getElementById('next').onclick = () => show(i + 1);
+  document.getElementById('prev').onclick = () => show(i - 1);
+  document.getElementById('deck').addEventListener('click', e => { if (e.target.closest('a,button,code')) return; show(e.clientX > innerWidth / 3 ? i + 1 : i - 1); });
+  show(i);
+</script>
+</body>
+</html>
