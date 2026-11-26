@@ -8,7 +8,10 @@ import 'route_screen.dart';
 /// Quick money check: one question at a time via POST /v1/money/preview (nothing stored, no consent yet).
 /// Stops as soon as there is a sourced amount to show; the rest can be asked afterwards.
 class QuickCheckScreen extends StatefulWidget {
-  const QuickCheckScreen({super.key, required this.app, this.knownFacts = const {}, this.consented = false});
+  const QuickCheckScreen({super.key, required this.app, this.knownFacts = const {}, this.consented = false, this.askAll = false});
+
+  /// "แก้คำตอบของฉัน": start empty and ask every question again (each answer replaces the saved one).
+  final bool askAll;
   final AppState app;
   Api get api => app.api;
 
@@ -35,7 +38,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
     super.initState();
     facts.addAll(widget.knownFacts);
     // Coming back with answers already given: go straight to the questions still open.
-    keepAsking = widget.knownFacts.isNotEmpty;
+    keepAsking = widget.knownFacts.isNotEmpty || widget.askAll;
     _refresh();
   }
 

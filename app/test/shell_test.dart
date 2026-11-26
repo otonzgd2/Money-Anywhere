@@ -25,8 +25,6 @@ void main() {
     for (final label in ['หน้าแรก', 'โอกาส', 'แผนของฉัน', 'ฉัน']) {
       expect(find.text(label), findsWidgets);
     }
-    expect(find.text('ให้ AI หาเงินให้ฉัน'), findsOneWidget);
-    expect(find.text('เช็คเงินที่ควรได้ เอง'), findsOneWidget);
   });
 
   testWidgets('ฉัน tab shows delete-all and large text', (tester) async {

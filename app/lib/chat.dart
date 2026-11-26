@@ -43,6 +43,9 @@ class ChatSession {
   List<String> quick = [];
   String? conversationId;
   bool get started => conversationId != null;
+
+  /// The person sent at least one message. Only then the home button says "คุยกับ AI ต่อ".
+  bool get talked => _msgs.any((m) => m.mine);
   void reset() { _msgs.clear(); decided.clear(); quick = []; conversationId = null; }
 }
 

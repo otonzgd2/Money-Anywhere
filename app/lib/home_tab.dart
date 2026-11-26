@@ -78,7 +78,10 @@ class _HomeTabState extends State<HomeTab> {
     final items = ((overview?['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
     final found = rankMoney(items).where((i) => tierOf(i) <= 3).toList();
     final openQuestions = items.where((i) => i['status'] == 'need').length;
-    final started = consented || facts.isNotEmpty || tasks.isNotEmpty || app.chat.started;
+    // Returning layout only when there is something to show: an answer, a plan, or a real chat.
+    // Consent alone (pressing the AI button and leaving) keeps the new-person layout.
+    final started = facts.isNotEmpty || tasks.isNotEmpty || app.chat.talked;
+    final talked = app.chat.talked;
     final next = nextTask(tasks);
     final others = tasks.where((x) => x['status'] != 'finished' && x != next).length;
     final planned = tasks.map((x) => x['moneyId']).whereType<String>().toSet();
@@ -127,16 +130,25 @@ class _HomeTabState extends State<HomeTab> {
               ],
               if (loaded)
                 _AiHero(
-                  title: app.chat.started ? 'คุยกับ AI ต่อ' : 'ให้ AI หาเงินให้ฉัน',
-                  subtitle: app.chat.started
+                  title: talked ? 'คุยกับ AI ต่อ' : 'ให้ AI หาเงินให้ฉัน',
+                  subtitle: talked
                       ? 'คุยต่อจากเดิม ถามได้ เช่น ต้องทำอะไรต่อ ขอลิงก์ติดต่อ เอกสารที่ยังขาด'
                       : 'กดครั้งเดียว AI ถามทีละข้อ แล้วพาไปจนรู้ว่าต้องไปรับเงินที่ไหน เอาอะไรไป',
-                  button: app.chat.started ? 'คุยต่อ ›' : 'เริ่มคุยเลย ›',
-                  showConsent: !(consented && app.chat.started),
+                  button: talked ? 'คุยต่อ ›' : 'เริ่มคุยเลย ›',
+                  showConsent: !talked,
                   onTap: () => _open(ChatScreen(api: api, session: app.chat)),
                   onNotice: () => showNotice(context, app),
                 ),
-              if (loaded && (!started || openQuestions > 0)) ...[
+              // Manual check is always reachable: full check with no answers, "ตอบเพิ่ม" while questions are open,
+              // "แก้คำตอบของฉัน" once everything is answered.
+              if (loaded && facts.isNotEmpty && openQuestions == 0)
+                ListTile(
+                  leading: const Text('✏️', style: TextStyle(fontSize: 22)),
+                  title: const Text('แก้คำตอบของฉันเอง (ไม่ใช้ AI)'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _open(QuickCheckScreen(app: app, consented: consented, askAll: true)),
+                ),
+              if (loaded && (facts.isEmpty || openQuestions > 0)) ...[
                 const SizedBox(height: 14),
                 Card(
                   child: ListTile(

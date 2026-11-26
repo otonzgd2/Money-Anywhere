@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'common.dart';
 import 'money.dart';
+import 'opp_map.dart';
 
 const oppGroups = {'all': 'ทั้งหมด', 'job': 'งาน', 'skill': 'ทักษะ', 'sell': 'ขายของ', 'money': 'เงิน/สิทธิ์'};
 
@@ -28,6 +29,7 @@ class _OppTabState extends State<OppTab> {
   final TextEditingController q = TextEditingController();
   Map<String, dynamic>? page;
   ApiException? error;
+  bool mapView = false;
 
   @override
   void initState() {
@@ -45,7 +47,7 @@ class _OppTabState extends State<OppTab> {
 
   Future<void> _load() async {
     final g = widget.app.oppGroup.value;
-    final query = <String, String>{'group': g, 'radiusKm': '50', if (q.text.trim().isNotEmpty) 'q': q.text.trim()};
+    final query = <String, String>{'group': g, 'radiusKm': '50', 'limit': '100', if (q.text.trim().isNotEmpty) 'q': q.text.trim()};
     try {
       final r = await widget.app.api.get('/v1/opportunities?${Uri(queryParameters: query).query}');
       if (mounted) setState(() { page = r; error = null; });
@@ -58,22 +60,55 @@ class _OppTabState extends State<OppTab> {
   Widget build(BuildContext context) {
     final items = ((page?['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
     final g = widget.app.oppGroup.value;
+    void open(Map<String, dynamic> o) => Navigator.push(context, MaterialPageRoute(builder: (_) => OppScreen(app: widget.app, opp: o)));
     return Scaffold(
       appBar: AppBar(title: const Text('โอกาส')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.all(12), children: [
-          TextField(
-            controller: q,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _load(),
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'ค้นหา เช่น แม่บ้าน ขนม', border: OutlineInputBorder()),
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 6, children: [
-            for (final e in oppGroups.entries)
-              ChoiceChip(label: Text(e.value), selected: g == e.key, onSelected: (_) => widget.app.oppGroup.value = e.key),
+      // One floating button switches list <-> map (navigation.md, ui-states.md S6).
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => setState(() => mapView = !mapView),
+        icon: Text(mapView ? '📋' : '🗺️', style: const TextStyle(fontSize: 18)),
+        label: Text(mapView ? 'ดูรายการ' : 'ดูแผนที่'),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Column(children: [
+            TextField(
+              controller: q,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _load(),
+              decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'ค้นหา เช่น แม่บ้าน ขนม', border: OutlineInputBorder(), isDense: true),
+            ),
+            const SizedBox(height: 6),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                for (final e in oppGroups.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(label: Text(e.value), selected: g == e.key, onSelected: (_) => widget.app.oppGroup.value = e.key),
+                  ),
+              ]),
+            ),
           ]),
+        ),
+        Expanded(
+          child: mapView && page != null
+              ? OppMap(items: items, onOpen: open, onShowList: () => setState(() => mapView = false))
+              : _list(context, items, open),
+        ),
+      ]),
+    );
+  }
+
+  Widget _list(BuildContext context, List<Map<String, dynamic>> items, void Function(Map<String, dynamic>) open) {
+    final live = items.where((o) => (o['provenance'] as Map)['dataStatus'] == 'live').length;
+    return RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 80), children: [
+          if (page != null && items.isNotEmpty)
+            Text('${items.length} รายการ · ประกาศจริงจากแหล่งภายนอก $live รายการ · ที่เหลือเป็นตัวอย่าง (DEMO)', style: Theme.of(context).textTheme.bodySmall),
           if (error != null && error!.isNetwork) OfflineCard(app: widget.app, onRetry: _load),
           if (error != null && !error!.isNetwork) Text(error!.message),
           if (page == null && error == null) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
@@ -91,13 +126,12 @@ class _OppTabState extends State<OppTab> {
                     '\n${dataLabel((o['provenance'] as Map)['dataStatus'] as String?)}'),
                 isThreeLine: true,
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OppScreen(app: widget.app, opp: o))),
+                onTap: () => open(o),
               ),
             ),
           if (page != null && (page!['hiddenSuspicious'] as num? ?? 0) > 0)
             Padding(padding: const EdgeInsets.all(8), child: Text('ซ่อนประกาศที่น่าสงสัยไว้ ${page!['hiddenSuspicious']} รายการ', style: Theme.of(context).textTheme.bodySmall)),
         ]),
-      ),
     );
   }
 }
