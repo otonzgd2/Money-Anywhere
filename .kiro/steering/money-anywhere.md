@@ -38,6 +38,8 @@ Owner speaks Thai: reply in Thai. Code, identifiers, commit messages and API fie
 | Generated API docs (do not edit) | `docs/backend/index.html` |
 | Locked decisions | `aidlc/spaces/default/memory/project.md` (Tech Stack, Decided) |
 | Rebuild the app on Demo day (steps, prompts, known pitfalls) | `docs/guide/rebuild-playbook.md` |
+| Tool versions for the team, env vars, phone setup | `docs/guide/dev-setup.md`, check with `tools/check-dev-env.ps1` |
+| Build + install on the USB phone / flow test on the PC | `tools/build-and-install.ps1`, `node tools/e2e-flows.js` |
 
 Decided, do not re-ask: Flutter; one app with ThaID mode hidden behind `govConnected`; 4 tabs (หน้าแรก, โอกาส, แผนของฉัน, ฉัน); menus and actions come from the backend config; ADR-001 stack.
 

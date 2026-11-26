@@ -55,7 +55,7 @@ cd contracts; npm.cmd run check   # ต้องได้ RESULT: PASS
 | 6 | build + ติดตั้ง | `flutter build apk --debug` แล้ว `adb install -r --user 0 build\app\outputs\flutter-apk\app-debug.apk` | ไอคอน Money Anywhere บนมือถือ | 1 นาที (cache อุ่นแล้ว) |
 | 7 | โชว์ flow | ตามข้อ 6 | ครบทุกข้อ | 3 นาที |
 
-ทางลัด: `contracts\.data\build-app.ps1` ทำข้อ 5–6 พร้อมรีสตาร์ต server, `adb reverse` และเปิดแอปให้ในคำสั่งเดียว ดู log ที่ `contracts\.data\build-app.log` (โฟลเดอร์ `.data` ไม่อยู่ใน git ถ้าเครื่องใหม่ให้ก๊อปสคริปต์จากเครื่องนี้)
+ทางลัด: `tools\build-and-install.ps1` ทำข้อ 5–6 พร้อมรีสตาร์ต server, `adb reverse` และเปิดแอปให้ในคำสั่งเดียว ดู log ที่ `contracts\.data\build-app.log` เวอร์ชันเครื่องมือทั้งหมดอยู่ใน `docs/guide/dev-setup.md`
 
 ## 4. โครงแอปที่ต้องได้ (ต้นแบบใน `app/`)
 
