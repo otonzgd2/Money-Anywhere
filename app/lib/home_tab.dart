@@ -6,6 +6,7 @@ import 'common.dart';
 import 'income_plan_screen.dart';
 import 'money.dart';
 import 'money_check.dart';
+import 'profile_overview_screen.dart';
 import 'route_screen.dart';
 import 'task_screen.dart';
 import 'thaid.dart';
@@ -36,11 +37,15 @@ class _HomeTabState extends State<HomeTab> {
   Map<String, dynamic>? overview;
   List<Map<String, dynamic>> tasks = [];
   bool consented = false, loaded = false;
+  final ChatSession demoChat = ChatSession();
+  bool hasDemoProfile = false, personalChat = false, openingDemo = false;
+  String? demoServer;
   GovState gov = GovState.disabled;
   ApiException? error;
 
   AppState get app => widget.app;
   Api get api => app.api;
+  bool get usesDemoChat => hasDemoProfile && !personalChat;
 
   @override
   void initState() {
@@ -63,10 +68,20 @@ class _HomeTabState extends State<HomeTab> {
       final m = f.isNotEmpty ? await api.get('/v1/money') : null;
       final t = ok ? ((await api.get('/v1/tasks'))['items'] as List).cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
       final g = await govState(api);
+      final ProfileSnapshot? profile;
+      if (f.isEmpty && g != GovState.connected) {
+        final Future<ProfileSnapshot?> preview = ProfileSnapshot.load(api, knownFacts: f);
+        profile = await preview.onError<ApiException>((_, _) => null);
+      } else {
+        profile = null;
+      }
       // Connected ThaID: show the money overview even before any answer (the agency data fills it).
       final m2 = m ?? (g == GovState.connected ? await api.get('/v1/money') : null);
       if (!mounted) return;
-      setState(() { facts = f; overview = m2; tasks = t; consented = ok; gov = g; error = null; loaded = true; });
+      setState(() {
+        facts = f; overview = m2; tasks = t; consented = ok; gov = g;
+        hasDemoProfile = profile?.sample != null; error = null; loaded = true;
+      });
     } on ApiException catch (e) {
       if (mounted) setState(() { error = e; loaded = true; });
     }
@@ -78,6 +93,42 @@ class _HomeTabState extends State<HomeTab> {
     app.bump();
   }
 
+  Future<void> _openChat({bool personal = false}) async {
+    if (openingDemo) return;
+    if (personal || !usesDemoChat) {
+      if (personal) setState(() => personalChat = true);
+      await _open(ChatScreen(app: app, session: app.chat));
+      return;
+    }
+
+    setState(() => openingDemo = true);
+    final demoApp = app.forDemoChat(DemoChatProfile.connected);
+    final demoApi = demoApp.api;
+    try {
+      if (demoServer != demoApi.baseUrl) {
+        demoChat.reset();
+        demoServer = demoApi.baseUrl;
+      }
+      try {
+        await demoApi.get('/v1/me/profile');
+      } on ApiException catch (e) {
+        if (e.status != 404) rethrow;
+        final demo = await demoApi.post('/v1/demo/personas/gov-prefill');
+        if (demo['dataStatus'] != 'mock') {
+          throw ApiException(0, 'DEMO_DATA', 'โหลดโปรไฟล์ DEMO ไม่ได้');
+        }
+        demoChat.reset();
+      }
+      if (!mounted) return;
+      await _open(ChatScreen(app: demoApp, session: demoChat, title: 'ให้ AI หาเงินให้ฉัน · DEMO'));
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message);
+    } finally {
+      demoApi.close();
+      if (mounted) setState(() => openingDemo = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
@@ -87,7 +138,7 @@ class _HomeTabState extends State<HomeTab> {
     // Returning layout only when there is something to show: an answer, a plan, or a real chat.
     // Consent alone (pressing the AI button and leaving) keeps the new-person layout.
     final started = facts.isNotEmpty || tasks.isNotEmpty || app.chat.talked || gov == GovState.connected;
-    final talked = app.chat.talked;
+    final talked = usesDemoChat ? demoChat.talked : app.chat.talked;
     final next = nextTask(tasks);
     final others = tasks.where((x) => x['status'] != 'finished' && x != next).length;
     final planned = tasks.map((x) => x['moneyId']).whereType<String>().toSet();
@@ -138,14 +189,18 @@ class _HomeTabState extends State<HomeTab> {
               if (loaded)
                 _AiHero(
                   title: talked ? 'คุยกับ AI ต่อ' : 'ให้ AI หาเงินให้ฉัน',
-                  subtitle: talked
+                  subtitle: usesDemoChat
+                      ? 'ใช้ข้อมูลจากโปรไฟล์ DEMO เพื่อข้ามคำถามที่มีคำตอบแล้ว'
+                      : talked
                       ? 'คุยต่อจากเดิม ถามได้ เช่น ต้องทำอะไรต่อ ขอลิงก์ติดต่อ เอกสารที่ยังขาด'
                       : 'กดครั้งเดียว AI ถามทีละข้อ แล้วพาไปจนรู้ว่าต้องไปรับเงินที่ไหน เอาอะไรไป',
                   button: talked ? 'คุยต่อ ›' : 'เริ่มคุยเลย ›',
                   showConsent: !talked,
-                  onTap: () => _open(ChatScreen(api: api, session: app.chat)),
+                  onTap: _openChat,
                   onNotice: () => showNotice(context, app),
                 ),
+              if (usesDemoChat)
+                TextButton(onPressed: () => _openChat(personal: true), child: const Text('เริ่มคุยด้วยข้อมูลของฉัน')),
               if (loaded) ...[
                 const SizedBox(height: 12),
                 Card(

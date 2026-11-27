@@ -12,6 +12,40 @@ function guardMoney(reply, toolJson) {
 }
 
 const PREF_RE = /(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ทำได้แค่[^.?!]*|ว่างแค่[^.?!]*)/;
+const CLAIM_PREFIX = 'ดูวิธีรับ ';
+const moneyGuide = /^(เงินฉันอยู่ไหน|เอกสารที่ยังขาด|ไปรับเงินยังไง|ดูวิธีรับ .+)[?？]?$/;
+const moneySummaryQuery = /^เงินฉันอยู่ไหน[?？]?$/;
+const unpaidPlansQuery = /ติดตามแผน|(?:แผน|รายการ).{0,25}(?:ยังไม่(?:ได้รับ|ได้|รับ)เงิน|ค้างอยู่)|ยังไม่(?:ได้รับ|ได้|รับ)เงิน.{0,20}(?:แผน|รายการ)/;
+const planStatusQuery = /ถึงไหน|สถานะ|ได้เงิน(?:แล้ว)?หรือยัง|ยังไม่(?:ได้รับ|ได้|รับ)เงิน|แผนเดิม|เปิดแผน|ลิงก์แผน|ลิงค์แผน/;
+const moneyNames = {
+  old_age: ['เบี้ยผู้สูงอายุ', 'เงินผู้สูงอายุ'],
+  unemployment: ['เงินว่างงาน', 'เงินทดแทนว่างงาน'],
+  child_support: ['เงินอุดหนุนเด็ก', 'เงินเลี้ยงดูเด็ก'],
+  disability: ['เบี้ยคนพิการ', 'เงินคนพิการ'],
+  tax_refund: ['คืนภาษี'],
+  unpaid_wages: ['ค่าจ้างค้าง', 'เงินเดือนค้าง'],
+};
+const claimable = item => ['likely', 'verified', 'check'].includes(item.status);
+
+function matchingMoneyPlans(plans, { text, reply = '', toolCalls = [], pending = [], savedMoneyIds = [] }) {
+  const content = (text + '\n' + reply).replace(/\s+/g, '');
+  const ids = new Set(savedMoneyIds);
+  [...toolCalls, ...pending]
+    .filter(call => ['get_money_route', 'create_task'].includes(call.tool))
+    .forEach(call => ids.add(call.args?.moneyId));
+  return plans.filter(plan => ids.has(plan.moneyId) || [plan.title.split(' (')[0], ...(moneyNames[plan.moneyId] || [])]
+    .some(name => content.includes(name.replace(/\s+/g, ''))));
+}
+
+function planPaymentStatus(plan) {
+  switch (plan.outcome?.result) {
+    case 'received': return 'คุณแจ้งว่าได้รับเงินแล้ว';
+    case 'not_received': return 'คุณแจ้งว่ายังไม่ได้รับเงิน';
+    case 'rejected': return 'คุณแจ้งว่าผลไม่ผ่าน';
+    case 'other': return 'คุณแจ้งผลอื่นไว้';
+    default: return 'ยังไม่มีการแจ้งว่าได้รับเงิน';
+  }
+}
 
 // "I want X baht a month": find the amount in the text (the first number of 100 or more).
 const GOAL_RE = /(อยากได้|เป้า|ต้องการ|หาเงิน|ให้ได้|อยากมี).{0,25}\d|\d[\d,]*\s*(บาท)?\s*(ต่อเดือน|\/เดือน|ต่อเดือน)|เดือนละ\s*\d/;
@@ -53,13 +87,30 @@ async function rulesAgent({ text, tools }) {
     quick = ['ไปรับเงินยังไง', 'หางานใกล้บ้าน', 'เอกสารที่ยังขาด'];
   } else if (/เอกสาร/.test(t)) {
     const m = await use('get_money_overview');
+    const items = m.items.filter(claimable);
     const lines = [];
-    for (const it of m.items.filter(i => ['likely', 'verified', 'check'].includes(i.status))) {
+    for (const it of items) {
       const r = await use('get_money_route', { moneyId: it.id });
       const miss = r.documents.filter(d => !d.ready).map(d => d.text);
       if (miss.length) lines.push(it.title + ': ' + miss.join(', '));
     }
-    reply = lines.length ? 'เอกสารที่ยังขาด\n' + lines.join('\n') : 'เอกสารครบทุกรายการที่น่าจะมีสิทธิ์แล้ว';
+    reply = lines.length ? 'เอกสารที่ยังขาด\n' + lines.join('\n') : items.length ? 'เอกสารพร้อมแล้วทุกรายการที่แสดง' : notYet(m);
+    quick = items.map(it => CLAIM_PREFIX + it.title);
+  } else if (t.startsWith(CLAIM_PREFIX) || /^ไปรับเงินยังไง[?？]?$/.test(t)) {
+    const m = await use('get_money_overview');
+    const items = m.items.filter(claimable);
+    const title = t.startsWith(CLAIM_PREFIX) ? t.slice(CLAIM_PREFIX.length).replace(/[?？]$/, '') : null;
+    const selected = title ? items.find(it => it.title === title) : items.length === 1 ? items[0] : null;
+    if (!selected) {
+      reply = items.length ? 'เลือกรายการเพื่อดูที่ยื่นและขั้นตอนหลังยื่น' : notYet(m);
+      quick = items.map(it => CLAIM_PREFIX + it.title);
+    } else {
+      const route = await use('get_money_route', { moneyId: selected.id });
+      const channel = route.channels[0];
+      reply = selected.title + '\n' + [channel.title, channel.detail, channel.url, route.after].filter(Boolean).join('\n');
+      pending.push({ tool: 'create_task', args: { moneyId: selected.id }, label: 'บันทึกแผน: ' + selected.title });
+      quick = ['เอกสารที่ยังขาด', ...items.filter(it => it !== selected).map(it => CLAIM_PREFIX + it.title)];
+    }
   } else if (/งาน/.test(t)) {
     const r = await use('search_opportunities', { group: 'job', limit: 3 });
     if (!r.items.length) reply = 'ยังไม่พบงานใกล้คุณ ลองขยายระยะในหน้าโอกาส';
@@ -74,11 +125,9 @@ async function rulesAgent({ text, tools }) {
     else reply = 'ยังไม่มีงานที่กำลังทำอยู่';
   } else if (/เงิน|ได้เท่าไหร่|รอรับ|สิทธิ์|ควรได้|ได้อะไร|จากรัฐ/.test(t)) {
     const m = await use('get_money_overview');
-    const s = m.summary, top = m.items.filter(i => ['likely', 'verified'].includes(i.status));
-    const need = m.items.find(i => i.status === 'need');
-    reply = (s.counted ? 'เงินที่คุณอาจได้ ' + (s.monthly ? s.monthly + ' บาท/เดือน' : '') + (s.once ? ' และ ' + s.once + ' บาท ครั้งเดียว' : '') + (s.allVerified ? ' (ยืนยันจากหน่วยงาน)' : ' (ประมาณจากเกณฑ์ ยังไม่ยืนยัน)') : need ? notYet(m) : 'ยังไม่พบเงินที่น่าจะมีสิทธิ์')
-      + (top.length ? '\nเริ่มที่: ' + top.map(i => i.title).join(', ') : '')
-      + (need ? '\nตอบอีกข้อเพื่อเช็ค ' + need.title + ': ' + need.nextQuestion.question : '');
+    const s = m.summary, top = m.items.filter(claimable);
+    reply = (s.counted ? 'เงินที่คุณอาจได้ ' + (s.monthly ? s.monthly + ' บาท/เดือน' : '') + (s.once ? (s.monthly ? ' และ ' : '') + s.once + ' บาท ครั้งเดียว' : '') + (s.allVerified ? ' (ยืนยันจากหน่วยงาน)' : ' (ประมาณจากเกณฑ์ ยังไม่ยืนยัน)') : notYet(m))
+      + (top.length ? '\n' + top.map(i => '• ' + i.title + ' — ' + (i.status === 'check' ? 'ยังต้องเช็กยอดจริง' : typeof i.amount.value === 'number' ? i.amount.value + ' ' + i.amount.unit : 'ยังไม่ทราบยอด') + (i.dataStatus === 'mock' ? ' (DEMO)' : '')).join('\n') : '');
     quick = ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'];
   } else if (/ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง/i.test(t)) {
     // Contacts and links come only from the program's published channels, never from the model.
@@ -128,7 +177,7 @@ function createAgent(opts = {}) {
     provider: configured ? 'openai_compatible' : 'rules',
     async respond({ text, history = [], memory = [], profile = {}, tools, systemPrompt }) {
       if (!configured) return rulesAgent({ text, tools });
-      const calls = [], pending = [], mem = []; let toolJson = '';
+      const calls = [], pending = [], mem = [], savedMoneyIds = []; let toolJson = '';
       const specs = Object.entries(tools).map(([name, t]) => ({ type: 'function', function: { name, description: t.description, parameters: t.parameters } }));
       const responseTools = responses && specs.map(({ type, function: spec }) => ({ type, ...spec, strict: false }));
       // systemPrompt comes from fixtures/assistant-policy.json (scope + checklist + current step).
@@ -147,7 +196,7 @@ function createAgent(opts = {}) {
           } : await llm(messages, specs);
           if (!msg.tool_calls || !msg.tool_calls.length) {
             if (response && !msg.content) throw new Error('Empty Responses reply');
-            return { aiStatus: 'ok', reply: guardMoney(msg.content, toolJson), toolCalls: calls, pending, memory: mem, quickReplies: [] };
+            return { aiStatus: 'ok', reply: guardMoney(msg.content, toolJson), toolCalls: calls, pending, memory: mem, quickReplies: [], savedMoneyIds };
           }
           if (response) {
             // Replay reasoning items alongside function calls in stateless requests.
@@ -162,7 +211,11 @@ function createAgent(opts = {}) {
             if (!tool) out = { error: 'tool not allowed' };
             else if (tool.mode === 'read') { out = await tool.run(args); calls.push({ tool: name, args }); }
             else if (tool.mode === 'memory') { const note = String(args.text || '').slice(0, 200); if (note) mem.push(note); out = { saved: !!note }; calls.push({ tool: name, args }); }
-            else { pending.push({ tool: name, args, label: tool.label(args) }); out = { status: 'waiting_for_user_confirmation' }; }
+            else {
+              const task = tool.findSaved?.(args);
+              if (task) { savedMoneyIds.push(task.moneyId); out = { status: 'already_saved', task }; }
+              else { pending.push({ tool: name, args, label: tool.label(args) }); out = { status: 'waiting_for_user_confirmation' }; }
+            }
             const s = JSON.stringify(out); toolJson += s;
             messages.push(response
               ? { type: 'function_call_output', call_id: tc.id, output: s }
@@ -174,4 +227,5 @@ function createAgent(opts = {}) {
     }
   };
 }
-module.exports = { createAgent, guardMoney, rulesAgent, goalTarget, formatGoal };
+module.exports = { createAgent, guardMoney, rulesAgent, goalTarget, formatGoal, moneyGuide,
+  moneySummaryQuery, unpaidPlansQuery, planStatusQuery, matchingMoneyPlans, planPaymentStatus };

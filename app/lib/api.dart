@@ -4,9 +4,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-/// Set with --dart-define=API_BASE_URL=... (docs/guide/run-demo-server.md).
-/// Default works over USB after `adb reverse tcp:8080 tcp:8080`.
-const apiBaseUrl = String.fromEnvironment('API_BASE_URL', defaultValue: 'http://127.0.0.1:8080');
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+
+const usbApiBaseUrl = 'http://127.0.0.1:8080';
+
+/// Set to the notebook's LAN URL when building an APK for Wi-Fi testing.
+const wifiApiBaseUrl = String.fromEnvironment('WIFI_API_BASE_URL');
+
+/// API_BASE_URL can override the Wi-Fi default, for example for an emulator or a tunnel.
+const apiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: wifiApiBaseUrl == '' ? usbApiBaseUrl : wifiApiBaseUrl,
+);
 
 class ApiException implements Exception {
   ApiException(this.status, this.code, this.message);
@@ -23,21 +33,33 @@ String _randomHex(int n) {
   return List.generate(n, (_) => r.nextInt(16).toRadixString(16)).join();
 }
 
-/// Small key/value file in the app's cache folder (device id, server address). Clearing app data resets it.
+/// Settings live in private app storage. Migrate an older cached value if it is still available.
 class _Local {
-  static File _f(String name) => File('${Directory.systemTemp.path}/money_anywhere_$name');
-  static String? read(String name) {
+  const _Local(this.directory);
+  final Directory directory;
+
+  File _file(Directory folder, String name) => File('${folder.path}/money_anywhere_$name');
+
+  String? _read(File file) {
     try {
-      final f = _f(name);
-      return f.existsSync() ? f.readAsStringSync().trim() : null;
+      return file.existsSync() ? file.readAsStringSync().trim() : null;
     } on FileSystemException {
       return null;
     }
   }
 
-  static void write(String name, String value) {
+  String? read(String name) {
+    final saved = _read(_file(directory, name));
+    final cache = Directory.systemTemp;
+    if (saved != null || directory.path == cache.path) return saved;
+    final legacy = _read(_file(cache, name));
+    if (legacy != null) write(name, legacy);
+    return legacy;
+  }
+
+  void write(String name, String value) {
     try {
-      _f(name).writeAsStringSync(value);
+      _file(directory, name).writeAsStringSync(value, flush: true);
     } on FileSystemException {
       // not fatal for the Demo
     }
@@ -45,35 +67,76 @@ class _Local {
 }
 
 class Api {
-  Api({String? baseUrl})
-      : baseUrl = baseUrl ?? _Local.read('server') ?? apiBaseUrl,
-        deviceId = _loadDeviceId();
+  Api({String? baseUrl, Directory? storageDirectory})
+      : this._configured(baseUrl, _Local(storageDirectory ?? Directory.systemTemp));
 
-  Api._forDevice(this.baseUrl, this.deviceId);
+  Api._configured(String? baseUrl, _Local settings)
+      : this._forDevice(baseUrl ?? _loadBaseUrl(settings), _loadDeviceId(settings), settings);
+
+  static Future<Api> open() async {
+    Directory? directory;
+    try {
+      if (Platform.isAndroid) {
+        const settings = MethodChannel('money_anywhere/local_settings');
+        final path = await settings.invokeMethod<String>('settingsDirectory');
+        if (path != null) directory = Directory(path);
+      } else {
+        directory = await getApplicationSupportDirectory();
+      }
+    } on Exception {
+      // Keep the API available if the platform cannot resolve its support directory.
+    }
+    return Api(storageDirectory: directory);
+  }
+
+  Api._forDevice(this.baseUrl, this.deviceId, this._settings);
+  final _Local _settings;
 
   /// Use a separate profile for demos that replace the selected profile's data.
-  Api forDemo(String name) => Api._forDevice(baseUrl, '$deviceId-demo-$name');
+  Api forDemo(String name) => Api._forDevice(baseUrl, '$deviceId-demo-$name', _settings);
 
   void close() => _http.close();
 
   /// Server address. Can be changed in the app (ฉัน > server) when USB is unplugged and Wi-Fi is used instead.
   String baseUrl;
+  String? get wifiBaseUrl => _wifiBaseUrl(_settings);
 
   /// No login in the Demo: one random id per install so answers and plans survive closing the app.
   final String deviceId;
   final HttpClient _http = HttpClient()..connectionTimeout = const Duration(seconds: 8);
 
-  static String _loadDeviceId() {
-    final id = _Local.read('device_id');
+  static String? _wifiBaseUrl(_Local settings) =>
+      wifiApiBaseUrl.isNotEmpty ? wifiApiBaseUrl : settings.read('wifi_default');
+
+  static String _loadBaseUrl(_Local settings) {
+    if (wifiApiBaseUrl.isNotEmpty && settings.read('wifi_default') != wifiApiBaseUrl) {
+      settings.write('wifi_default', wifiApiBaseUrl);
+    }
+    final wifi = _wifiBaseUrl(settings);
+    final saved = settings.read('server');
+    if (saved == null || saved.isEmpty) {
+      return const bool.hasEnvironment('API_BASE_URL') ? apiBaseUrl : wifi ?? usbApiBaseUrl;
+    }
+
+    // Older APKs offered this example address as a Wi-Fi shortcut.
+    if (saved == 'http://192.168.1.46:8080' && wifi != null) {
+      settings.write('server', wifi);
+      return wifi;
+    }
+    return saved;
+  }
+
+  static String _loadDeviceId(_Local settings) {
+    final id = settings.read('device_id');
     if (id != null && id.startsWith('device-')) return id;
     final n = 'device-${_randomHex(16)}';
-    _Local.write('device_id', n);
+    settings.write('device_id', n);
     return n;
   }
 
   void setBaseUrl(String url) {
     baseUrl = url.trim().replaceAll(RegExp(r'/+$'), '');
-    _Local.write('server', baseUrl);
+    _settings.write('server', baseUrl);
   }
 
   Future<Map<String, dynamic>> get(String path) => _send('GET', path);

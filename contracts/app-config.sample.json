@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-11-28.2",
+  "configVersion": "2026-11-28.4",
   "minAppVersion": "0.1.0",
   "featureFlags": { "moneyMap": true, "aiChat": true, "aiAssistant": true, "liveSources": true, "govConnected": false, "demo": true },
 
@@ -133,7 +133,7 @@
     "me": {
       "title": "ฉัน",
       "sections": [
-        { "type": "profile_card", "data": "profile.get", "onTap": { "route": "intake.manual" } },
+        { "type": "profile_card", "data": "profile.get", "onTap": { "route": "me.profile" } },
         { "type": "settings_group", "label": "บัญชีที่เชื่อมต่อ", "flag": "govConnected", "data": "gov.status", "items": [
           { "type": "nav_row", "label": "ThaID", "onTap": { "action": "gov.start", "then": { "route": "external" } } },
           { "type": "nav_row", "label": "ยกเลิกการเชื่อม ThaID", "when": "govLink == connected", "onTap": { "action": "gov.delete" } }
@@ -152,10 +152,21 @@
           { "type": "nav_row", "label": "รู้ทันมิจฉาชีพ", "onTap": { "route": "help.scam" } },
           { "type": "nav_row", "label": "แหล่งข้อมูลที่ใช้", "onTap": { "route": "sources" } }
         ] },
+        { "type": "settings_group", "id": "demo.gov-prefill", "label": "โปรไฟล์ตัวอย่าง (DEMO / MOCK)", "flag": "demo", "items": [
+          { "type": "nav_row", "label": "โปรไฟล์เชื่อม 4 แหล่ง (DEMO)", "sub": "ThaID, ทางรัฐ, ประกันสังคม และ D-MyTax", "onTap": { "action": "demo.load", "params": { "id": "gov-prefill" }, "then": { "route": "me.profile" } } }
+        ] },
         { "type": "settings_group", "id": "demo.dmytax", "label": "D-MyTax (DEMO / MOCK)", "flag": "demo", "items": [
           { "type": "nav_row", "label": "ก่อนเติม D-MyTax", "sub": "ลองแชตเมื่อยังไม่มีข้อมูลภาษีหัก ณ ที่จ่าย", "onTap": { "action": "demo.load", "params": { "id": "dmytax-before" }, "then": { "route": "assistant" } } },
           { "type": "nav_row", "label": "หลังเติม D-MyTax", "sub": "ลองแชตโดยใช้ข้อมูลภาษีปี 2569 จำลอง", "onTap": { "action": "demo.load", "params": { "id": "dmytax-after" }, "then": { "route": "assistant" } } }
         ] }
+      ]
+    },
+    "me.profile": {
+      "title": "โปรไฟล์ของฉัน",
+      "sections": [
+        { "type": "profile_card", "data": "profile.get" },
+        { "type": "info_card", "label": "ข้อมูลส่วนตัว", "data": "facts.get" },
+        { "type": "nav_row", "label": "แก้ไขโปรไฟล์", "onTap": { "route": "intake.manual" } }
       ]
     },
     "me.privacy": {
@@ -185,6 +196,7 @@
     "consent.list":           { "method": "GET",    "path": "/v1/me/consents", "provides": "consents" },
     "consent.update":         { "method": "POST",   "path": "/v1/me/consents", "invalidates": ["consents", "memory", "govLink", "money"] },
     "profile.get":            { "method": "GET",    "path": "/v1/me/profile", "provides": "profile" },
+    "facts.get":              { "method": "GET",    "path": "/v1/me/facts", "provides": "facts" },
     "profile.update":         { "method": "PUT",    "path": "/v1/me/profile", "invalidates": ["profile", "opportunities", "plans"] },
     "facts.update":           { "method": "PATCH",  "path": "/v1/me/facts", "invalidates": ["facts", "money"] },
     "settings.get":           { "method": "GET",    "path": "/v1/me/settings", "provides": "settings" },

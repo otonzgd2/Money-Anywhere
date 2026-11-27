@@ -83,6 +83,9 @@ setTimeout(() => {
   run('plan screen (S8) and popups P3 P4 P5 P8', () => {
     ev('openTask(tasks[0].id)'); const tb = () => inner('taskBody');
     check('plan: progress, steps, user-reported', on('task') && tb().includes('ทำแล้ว 0 จาก 4 ขั้น') && tb().includes('ผู้ใช้แจ้ง') && tb().includes('ขั้นนี้'));
+    d.querySelector('#taskBody [onclick="taskContact()"]').click();
+    check('benefit contact opens the correct money route', on('route') && ev('routeId') === 'old_age' && inner('routeBody').includes('ไปยื่นที่ไหน'));
+    ev('back()');
     ev('tStep()'); check('completing a step offers undo', ev('tasks[0].doneCount') === 1 && d.getElementById('snack').classList.contains('on') && text('snackU') === 'เลิกทำ');
     d.getElementById('snackU').click(); check('undo reverts the step', ev('tasks[0].doneCount') === 0);
     ev('tBlock()'); check('stuck sheet lists the reasons', sheetOn() && inner('msheet').includes('ติดตรงไหน') && inner('msheet').includes('เอกสารไม่ครบ'));
@@ -100,6 +103,10 @@ setTimeout(() => {
     check('persona loads into the returning home with the next step', on('home') && hb.includes('ขั้นต่อไปของคุณ') && hb.includes('งานแพ็คของ รายวัน'));
     check('dismissed worker: unemployment ฿7,200 in the summary', hb.includes('฿7,200 ต่อเดือน'));
     ev("goTab('plans')"); check('plans tab: progress, status, user-reported', d.querySelectorAll('#plansBody .plan').length === 1 && inner('plansBody').includes('กำลังทำ · ทำแล้ว 0/4 ขั้น · ผู้ใช้แจ้ง'));
+    ev('openTask(tasks[0].id)');
+    d.querySelector('#taskBody [onclick="taskContact()"]').click();
+    check('mock job contact shows a labelled application example', dlgOn() && inner('dlg').includes('ข้อมูลสมัครงาน') && inner('dlg').includes('DEMO / MOCK'));
+    ev('closeDlg(); back()');
     ev("openRoute('unemployment')"); check('route shows the 60% rule and an online channel', inner('routeBody').includes('฿7,200') && inner('routeBody').includes('60%') && inner('routeBody').includes('เปิด ↗'));
     ev('openExtMoney(0)'); check('official link asks "applied?" (P6)', dlgOn() && inner('dlg').includes('กลับมาแล้ว') && inner('dlg').includes('✓ ยื่น/สมัครแล้ว'));
     ev('closeDlg(); saveToPlan(extRef,true)'); check('"applied" marks the steps up to filing as done', ev("tasks.find(t => t.moneyId === 'unemployment').doneCount") === 2);

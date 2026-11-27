@@ -4,6 +4,7 @@ import 'api.dart';
 import 'chat.dart';
 import 'common.dart';
 import 'income_plan_screen.dart';
+import 'profile_overview_screen.dart';
 import 'profile_screen.dart';
 import 'thaid.dart';
 
@@ -17,13 +18,15 @@ class MeTab extends StatefulWidget {
   State<MeTab> createState() => _MeTabState();
 }
 
-typedef _TaxDemoCase = ({String label, String subtitle, String path});
+typedef _DemoCase = ({String label, String subtitle, String path, String route});
 
 class _MeTabState extends State<MeTab> {
   Map<String, bool>? purposes;
   int history = 0;
-  List<_TaxDemoCase> taxDemoCases = const [];
-  bool openingTaxDemo = false;
+  String? profileRoute;
+  Future<ProfileSnapshot?>? profileSummary;
+  List<_DemoCase> demoCases = const [];
+  bool openingDemo = false;
   List<Map<String, dynamic>> memory = [];
   ApiException? error;
   bool loaded = false;
@@ -44,6 +47,10 @@ class _MeTabState extends State<MeTab> {
   }
 
   Future<void> _load() async {
+    final Future<ProfileSnapshot?> summary = ProfileSnapshot.load(api);
+    setState(() {
+      profileSummary = summary.onError<ApiException>((_, _) => null);
+    });
     try {
       final c = await api.get('/v1/me/consents');
       final cur = c['current'] as Map<String, dynamic>?;
@@ -54,7 +61,8 @@ class _MeTabState extends State<MeTab> {
       final config = await api.get('/v1/app-config').onError<ApiException>((_, _) => <String, dynamic>{});
       if (!mounted) return;
       setState(() {
-        taxDemoCases = _taxDemoCases(config);
+        profileRoute = _profileRoute(config);
+        demoCases = _demoCases(config);
         purposes = cur == null ? null : (cur['purposes'] as Map).map((k, v) => MapEntry('$k', v == true));
         history = ((c['items'] as List?) ?? const []).length;
         memory = (m['items'] as List).cast<Map<String, dynamic>>();
@@ -123,7 +131,7 @@ class _MeTabState extends State<MeTab> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('ลบข้อมูลทั้งหมด?'),
-        content: const Text('คำตอบ แผน ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้'),
+        content: const Text('คำตอบ แผนรวมถึงแผน DEMO ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
           FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context, true), child: const Text('ลบข้อมูล')),
@@ -131,14 +139,19 @@ class _MeTabState extends State<MeTab> {
       ),
     );
     if (yes != true) return;
+    final demoApis = [for (final profile in DemoChatProfile.values) api.forDemo(profile.deviceSuffix)];
     try {
-      await api.delete('/v1/me');
+      await Future.wait([for (final client in [api, ...demoApis]) client.delete('/v1/me')]);
       widget.app.chat.reset();
-      widget.app.bump();
       widget.app.goTab(0);
       if (mounted) toast(context, 'ลบข้อมูลและถอนความยินยอมแล้ว');
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
+    } finally {
+      for (final client in demoApis) {
+        client.close();
+      }
+      widget.app.bump();
     }
   }
 
@@ -154,52 +167,115 @@ class _MeTabState extends State<MeTab> {
     }
   }
 
-  List<_TaxDemoCase> _taxDemoCases(Map<String, dynamic> config) {
+  String? _profileRoute(Map<String, dynamic> config) {
+    if (config case {'routes': {'me': {'sections': final List sections}}}) {
+      for (final section in sections) {
+        if (section case {'type': 'profile_card', 'onTap': {'route': final String route}}) return route;
+      }
+    }
+    return null;
+  }
+
+  List<_DemoCase> _demoCases(Map<String, dynamic> config) {
     if (config case {
       'featureFlags': {'demo': true},
       'routes': {'me': {'sections': final List sections}},
       'actions': {'demo.load': {'path': final String path}},
     }) {
-      for (final section in sections) {
-        if (section case {'id': 'demo.dmytax', 'items': final List items}) {
-          return [
+      return [
+        for (final section in sections)
+          if (section case {'id': 'demo.gov-prefill' || 'demo.dmytax', 'items': final List items})
             for (final item in items)
               if (item case {
                 'label': final String label,
                 'sub': final String subtitle,
-                'onTap': {'action': 'demo.load', 'params': {'id': final String id}},
-              })
-                (label: label, subtitle: subtitle, path: path.replaceAll('{id}', Uri.encodeComponent(id))),
-          ];
-        }
-      }
+                'onTap': {
+                  'action': 'demo.load',
+                  'params': {'id': final String id},
+                  'then': {'route': final String route},
+                },
+              } when route == 'me.profile' || route == 'assistant')
+                (
+                  label: label,
+                  subtitle: subtitle,
+                  path: path.replaceAll('{id}', Uri.encodeComponent(id)),
+                  route: route,
+                ),
+      ];
     }
     return const [];
   }
 
-  Future<void> _openTaxDemo(_TaxDemoCase scenario) async {
-    if (openingTaxDemo) return;
-    setState(() => openingTaxDemo = true);
-    final demoApi = api.forDemo('dmytax');
+  Future<Map<String, dynamic>> _seedDemo(Api demoApi, String path) async {
+    final loaded = await demoApi.post(path);
+    if (loaded['dataStatus'] != 'mock') {
+      throw ApiException(0, 'DEMO_DATA', 'โหลดข้อมูลจำลองไม่ได้');
+    }
+    return loaded;
+  }
+
+  Future<ProfileDemo> _readProfileDemo(Api demoApi, String path) async {
+    return ProfileDemo.fromResponse(await _seedDemo(demoApi, path)) ??
+        (throw ApiException(0, 'DEMO_DATA', 'ไม่พบข้อมูลจากแหล่งจำลอง'));
+  }
+
+  Future<void> _openDemo(_DemoCase scenario) async {
+    if (openingDemo) return;
+    setState(() => openingDemo = true);
+    final opensProfile = scenario.route == 'me.profile';
+    final demoApp = opensProfile ? null : widget.app.forDemoChat(DemoChatProfile.tax);
+    final demoApi = demoApp?.api ?? api.forDemo('gov-prefill');
     try {
-      final loaded = await demoApi.post(scenario.path);
-      if (!mounted) return;
-      if (loaded['dataStatus'] != 'mock') {
-        toast(context, 'โหลดข้อมูล D-MyTax จำลองไม่ได้');
-        return;
+      final Widget screen;
+      if (opensProfile) {
+        final demo = await _readProfileDemo(demoApi, scenario.path);
+        screen = ProfileOverviewScreen(app: widget.app, demo: demo);
+      } else {
+        await _seedDemo(demoApi, '${scenario.path}?keepPlans=true');
+        screen = ChatScreen(app: demoApp!, session: demoApp.chat, title: 'D-MyTax · DEMO / MOCK');
       }
-      final session = ChatSession();
-      await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ChatScreen(
-        api: demoApi,
-        session: session,
-        title: 'D-MyTax · DEMO / MOCK',
-      )));
+      if (!mounted) return;
+      await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => screen));
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
     } finally {
       demoApi.close();
-      if (mounted) setState(() => openingTaxDemo = false);
+      if (mounted) setState(() => openingDemo = false);
     }
+  }
+
+  Widget _profileTile() {
+    return ListTile(
+      leading: const Text('🧑', style: TextStyle(fontSize: 22)),
+      title: const Text('โปรไฟล์ของฉัน'),
+      subtitle: FutureBuilder<ProfileSnapshot?>(
+        future: profileSummary,
+        builder: (context, state) {
+          if (state.connectionState != ConnectionState.done) {
+            return const Text('กำลังโหลดข้อมูลส่วนตัว…');
+          }
+          final profile = state.data;
+          if (profile == null) return const Text('โหลดข้อมูลส่วนตัวไม่ได้');
+          final facts = [
+            if (profile.age case final age?) 'อายุ $age ปี',
+            if (profile.district case final district?) 'เขตที่อยู่ $district',
+          ];
+          final summary = [
+            ?profile.displayName,
+            if (facts.isNotEmpty) facts.join(' · '),
+            if (profile.mock) 'DEMO / MOCK',
+          ];
+          return Text(summary.isEmpty ? 'แตะเพื่อเพิ่มข้อมูลส่วนตัว' : summary.join('\n'));
+        },
+      ),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => profileRoute == 'intake.manual'
+            ? ProfileScreen(app: widget.app)
+            : ProfileOverviewScreen(app: widget.app)),
+      ),
+    );
   }
 
   void _info(String title, String text) => showDialog<void>(
@@ -216,13 +292,7 @@ class _MeTabState extends State<MeTab> {
       body: ListView(padding: const EdgeInsets.all(12), children: [
         if (error != null && error!.isNetwork) OfflineCard(app: widget.app, onRetry: _load),
         _head('ข้อมูลของฉัน'),
-        ListTile(
-          leading: const Text('🧑', style: TextStyle(fontSize: 22)),
-          title: const Text('โปรไฟล์และทักษะ'),
-          subtitle: const Text('ทักษะ เวลาว่าง เป้ารายได้ เขตที่อยู่ ใช้หางานและวางแผนรายได้'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(app: widget.app))),
-        ),
+        _profileTile(),
         ListTile(
           leading: const Text('📈', style: TextStyle(fontSize: 22)),
           title: const Text('แผนรายได้'),
@@ -280,14 +350,14 @@ class _MeTabState extends State<MeTab> {
           onTap: () => _info('สัญญาณเตือน', '• ให้โอนเงินก่อน ค่ามัดจำ ค่าธรรมเนียม\n• ขอเลขบัตร รหัสผ่าน OTP ทางแชท\n• รายได้สูงผิดปกติ งานง่ายเกินจริง\n• เงินกู้คือหนี้ ไม่ใช่รายได้\nสงสัยโทรสายด่วนตำรวจไซเบอร์ 1441'),
         ),
         _head('สำหรับสาธิต (DEMO)'),
-        for (final scenario in taxDemoCases)
+        for (final scenario in demoCases)
           ListTile(
-            leading: const Icon(Icons.receipt_long),
+            leading: Icon(scenario.route == 'me.profile' ? Icons.badge_outlined : Icons.receipt_long),
             title: Text(scenario.label),
             subtitle: Text(scenario.subtitle),
             trailing: const Icon(Icons.chevron_right),
-            enabled: !openingTaxDemo,
-            onTap: () => _openTaxDemo(scenario),
+            enabled: !openingDemo,
+            onTap: () => _openDemo(scenario),
           ),
         for (final p in const [
           ['p1', 'สมชาย 65 ปี ยังไม่ได้เบี้ยผู้สูงอายุ'],

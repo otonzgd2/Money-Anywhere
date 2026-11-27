@@ -741,6 +741,7 @@ RENDER.task = () => {
   const d = t.doneCount, n = t.steps.length;
   let h = `<h2 class="h" style="font-size:21px">${esc(t.title)}</h2><div class="chips">${staticChip(TASK_L[t.status])}${staticChip('ผู้ใช้แจ้ง')}${t.dueText ? staticChip(esc(t.dueText)) : ''}</div>`
     + `<div class="lin t"><i style="width:${n ? d / n * 100 : 0}%"></i></div><div class="small">ทำแล้ว ${d} จาก ${n} ขั้น</div><div style="height:6px"></div>`;
+  if (t.moneyId || t.opportunityId) h += '<button class="btn out" onclick="taskContact()">ข้อมูลติดต่อ</button>';
   h += t.steps.map((s, i) => lt(`<span style="font-size:20px;color:${i < d ? '#0e9f6e' : '#5b6b65'}">${i < d ? '✔' : i === d ? '◉' : '○'}</span>`,
     `<span style="${i === d ? 'font-weight:700' : ''}">${esc(s)}</span>`, i === d && t.status !== 'finished' ? 'ขั้นนี้' : '')).join('');
   if (t.status === 'blocked' && t.blockReason) h += `<p class="orange">ติดปัญหา: ${BLOCK[t.blockReason]}</p>`;
@@ -750,6 +751,15 @@ RENDER.task = () => {
   h += '<p class="small" style="margin-top:12px">สถานะในแผนนี้คุณเป็นผู้แจ้งเอง แอปไม่ได้ตรวจกับหน่วยงาน</p>';
   $('taskBody').innerHTML = h;
 };
+function taskContact() {
+  const t = curTask();
+  if (t.moneyId) return openRoute(t.moneyId, false);
+  const o = OPPS.find(x => x.id === t.opportunityId);
+  if (o && (o.mapGroup !== 'job' || (o.url && o.dataStatus !== 'mock'))) return openOpp(o.id);
+  dialog('ข้อมูลสมัครงาน', `<b>${esc(t.title)}</b><p class="small">DEMO / MOCK · ข้อมูลตัวอย่างสำหรับดูขั้นตอนการสมัคร</p>
+    <p>ผู้ติดต่อ (ตัวอย่าง) ฝ่ายบุคคล · apply@example.org</p><p>สิ่งที่ควรเตรียม ประวัติย่อและข้อมูลสำหรับติดต่อกลับ</p>
+    <p>กรอกใบสมัครกับผู้ประกาศ แนบประวัติย่อ แล้วติดตามผลการนัดสัมภาษณ์</p>`, [['ปิด', 'txt', 'closeDlg()']]);
+}
 function tStep() {
   const t = curTask(); const last = t.doneCount + 1 >= t.steps.length;
   taskEvent(t, { type:'complete_step' }); bump();

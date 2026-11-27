@@ -2,6 +2,8 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'opportunity_contact_screen.dart';
+import 'route_screen.dart';
 
 const taskStatusLabel = {'active': 'กำลังทำ', 'blocked': 'ติดปัญหา', 'snoozed': 'เลื่อนไว้', 'finished': 'ครบตามที่คุณแจ้ง'};
 const blockReasons = {'not_understood': 'ไม่เข้าใจขั้นตอน', 'missing_documents': 'เอกสารไม่ครบ', 'site_broken': 'เว็บใช้ไม่ได้', 'other': 'อื่นๆ'};
@@ -56,10 +58,25 @@ class _TaskScreenState extends State<TaskScreen> {
   Future<void> _load() async {
     try {
       final r = await api.get('/v1/tasks/${widget.taskId}');
-      setState(() { t = r; error = null; });
+      if (mounted) setState(() { t = r; error = null; });
     } on ApiException catch (e) {
-      setState(() => error = e.message);
+      if (mounted) setState(() => error = e.message);
     }
+  }
+
+  Future<void> _contact() async {
+    final task = t!;
+    final app = widget.app;
+    final Widget destination;
+    if (task['moneyId'] case final String moneyId) {
+      destination = RouteScreen(app: app, moneyId: moneyId);
+    } else if (task['opportunityId'] case final String opportunityId) {
+      destination = OpportunityContactScreen(app: app, opportunityId: opportunityId, title: '${task['title']}');
+    } else {
+      return;
+    }
+    await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => destination));
+    if (mounted) await _load();
   }
 
   Future<void> _event(Map<String, Object?> e, {String? done, bool undoable = false}) async {
@@ -127,7 +144,7 @@ class _TaskScreenState extends State<TaskScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('แผนของฉัน'), actions: [IconButton(onPressed: t == null ? null : _delete, icon: const Icon(Icons.delete_outline))]),
+      appBar: AppBar(title: Text(widget.app.demo ? 'แผนของฉัน · DEMO' : 'แผนของฉัน'), actions: [IconButton(onPressed: t == null ? null : _delete, icon: const Icon(Icons.delete_outline))]),
       body: SafeArea(
         child: error != null
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Text(error!), FilledButton(onPressed: _load, child: const Text('ลองใหม่'))]))
@@ -156,6 +173,8 @@ class _TaskScreenState extends State<TaskScreen> {
       const SizedBox(height: 4),
       Text('ทำแล้ว $done จาก ${steps.length} ขั้น', style: tt.bodySmall),
       const SizedBox(height: 12),
+      if (task['moneyId'] is String || task['opportunityId'] is String)
+        OutlinedButton.icon(onPressed: _contact, icon: const Icon(Icons.contact_page_outlined), label: const Text('ข้อมูลติดต่อ')),
       for (var i = 0; i < steps.length; i++)
         ListTile(
           contentPadding: EdgeInsets.zero,

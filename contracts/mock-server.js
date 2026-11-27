@@ -19,8 +19,10 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { URL } = require('url');
 const { createAi } = require('./adapters/ai');
-const { createAgent } = require('./adapters/agent');
+const { createAgent, rulesAgent: runRulesAgent, goalTarget, moneyGuide, moneySummaryQuery,
+  unpaidPlansQuery, planStatusQuery, matchingMoneyPlans, planPaymentStatus } = require('./adapters/agent');
 const { taxDemoPersonas } = require('./adapters/demo-tax');
+const { govPrefillPersona } = require('./adapters/gov-prefill-demo');
 const sources = require('./adapters/sources');
 const { createGeocoder } = require('./adapters/geocoder');
 const { createNotifier } = require('./adapters/notifier');
@@ -50,7 +52,7 @@ function createServer(opts = {}) {
   const NOTICE = ref.privacyNotice;
   const govOn = opts.govConnected !== undefined ? opts.govConnected : process.env.GOV_CONNECTED === '1';
   const demoOn = opts.demo !== undefined ? opts.demo : process.env.DEMO_MODE !== '0';
-  const demoPersonas = { ...ref.demoPersonas, ...taxDemoPersonas };
+  const demoPersonas = demoOn ? { ...ref.demoPersonas, ...taxDemoPersonas, 'gov-prefill': govPrefillPersona(ref.thaid) } : {};
   const ai = opts.ai || createAi(opts.aiOptions || {});
   const agent = opts.agent || createAgent(opts.aiOptions || {});
   const geo = createGeocoder(ref.taxonomies.districts);
@@ -282,9 +284,14 @@ function createServer(opts = {}) {
 
   // ---- agent tools: what the AI may see and do for this one user ----
   function agentTools(d, device) {
+    const savedMoneyPlan = moneyId => {
+      const task = moneyId && d.tasks.find(t => t.moneyId === moneyId);
+      return task ? taskOut(task) : undefined;
+    };
     return {
       get_money_overview: { mode: 'read', description: 'สรุปเงินที่ผู้ใช้อาจได้ และสถานะแต่ละรายการ', parameters: { type: 'object', properties: {} }, run: () => money.list(d.facts, govData(d)) },
-      get_money_route: { mode: 'read', description: 'ขั้นตอนรับเงินของรายการหนึ่ง', parameters: { type: 'object', properties: { moneyId: { type: 'string' } }, required: ['moneyId'] }, run: a => money.route(a.moneyId, d.facts, govData(d), d.docsReady[a.moneyId]) || { error: 'not found' } },
+      get_money_route: { mode: 'read', description: 'ขั้นตอนรับเงินของรายการหนึ่ง พร้อมแผนเดิมและผลที่ผู้ใช้แจ้งถ้ามี', parameters: { type: 'object', properties: { moneyId: { type: 'string' } }, required: ['moneyId'] },
+        run: a => { const route = money.route(a.moneyId, d.facts, govData(d), d.docsReady[a.moneyId]); return route ? { ...route, savedPlan: savedMoneyPlan(a.moneyId) } : { error: 'not found' }; } },
       search_opportunities: { mode: 'read', description: 'ค้นหาโอกาสใกล้ผู้ใช้', parameters: { type: 'object', properties: { q: { type: 'string' }, group: { type: 'string' }, limit: { type: 'integer' } } },
         run: a => { const q = new URLSearchParams(); if (a.q) q.set('q', a.q); if (a.group) q.set('group', a.group); const r = search(d, q); return { items: r.xs.slice(0, Math.min(5, a.limit || 3)).map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) }; } },
       plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
@@ -292,6 +299,7 @@ function createServer(opts = {}) {
       list_tasks: { mode: 'read', description: 'งานในแผนของผู้ใช้', parameters: { type: 'object', properties: {} }, run: () => ({ items: d.tasks.map(taskOut) }) },
       get_profile: { mode: 'read', description: 'โปรไฟล์ของผู้ใช้ (ไม่มีชื่อ)', parameters: { type: 'object', properties: {} }, run: () => { const { displayName, ...p } = d.profile || {}; return p; } },
       create_task: { mode: 'confirm', description: 'บันทึกโอกาสหรือรายการเงินเข้าแผน (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { opportunityId: { type: 'string' }, moneyId: { type: 'string' } } },
+        findSaved: a => savedMoneyPlan(a.moneyId),
         label: a => 'บันทึกเข้าแผนของฉัน: ' + ((a.moneyId && (money.programs.find(p => p.id === a.moneyId) || {}).title) || (opps.get(a.opportunityId) || {}).title || 'รายการนี้'), exec: a => svc.createTask(d, a) },
       snooze_task: { mode: 'confirm', description: 'ตั้งเตือนงานภายหลัง (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { taskId: { type: 'string' }, until: { type: 'string', enum: ['tomorrow', 'in_3_days', 'next_week'] } }, required: ['taskId'] },
         label: a => 'เตือนงานนี้ ' + ({ tomorrow: 'พรุ่งนี้', in_3_days: 'อีก 3 วัน', next_week: 'สัปดาห์หน้า' }[a.until] || 'พรุ่งนี้'), exec: a => svc.taskEvent(d, device, a.taskId, { type: 'snooze', until: a.until || 'tomorrow' }) },
@@ -464,10 +472,12 @@ function createServer(opts = {}) {
     return it ? { ...it.nextQuestion, moneyId: it.id } : null;
   };
   const ANSWER_START = /^(ใช่|ไม่|มี|เคย|ได้|ทำ|ยัง|เป็น|อายุ)/;
+  const SHORT_ANSWER = /^(ใช่|ไม่ใช่|มี|ไม่มี|แล้ว|ยัง|ได้|ไม่ได้|เคย|ไม่เคย|เรียบร้อย|(?:ขึ้น|ยื่น|ทำ|ส่ง|สมัคร)แล้ว|ยังไม่(?:ได้)?(?:ขึ้น|ยื่น|ทำ|ส่ง|สมัคร)?)(?:\s*(?:ค่ะ|ครับ|คะ))?$/;
   // Answered from data, never by the model: next steps, contacts, and "what money should I get" (the model
   // listed every program, including ones the person has not qualified for).
   const DIRECT_RE = /ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง|ทำไง|ต้องทำ|ทำอะไรต่อ|ขั้นตอน|บริบท|ควรได้|ได้อะไร|สิทธิ์อะไร|เงินอะไร|จากรัฐ/i;
   const stepQuick = s => s && s.options ? [...s.options, guard.skipQuickReply] : undefined;
+  const planLinks = plans => plans.filter(plan => plan.outcome?.result !== 'received').map(plan => ({ taskId: plan.id, title: plan.title }));
   on('POST', '/v1/ai/conversations', ({ d, body }) => {
     const g = need(d, 'ai'); if (g) return g;
     const id = 'conv' + d.seq++, guided = !body || body.mode !== 'free';
@@ -481,15 +491,41 @@ function createServer(opts = {}) {
     const c = d.conversations[p.id]; if (!c) return E(404, 'NOT_FOUND', 'ไม่พบการคุยนี้');
     if (!body || typeof body.text !== 'string' || !body.text.trim()) return E(422, 'VALIDATION', 'ต้องมีข้อความ');
     const text = body.text.trim().slice(0, 1000), tools = agentTools(d, device);
-    const turn = (reply, kind, extra = {}) => [200, { aiStatus: 'guarded', reply, toolCalls: [], pendingActions: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
+    const previousAiReply = c.lastTurnUsedAi ? c.history.at(-1)?.content : undefined;
+    c.lastTurnUsedAi = false;
+    const turn = (reply, kind, extra = {}) => [200, { aiStatus: 'guarded', reply, toolCalls: [], pendingActions: [], planLinks: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
       step: c.expect || undefined, quickReplies: stepQuick(c.expect) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], ...extra }];
+    const savedPlans = () => d.tasks.filter(task => task.moneyId);
+    const replyDetails = (out, summary = false) => {
+      const plans = savedPlans();
+      const related = summary || moneySummaryQuery.test(text) ? plans : matchingMoneyPlans(plans, { ...out, text });
+      const alreadySaved = new Set();
+      const pendingActions = [];
+      for (const action of out.pending) {
+        if (tools[action.tool]?.mode !== 'confirm') continue;
+        const existing = action.tool === 'create_task' && plans.find(t => t.moneyId === action.args?.moneyId);
+        if (existing) { alreadySaved.add(existing); continue; }
+        const id = 'pa' + d.seq++;
+        c.pending[id] = action;
+        pendingActions.push({ id, tool: action.tool, label: action.label });
+      }
+      const savedNote = [...alreadySaved].map(task => 'บันทึกแผน ' + task.title + ' ไว้แล้ว · ' + planPaymentStatus(task));
+      return {
+        reply: [out.reply, ...savedNote].join('\n'), toolCalls: out.toolCalls.map(t => ({ tool: t.tool })), pendingActions,
+        planLinks: planLinks(related), quickReplies: stepQuick(c.expect) || out.quickReplies,
+      };
+    };
+    if (c.expect && d.facts[c.expect.fact] !== undefined) {
+      c.expect = nextStep(d, c.skipped, c.expect.moneyId);
+      return turn('ข้อมูลที่บันทึกไว้ตอบข้อนี้แล้ว' + (c.expect ? '\nข้อต่อไป: ' + c.expect.question : '\nไม่มีคำถามอื่นแล้ว ถามเรื่องเงินของคุณต่อได้เลย'), 'answer');
+    }
     let v = guard.check(text, c.expect);
     // "อยากได้เดือนละ 10,000": the goal plan, computed from data (not the model), before any answer parsing.
-    const { goalTarget } = require('./adapters/agent');
     if (['unclear', 'in_scope', 'answer'].includes(v.kind) && !(c.expect && c.expect.options && c.expect.options.includes(text)) && goalTarget(text)) {
       const r = await rulesAgent.respond({ text, tools });
       c.goal = goalTarget(text);
-      return turn(r.reply + (c.expect ? '\n\nเพื่อให้แผนแม่นขึ้น ตอบข้อนี้ต่อ: ' + c.expect.question : ''), 'in_scope', { toolCalls: r.toolCalls.map(t => ({ tool: t.tool })), quickReplies: stepQuick(c.expect) || r.quickReplies });
+      const { reply, ...details } = replyDetails(r);
+      return turn(reply + (c.expect ? '\n\nเพื่อให้แผนแม่นขึ้น ตอบข้อนี้ต่อ: ' + c.expect.question : ''), 'in_scope', details);
     }
     // A free-text reply to the current question ("อายุ 65") may still be an answer: normalise it, keep it only if valid.
     if (v.kind === 'unclear' && c.expect) {
@@ -514,36 +550,51 @@ function createServer(opts = {}) {
       if (st >= 400) return turn('คำตอบนี้ใช้ไม่ได้ ลองเลือกจากตัวเลือกอีกครั้ง\n' + c.expect.question, 'answer');
       c.expect = nextStep(d, c.skipped || [], c.expect.moneyId);
       if (c.expect) return turn('บันทึกแล้ว\nข้อต่อไป: ' + c.expect.question, 'answer');
-      const sum = await require('./adapters/agent').rulesAgent({ text: 'เงินฉันอยู่ไหน', tools });
-      return turn('บันทึกแล้ว ตอบครบแล้ว\n' + sum.reply + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่นตามช่องทางในแอป', 'answer', { toolCalls: sum.toolCalls.map(t => ({ tool: t.tool })), quickReplies: ['เอกสารที่ยังขาด', 'ไปรับเงินยังไง', 'หางานใกล้บ้าน'] });
+      const sum = await runRulesAgent({ text: 'เงินฉันอยู่ไหน', tools });
+      const { reply, ...details } = replyDetails(sum, true);
+      return turn('บันทึกแล้ว ตอบครบแล้ว\n' + reply + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่นตามช่องทางในแอป', 'answer', details);
+    }
+    if (['in_scope', 'unclear'].includes(v.kind)) {
+      const plans = savedPlans();
+      const named = matchingMoneyPlans(plans, { text });
+      if (unpaidPlansQuery.test(text) || (planStatusQuery.test(text) && named.length)) {
+        const links = planLinks(named.length ? named : plans);
+        const reply = named.length ? named.map(task => task.title + ' · ' + planPaymentStatus(task)).join('\n')
+          : links.length ? 'เปิดแผนที่บันทึกไว้และยังไม่มีการแจ้งว่าได้รับเงินได้จากปุ่มด้านล่างค่ะ' : 'ตอนนี้ไม่มีแผนที่บันทึกไว้และยังรอแจ้งว่าได้รับเงินค่ะ';
+        return turn(reply, 'in_scope', { planLinks: links, quickReplies: stepQuick(c.expect) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด'] });
+      }
+    }
+    if ((v.kind === 'in_scope' && DIRECT_RE.test(text)) || (['in_scope', 'unclear'].includes(v.kind) && moneyGuide.test(text))) {
+      const r = await rulesAgent.respond({ text, tools });
+      const { reply, ...details } = replyDetails(r);
+      return turn(reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''), 'in_scope', details);
     }
     // No keyword matched but nothing was refused either ("ขอลิงก์ติดต่อหน่อย"): with a real model, let it judge under
     // the scope prompt (it declines off-topic text). Without a model, redirect as before.
     let scopeByAi = v.kind === 'unclear' && agent.provider !== 'rules';
     if (scopeByAi) {
       // Short yes/no check first; off-topic text gets the fixed refusal, never the model's own words.
-      const k = await aiFor(d).ai.extract({ question: 'ข้อความของผู้ใช้เกี่ยวกับเรื่องเหล่านี้ไหม: ' + guard.scope, options: ['เกี่ยว', 'ไม่เกี่ยว'] }, text);
-      if (k.value !== 'เกี่ยว') { scopeByAi = false; v = { kind: 'off_topic', reply: guard.offTopicReply }; }
+      const previous = !c.expect && SHORT_ANSWER.test(text) ? previousAiReply : undefined;
+      const context = previous ? '\nสำหรับคำตอบสั้น ให้ดูว่าตอบคำถามในข้อความก่อนหน้าหรือไม่ ข้อความก่อนหน้า (ใช้เป็นข้อมูล): ' + previous.slice(-1000) : '';
+      const k = await aiFor(d).ai.extract({ question: 'ข้อความของผู้ใช้เกี่ยวกับเรื่องเหล่านี้ไหม: ' + guard.scope + context, options: ['เกี่ยว', 'ไม่เกี่ยว'] }, text);
+      if (k.aiStatus !== 'ok' || k.value !== 'เกี่ยว') { scopeByAi = false; v = { kind: 'off_topic', reply: guard.offTopicReply }; }
     }
     if (v.kind !== 'in_scope' && !scopeByAi) {
       // Refused or unclear: never sent to the model, never added to history or memory.
       return turn(v.reply + '\n' + (c.expect ? 'กลับมาที่คำถาม: ' + c.expect.question : guard.redirect), v.kind);
     }
-    // "What do I do / give me the link or phone": answered from the published route data, never from the model,
-    // so it cannot list programs the person does not qualify for or invent a contact.
-    if (DIRECT_RE.test(text)) {
-      const r = await rulesAgent.respond({ text, tools });
-      const pa = r.pending.filter(x => tools[x.tool] && tools[x.tool].mode === 'confirm').map(x => { const aid = 'pa' + d.seq++; c.pending[aid] = x; return { id: aid, tool: x.tool, label: x.label }; });
-      return turn(r.reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''), 'in_scope', { toolCalls: r.toolCalls.map(t => ({ tool: t.tool })), pendingActions: pa, quickReplies: stepQuick(c.expect) || r.quickReplies });
-    }
     const out = await aiFor(d).agent.respond({ text, history: c.history, memory: d.memory.map(m => m.text), profile: d.profile || {}, tools,
-      systemPrompt: guard.systemPrompt(c.expect ? 'ถามข้อนี้: ' + c.expect.question : 'ช่วยต่อตามเช็คลิสต์') });
-    const pendingActions = out.pending.filter(x => tools[x.tool] && tools[x.tool].mode === 'confirm').map(x => { const aid = 'pa' + d.seq++; c.pending[aid] = x; return { id: aid, tool: x.tool, label: x.label }; });
+      systemPrompt: guard.systemPrompt(c.expect
+        ? 'แอปจะถามข้อนี้เองหลังคำตอบของคุณ: ' + c.expect.question + ' ตอบคำถามของผู้ใช้โดยไม่ถามข้อนี้ซ้ำ'
+        : 'ตอบสิ่งที่ผู้ใช้ถามและให้ขั้นตอนถัดไปจากเครื่องมือ ขณะนี้แอปไม่มีคำถามคัดกรองค้างอยู่ ใช้ข้อมูลที่มี ห้ามเริ่มถามคัดกรองใหม่หรือถามว่าทำขั้นตอนไปแล้วหรือยัง ให้บอกขั้นตอนแยกตามกรณีแทน')
+        + '\nเมื่อพูดถึงความคืบหน้าในแผน ใช้ list_tasks หรือ savedPlan จาก get_money_route อ้างชื่อรายการตามข้อมูล ถ้าเคยบันทึกแล้วให้บอกว่ามีแผนเดิม ใช้ outcome.result=received เป็นผลที่ผู้ใช้แจ้งว่าได้รับเงิน แอปแนบปุ่มเปิดแผนเอง ห้ามแต่ง URL ของแผน' });
+    const { reply, ...details } = replyDetails(out);
     logAi(device, 'agent', out);
     const memoryAdded = out.memory.map(text => { const m = { id: 'm' + d.seq++, text: text.slice(0, 200), source: 'ai', at: nowIso() }; d.memory.push(m); return m; });
-    c.history.push({ role: 'user', content: body.text }, { role: 'assistant', content: out.reply });
-    return [200, { aiStatus: out.aiStatus, aiInvocationId: 'agent-' + crypto.randomUUID().slice(0, 8), reply: out.reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''),
-      toolCalls: out.toolCalls.map(t => ({ tool: t.tool })), pendingActions, memoryAdded, quickReplies: stepQuick(c.expect) || out.quickReplies,
+    c.history.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
+    c.lastTurnUsedAi = out.aiStatus === 'ok';
+    return [200, { aiStatus: out.aiStatus, aiInvocationId: 'agent-' + crypto.randomUUID().slice(0, 8), reply: reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''),
+      ...details, memoryAdded,
       guard: { kind: scopeByAi ? 'ai_scope' : 'in_scope', policyVersion: guard.version }, step: c.expect || undefined }];
   });
   on('POST', '/v1/ai/conversations/{id}/actions/{actionId}', ({ d, device, p, body }) => {
@@ -688,15 +739,26 @@ function createServer(opts = {}) {
   }, { integration: true });
 
   // Demo
-  on('POST', '/v1/demo/personas/{id}', ({ device, p }) => {
+  on('GET', '/v1/demo/personas/{id}', ({ p }) => {
+    const per = Object.hasOwn(demoPersonas, p.id) && demoPersonas[p.id];
+    if (!per?.sources) return E(404, 'NOT_FOUND', 'ไม่มีโปรไฟล์ตัวอย่างให้แสดง');
+    return [200, { profile: per.profile, identity: per.identity, sources: per.sources, dataStatus: 'mock' }];
+  }, { public: true });
+  on('POST', '/v1/demo/personas/{id}', ({ device, p, q }) => {
     const per = Object.hasOwn(demoPersonas, p.id) && demoPersonas[p.id];
     if (!demoOn || !per) return E(404, 'NOT_FOUND', demoOn ? 'ไม่พบผู้ใช้ตัวอย่างนี้' : 'ปิดโหมดสาธิตอยู่');
+    const previous = q.get('keepPlans') === 'true' && Object.hasOwn(taxDemoPersonas, p.id) ? devices.get(device) : undefined;
     devices.delete(device); const d = dev(device);
+    if (previous) {
+      const { tasks, events, docsReady, seq } = previous;
+      Object.assign(d, { tasks, events, docsReady, seq });
+    }
     d.consents.push({ id: 'c' + d.seq++, noticeVersion: NOTICE.version, ageConfirmed: true, purposes: Object.fromEntries(purposeIds.map(id => [id, id !== 'gov'])), at: nowIso() });
     d.profile = { ...per.profile }; const g = geo.geocode(per.profile.district); if (g) { d.profile.lat = g.lat; d.profile.lng = g.lng; }
     d.facts = { ...per.facts };
     per.tasks.forEach(oid => svc.createTask(d, { opportunityId: oid }));
-    return [200, { persona: p.id, label: per.label, profile: d.profile, facts: d.facts, taskCount: d.tasks.length, dataStatus: 'mock' }];
+    return [200, { persona: p.id, label: per.label, profile: d.profile, facts: d.facts, taskCount: d.tasks.length, dataStatus: 'mock',
+      ...(per.sources ? { identity: per.identity, sources: per.sources } : {}) }];
   });
 
   // ---- scheduled jobs (B3) ----

@@ -4,6 +4,7 @@ const { once } = require('node:events');
 const fixture = require('../contracts/fixtures/gov-prefill-demo.json');
 const { createServer } = require('../contracts/mock-server');
 const { taxWithholdingFacts } = require('../contracts/adapters/demo-tax');
+const { tangRatFacts, socialSecurityFacts } = require('../contracts/adapters/gov-prefill-demo');
 
 function requestFor(base, deviceId) {
   return async (path, method = 'GET', body, expected = 200) => {
@@ -37,19 +38,6 @@ async function linkThaId(request) {
   return request('/v1/me/gov-link/callback', 'POST', { state: pending.state, code: 'demo-prefill' });
 }
 
-// These mappings model a hypothetical, authorized data import. Only the resulting facts
-// go through the app's existing endpoint. The source record fields are demo shapes.
-function tangRatFacts(record) {
-  return record.disabilityCard?.status === 'active' ? { disabilityCard: true } : {};
-}
-
-function socialSecurityFacts(record) {
-  const { contributionHistory: history } = record;
-  if (record.coverageSectionAtExit !== 33 || history?.complete !== true || history.windowMonthsBeforeExit !== 15
-      || !Number.isInteger(history.paidMonths) || history.paidMonths < 0 || history.paidMonths > 15) return {};
-  return { ss33: history.paidMonths >= 6 };
-}
-
 async function runDemo() {
   assert.equal(fixture.dataStatus, 'synthetic');
   const server = createServer({
@@ -76,6 +64,8 @@ async function runDemo() {
     await request('/v1/me/facts', 'PATCH', fixture.initialAnswers);
     const baseline = await guidedQuestions(request);
     assert.deepEqual(Object.keys(baseline), ['ageBand', 'ss33', 'disabilityCard']);
+    const waitingForAge = await request('/v1/ai/conversations', 'POST', { mode: 'guided' }, 201);
+    assert.equal(waitingForAge.step.fact, 'ageBand');
 
     await request('/v1/me/consents', 'POST', consent(true), 201);
     const link = await linkThaId(request);
@@ -84,6 +74,10 @@ async function runDemo() {
     assert.ok(!Object.hasOwn(link.identity.claims, 'pid'));
     const linkedFacts = await request('/v1/me/facts');
     assert.equal(linkedFacts.ageBand, link.identity.derived.ageBand);
+    const resumed = await request('/v1/ai/conversations/' + waitingForAge.conversationId + '/messages', 'POST', { text: '80-89' });
+    assert.equal(resumed.step.fact, 'ss33');
+    assert.equal((await request('/v1/me/facts')).ageBand, linkedFacts.ageBand);
+    confirmed.push('A conversation started before linking ThaID advances without overwriting the imported age');
     const afterThaId = await guidedQuestions(request);
     assert.deepEqual(Object.keys(afterThaId), ['ss33', 'disabilityCard']);
     confirmed.push('Synthetic ThaID age band skips the age question');
@@ -121,13 +115,13 @@ async function runDemo() {
     const config = await taxRequest('/v1/app-config');
     assert.equal(config.featureFlags.demo, true);
     const taxOptions = config.routes.me.sections.find(section => section.id === 'demo.dmytax').items;
-    const taxLoad = scenario => {
+    const loadPersona = (scenario, demoRequest) => {
       const { action, params } = scenario.onTap;
       const { path, method } = config.actions[action];
-      return taxRequest(path.replace('{id}', params.id), method);
+      return demoRequest(path.replace('{id}', params.id), method);
     };
     const [beforeOption, afterOption] = taxOptions;
-    assert.equal((await taxLoad(beforeOption)).dataStatus, 'mock');
+    assert.equal((await loadPersona(beforeOption, taxRequest)).dataStatus, 'mock');
     const beforeDMyTax = await guidedQuestions(taxRequest);
     assert.deepEqual(Object.keys(beforeDMyTax), ['taxWithheld']);
 
@@ -148,7 +142,7 @@ async function runDemo() {
     confirmed.push('An incomplete tax record does not count as confirmed zero withholding');
 
     const expectedTaxFacts = taxWithholdingFacts(taxSample, currentTaxYear);
-    const loadedTaxPersona = await taxLoad(afterOption);
+    const loadedTaxPersona = await loadPersona(afterOption, taxRequest);
     assert.equal(loadedTaxPersona.dataStatus, 'mock');
     const importedTaxFacts = { taxWithheld: (await taxRequest('/v1/me/facts')).taxWithheld };
     assert.deepEqual(importedTaxFacts, expectedTaxFacts);
@@ -161,6 +155,28 @@ async function runDemo() {
     confirmed.push('Current-year withholding skips the question and leaves the refund for verification');
     confirmed.push('Configured mobile demo actions use a separate profile');
 
+    const profileRequest = requestFor(base, 'device-gov-prefill-demo-demo-gov-prefill');
+    const [profileOption] = config.routes.me.sections.find(section => section.id === 'demo.gov-prefill').items;
+    assert.equal(profileOption.onTap.then.route, 'me.profile');
+    const principal = await request('/v1/me/profile');
+    const principalFacts = await request('/v1/me/facts');
+    const loadedProfile = await loadPersona(profileOption, profileRequest);
+    assert.equal(loadedProfile.dataStatus, 'mock');
+    assert.deepEqual(loadedProfile.sources.map(source => source.label), ['ThaID', 'ทางรัฐ', 'ประกันสังคม', 'D-MyTax']);
+    assert.match(loadedProfile.sources[2].value, /8 จาก 15/);
+    assert.match(loadedProfile.sources[3].value, /1,250 บาท/);
+    const profile = await profileRequest('/v1/me/profile');
+    assert.deepEqual(profile, loadedProfile.profile);
+    assert.match(profile.displayName, /สมมติ/);
+    const profileFacts = await profileRequest('/v1/me/facts');
+    assert.deepEqual(profileFacts, {
+      ...fixture.initialAnswers, ageBand: '60-69', disabilityCard: true, ss33: true, taxWithheld: true
+    });
+    assert.deepEqual(await guidedQuestions(profileRequest), {});
+    assert.deepEqual(await request('/v1/me/profile'), principal);
+    assert.deepEqual(await request('/v1/me/facts'), principalFacts);
+    confirmed.push('All four synthetic sources appear on an isolated profile and supply the guided chat facts');
+
     console.log(JSON.stringify({
       dataStatus: fixture.dataStatus,
       factsFromSample: { ageBand: linkedFacts.ageBand, ...tangRat, ...socialSecurity },
@@ -172,6 +188,7 @@ async function runDemo() {
         guidedQuestions: { beforeDMyTax, afterPreviousYear, afterPartialTaxRecord, afterDMyTax },
         refundScreeningStatus: refund.status
       },
+      profileDemo: { name: profile.displayName, sources: loadedProfile.sources },
       checksPassed: confirmed
     }, null, 2));
   } finally {

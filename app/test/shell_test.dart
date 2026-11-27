@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart' show CircularProgressIndicator;
 
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
@@ -14,6 +16,19 @@ Future<void> settle(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('draws a startup screen while local settings are loading', (tester) async {
+    final startup = Completer<AppState>();
+    final api = Api(baseUrl: 'http://127.0.0.1:9');
+    addTearDown(api.close);
+    await tester.pumpWidget(MoneyAnywhereStartup(app: startup.future));
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    startup.complete(AppState(api));
+    await settle(tester);
+    expect(find.text('หน้าแรก'), findsWidgets);
+  });
+
   testWidgets('4 tabs and the new-person home (ui-states.md §1, §3)', (tester) async {
     // Phone-sized screen (1080 x 2340 at 3x) so the whole home fits like on the Demo phone.
     tester.view.physicalSize = const Size(1080, 2340);

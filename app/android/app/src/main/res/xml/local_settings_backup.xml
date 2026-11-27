@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="money_anywhere_device_id" />
+    <exclude domain="file" path="money_anywhere_server" />
+    <exclude domain="file" path="money_anywhere_wifi_default" />
+</full-backup-content>

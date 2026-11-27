@@ -7,7 +7,45 @@ import 'me_tab.dart';
 import 'opp_tab.dart';
 import 'plans_tab.dart';
 
-void main() => runApp(MoneyAnywhereApp(app: AppState(Api())));
+void main() {
+  final binding = WidgetsFlutterBinding.ensureInitialized();
+  final startup = binding.waitUntilFirstFrameRasterized.then((_) async {
+    return AppState(await Api.open());
+  });
+  runApp(MoneyAnywhereStartup(app: startup));
+}
+
+class MoneyAnywhereStartup extends StatelessWidget {
+  const MoneyAnywhereStartup({super.key, required this.app});
+  final Future<AppState> app;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<AppState>(
+      future: app,
+      builder: (context, snapshot) {
+        if (snapshot.data case final ready?) {
+          return MoneyAnywhereApp(app: ready);
+        }
+        return const Directionality(
+          textDirection: TextDirection.ltr,
+          child: ColoredBox(
+            color: Color(0xFFF4FAF6),
+            child: Center(
+              child: SizedBox.square(
+                dimension: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  semanticsLabel: 'กำลังเปิด Money Anywhere',
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
 
 class MoneyAnywhereApp extends StatelessWidget {
   const MoneyAnywhereApp({super.key, required this.app});

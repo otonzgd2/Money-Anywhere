@@ -2,7 +2,6 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
-import 'thaid.dart';
 
 const skillChoices = [
   'ทำอาหาร', 'ทำขนม/เบเกอรี่', 'ขับรถยนต์', 'ขับมอเตอร์ไซค์', 'ส่งของ/ส่งอาหาร', 'พิมพ์เอกสาร', 'กรอกข้อมูล', 'Excel/ตาราง',
@@ -26,12 +25,13 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final Set<String> skills = {};
+  final TextEditingController name = TextEditingController();
   final TextEditingController goal = TextEditingController(), extra = TextEditingController();
   String? hours, district;
   Map<String, dynamic> rest = {};
-  Map<String, dynamic>? identity; // ThaID claims when connected (GovIdentity)
   List<String> fromGov = const [];
   bool loading = true, saving = false;
+  bool loadFailed = false;
   Api get api => widget.app.api;
 
   @override
@@ -42,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    name.dispose();
     goal.dispose();
     extra.dispose();
     super.dispose();
@@ -50,25 +51,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     try {
       final p = await api.get('/v1/me/profile');
+      if (!mounted) return;
       rest = p;
+      name.text = p['displayName'] as String? ?? '';
       skills.addAll(((p['skills'] as List?) ?? const []).map((e) => '$e'));
       hours = p['hoursPerWeek'] as String?;
       district = p['district'] as String?;
       if (p['incomeGoalPerMonth'] is num) goal.text = '${(p['incomeGoalPerMonth'] as num).round()}';
       fromGov = ((p['fromGov'] as List?) ?? const []).map((e) => '$e').toList();
-    } on ApiException {
-      // no profile yet
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      if (error.status != 404) {
+        setState(() { loadFailed = true; loading = false; });
+        return;
+      }
     }
-    identity = await govIdentity(api);
     if (mounted) setState(() => loading = false);
   }
 
   Future<void> _save() async {
     if (!await ensureConsent(context, widget.app, why: 'เพื่อจำทักษะ เวลาว่าง และเป้ารายได้ ไว้ใช้หางานและวางแผนรายได้ให้คุณ')) return;
+    if (!mounted) return;
     setState(() => saving = true);
+    final displayName = name.text.trim();
     final g = int.tryParse(goal.text.replaceAll(RegExp(r'[^0-9]'), ''));
     final body = <String, Object?>{
-      ...Map.fromEntries(rest.entries.where((e) => ['displayName', 'goals', 'constraints'].contains(e.key))),
+      ...Map.fromEntries(rest.entries.where((e) => ['goals', 'constraints'].contains(e.key))),
+      if (displayName.isNotEmpty) 'displayName': displayName,
       'skills': skills.toList(),
       if (hours != null) 'hoursPerWeek': hours,
       if (district != null) 'district': district,
@@ -96,16 +105,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(title: const Text('โปรไฟล์และทักษะ')),
       body: loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView(padding: const EdgeInsets.all(16), children: [
-              if (identity != null) ...[
-                ThaidIdentityCard(identity: identity!),
-                if (fromGov.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 8),
-                    child: Text('เติมจาก ThaID ให้แล้ว: ${fromGov.map((f) => const {'displayName': 'ชื่อที่ใช้ในแอป', 'district': 'เขตที่อยู่', 'ageBand': 'ช่วงอายุ'}[f] ?? f).join(', ')}', style: t.bodySmall),
-                  ),
-                const SizedBox(height: 8),
-              ],
+          : loadFailed
+              ? Center(child: OutlinedButton(
+                  onPressed: () {
+                    setState(() { loadFailed = false; loading = true; });
+                    _load();
+                  },
+                  child: const Text('โหลดโปรไฟล์ใหม่'),
+                ))
+              : ListView(padding: const EdgeInsets.all(16), children: [
+              TextField(
+                controller: name,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'ชื่อที่ใช้ในแอป',
+                  hintText: 'ชื่อเล่น (ไม่บังคับ)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
               Text('ทำอะไรเป็นบ้าง (เลือกได้หลายอย่าง)', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 6, children: [
@@ -135,7 +153,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               FilledButton(onPressed: saving ? null : _save, style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)), child: const Text('บันทึก')),
               const SizedBox(height: 8),
-              Text(identity != null ? 'ข้อมูลจาก ThaID แก้ในแอปไม่ได้ ยกเลิกการเชื่อมแล้วแอปลบข้อมูลนี้และคืนค่าที่เติมให้' : 'ไม่ต้องใส่ชื่อจริง เลขบัตร หรือเลขบัญชี ลบได้ทุกเมื่อที่ ฉัน > ลบข้อมูลทั้งหมด', style: t.bodySmall),
+              Text('แก้ได้เฉพาะข้อมูลที่ใช้ในแอป', style: t.bodySmall),
             ]),
     );
   }

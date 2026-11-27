@@ -6,18 +6,31 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'chat.dart';
 
+enum DemoChatProfile {
+  connected('gov-prefill-chat', 'DEMO · โปรไฟล์เชื่อม 4 แหล่ง'),
+  tax('dmytax', 'DEMO · D-MyTax');
+
+  const DemoChatProfile(this.deviceSuffix, this.planLabel);
+  final String deviceSuffix, planLabel;
+}
+
 /// One object for the whole app. [changed] is bumped after anything that changes server data
 /// (answers, consent, tasks, delete); every tab listens and reloads (ui-states.md §5).
 class AppState {
-  AppState(this.api);
+  AppState(this.api) : demo = false, changed = ValueNotifier(0);
+  AppState._demo(this.api, this.changed) : demo = true;
+
   final Api api;
+  final bool demo;
   final ChatSession chat = ChatSession();
-  final ValueNotifier<int> changed = ValueNotifier(0);
+  final ValueNotifier<int> changed;
   final ValueNotifier<bool> largeText = ValueNotifier(false);
 
   /// Switch the bottom tab (0 หน้าแรก, 1 โอกาส, 2 แผนของฉัน, 3 ฉัน) and optional opportunity group filter.
   final ValueNotifier<int> tab = ValueNotifier(0);
   final ValueNotifier<String> oppGroup = ValueNotifier('all');
+
+  AppState forDemoChat(DemoChatProfile profile) => AppState._demo(api.forDemo(profile.deviceSuffix), changed);
 
   void bump() => changed.value++;
   void goTab(int i, {String? group}) {
@@ -141,9 +154,12 @@ Future<void> showNotice(BuildContext context, AppState app) async {
 
 /// Open an official link outside the app. When the person comes back (app resumed), ask once whether they
 /// applied (ui-states.md popup P6). The answer is saved as user-reported, never as verified.
-Future<void> openExternal(BuildContext context, AppState app, {required String url, required String title, String? moneyId, String? opportunityId}) async {
+Future<void> openExternal(BuildContext context, AppState app, {required String url, required String title, String? moneyId, String? opportunityId, VoidCallback? onUnavailable}) async {
   final uri = Uri.tryParse(url);
-  if (uri == null) return;
+  if (uri == null) {
+    onUnavailable?.call();
+    return;
+  }
   late final AppLifecycleListener listener;
   var left = false;
   listener = AppLifecycleListener(
@@ -154,10 +170,20 @@ Future<void> openExternal(BuildContext context, AppState app, {required String u
       if (context.mounted) _askApplied(context, app, title: title, moneyId: moneyId, opportunityId: opportunityId);
     },
   );
-  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  bool ok;
+  try {
+    ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } on Exception {
+    ok = false;
+  }
   if (!ok) {
     listener.dispose();
-    if (context.mounted) toast(context, 'เปิดลิงก์ไม่ได้: $url');
+    if (!context.mounted) return;
+    if (onUnavailable case final fallback?) {
+      fallback();
+    } else {
+      toast(context, 'เปิดลิงก์ไม่ได้: $url');
+    }
   }
 }
 
@@ -224,7 +250,7 @@ class OfflineCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('📡 ต่อ server ไม่ได้', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Text('ตอนนี้ใช้ ${app.api.baseUrl}\nสาย USB: เสียบสาย แล้วบนคอมสั่ง adb reverse tcp:8080 tcp:8080\nWi-Fi: ใช้ที่อยู่ของคอม เช่น http://192.168.1.46:8080'),
+            Text('ตอนนี้ใช้ ${app.api.baseUrl}\nสาย USB: เสียบสาย แล้วบนคอมสั่ง adb reverse tcp:8080 tcp:8080\nWi-Fi: ${app.api.wifiBaseUrl ?? 'ใส่ IP ของคอมที่เปิดเซิร์ฟเวอร์'}'),
             const SizedBox(height: 8),
             Wrap(spacing: 8, children: [
               FilledButton(onPressed: onRetry, child: const Text('ลองใหม่')),
@@ -237,6 +263,7 @@ class OfflineCard extends StatelessWidget {
 
 Future<void> editServer(BuildContext context, AppState app, VoidCallback after) async {
   final c = TextEditingController(text: app.api.baseUrl);
+  final wifi = app.api.wifiBaseUrl;
   final v = await showDialog<String>(
     context: context,
     builder: (_) => AlertDialog(
@@ -245,8 +272,12 @@ Future<void> editServer(BuildContext context, AppState app, VoidCallback after) 
         TextField(controller: c, keyboardType: TextInputType.url),
         const SizedBox(height: 8),
         Wrap(spacing: 6, children: [
-          ActionChip(label: const Text('USB 127.0.0.1'), onPressed: () => c.text = 'http://127.0.0.1:8080'),
-          ActionChip(label: const Text('Wi-Fi 192.168.1.46'), onPressed: () => c.text = 'http://192.168.1.46:8080'),
+          ActionChip(label: const Text('USB 127.0.0.1'), onPressed: () => c.text = usbApiBaseUrl),
+          if (wifi != null)
+            ActionChip(
+              label: Text('Wi-Fi ${Uri.tryParse(wifi)?.host ?? wifi}'),
+              onPressed: () => c.text = wifi,
+            ),
         ]),
       ]),
       actions: [

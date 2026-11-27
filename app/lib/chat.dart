@@ -1,12 +1,14 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'common.dart';
+import 'task_screen.dart';
 
 /// One-click AI: pressing the home button records consent (core + ai, stated on the button) and starts a
 /// guided conversation. Every message is checked by the server policy before any AI call.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.api, required this.session, this.title});
-  final Api api;
+  const ChatScreen({super.key, required this.app, required this.session, this.title});
+  final AppState app;
   final ChatSession session;
   final String? title;
 
@@ -14,12 +16,15 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
+typedef _PlanLink = ({String taskId, String label});
+
 class _Msg {
-  _Msg(this.mine, this.text, {this.status, this.guard, this.actions = const []});
+  _Msg(this.mine, this.text, {this.status, this.guard, this.actions = const [], this.planLinks = const []});
   final bool mine;
   final String text;
   final String? status, guard;
   final List<Map<String, dynamic>> actions;
+  final List<_PlanLink> planLinks;
 }
 
 const _guardLabel = {
@@ -30,6 +35,7 @@ const _guardLabel = {
 String _who(_Msg m) {
   if (m.guard != null && _guardLabel.containsKey(m.guard)) return '🛡️ กฎของแอป: ${_guardLabel[m.guard]}';
   return switch (m.status) {
+    'saved' => '🤖 ผู้ช่วย',
     'ok' => '🤖 AI',
     'guarded' => '🤖 ผู้ช่วย (ตามเช็คลิสต์)',
     'fallback_rules' => '🤖 ผู้ช่วย (AI ไม่พร้อม ตอบด้วยกฎ)',
@@ -53,6 +59,8 @@ class ChatSession {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController input = TextEditingController();
   final ScrollController scroll = ScrollController();
+  final Set<String> deciding = {};
+  Api get api => widget.app.api;
   ChatSession get s => widget.session;
   List<_Msg> get msgs => s._msgs;
   Set<String> get decided => s.decided;
@@ -83,9 +91,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _start() async {
     try {
-      await widget.api.consent(ai: true);
+      await api.consent(ai: true);
       if (!mounted) return;
-      final c = await widget.api.post('/v1/ai/conversations', {'mode': 'guided'});
+      final c = await api.post('/v1/ai/conversations', {'mode': 'guided'});
       if (!mounted) return;
       conversationId = c['conversationId'] as String;
       setState(() {
@@ -105,12 +113,17 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() { msgs.add(_Msg(true, t)); quick = []; busy = true; });
     _scrollDown();
     try {
-      final r = await widget.api.post('/v1/ai/conversations/$conversationId/messages', {'text': t});
+      final r = await api.post('/v1/ai/conversations/$conversationId/messages', {'text': t});
       if (!mounted) return;
       final guard = (r['guard'] as Map?)?['kind'] as String?;
+      final planLinks = [
+        for (final plan in r['planLinks'] as List? ?? const [])
+          if (plan case {'taskId': final String taskId, 'title': final String title})
+            (taskId: taskId, label: 'เปิดแผน $title'),
+      ];
       setState(() {
         msgs.add(_Msg(false, '${r['reply']}', status: r['aiStatus'] as String?, guard: guard,
-            actions: (r['pendingActions'] as List? ?? const []).cast<Map<String, dynamic>>()));
+            actions: (r['pendingActions'] as List? ?? const []).cast<Map<String, dynamic>>(), planLinks: planLinks));
         quick = (r['quickReplies'] as List? ?? const []).cast<String>();
         busy = false;
       });
@@ -129,14 +142,33 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _decide(Map<String, dynamic> a, bool yes) async {
+    final actionId = a['id'] as String;
+    if (deciding.contains(actionId)) return;
+    setState(() => deciding.add(actionId));
     try {
-      await widget.api.post('/v1/ai/conversations/$conversationId/actions/${a['id']}', {'decision': yes ? 'confirm' : 'reject'});
+      final response = await api.post('/v1/ai/conversations/$conversationId/actions/$actionId', {'decision': yes ? 'confirm' : 'reject'});
       if (!mounted) return;
-      setState(() => decided.add(a['id'] as String));
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(yes ? 'ทำแล้ว: ${a['label']}' : 'ยกเลิกแล้ว ไม่ได้เปลี่ยนอะไร')));
+      setState(() => decided.add(actionId));
+      final task = response['result'];
+      if (response['status'] == 'done') widget.app.bump();
+      if (response['status'] == 'done' && a['tool'] == 'create_task' && task is Map && task['id'] is String) {
+        final steps = task['steps'] as List? ?? const [];
+        final next = task['doneCount'] as int? ?? 0;
+        final summary = [
+          'บันทึกในแผนของฉันแล้ว',
+          '${task['title']}',
+          if (next >= 0 && next < steps.length) 'ขั้นต่อไป: ${steps[next]}',
+        ].join('\n');
+        setState(() => msgs.add(_Msg(false, summary, status: 'saved', planLinks: [(taskId: task['id'] as String, label: 'ดูแผนของฉัน ›')])));
+        _scrollDown();
+      } else {
+        toast(context, yes ? 'ทำแล้ว: ${a['label']}' : 'ยกเลิกแล้ว ไม่ได้เปลี่ยนอะไร');
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      toast(context, e.message);
+    } finally {
+      if (mounted) setState(() => deciding.remove(actionId));
     }
   }
 
@@ -194,6 +226,11 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (!m.mine) Text(_who(m), style: const TextStyle(fontSize: 11, color: Colors.black54)),
           Text(m.text, style: TextStyle(color: m.mine ? Colors.white : Colors.black87, fontSize: 15)),
+          for (final plan in m.planLinks)
+            TextButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TaskScreen(app: widget.app, taskId: plan.taskId))),
+              child: Text(plan.label),
+            ),
           for (final a in m.actions)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -202,9 +239,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('⚡ ${a['label']}', style: const TextStyle(fontWeight: FontWeight.bold)),
                       Row(children: [
-                        FilledButton(onPressed: () => _decide(a, true), child: const Text('ยืนยัน')),
+                        FilledButton(onPressed: deciding.contains(a['id']) ? null : () => _decide(a, true), child: const Text('ยืนยัน')),
                         const SizedBox(width: 6),
-                        OutlinedButton(onPressed: () => _decide(a, false), child: const Text('ไม่ใช่')),
+                        OutlinedButton(onPressed: deciding.contains(a['id']) ? null : () => _decide(a, false), child: const Text('ไม่ใช่')),
                       ]),
                     ]),
             ),

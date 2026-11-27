@@ -4,6 +4,8 @@
     <application
         android:label="Money Anywhere"
         android:usesCleartextTraffic="true"
+        android:fullBackupContent="@xml/local_settings_backup"
+        android:dataExtractionRules="@xml/local_settings_transfer"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

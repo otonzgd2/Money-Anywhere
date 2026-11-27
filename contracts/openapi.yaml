@@ -572,11 +572,25 @@ paths:
         '422': { $ref: '#/components/responses/Error' }
 
   /v1/demo/personas/{id}:
+    get:
+      operationId: previewDemoProfile
+      tags: [Demo]
+      summary: "แสดงโปรไฟล์และแหล่งข้อมูลจำลองโดยไม่โหลดทับข้อมูลของเครื่อง"
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: Synthetic preview, content: { application/json: { schema: { $ref: '#/components/schemas/DemoProfilePreview' } } } }
+        '404': { $ref: '#/components/responses/Error' }
     post:
       operationId: loadDemoPersona
       tags: [Demo]
       summary: "โหลดผู้ใช้ตัวอย่าง (โปรไฟล์ ข้อมูลสถานการณ์ งาน ความยินยอม) ให้เครื่องนี้ สำหรับ AC-01"
-      parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
+      parameters:
+        - { $ref: '#/components/parameters/DeviceId' }
+        - { $ref: '#/components/parameters/Id' }
+        - name: keepPlans
+          in: query
+          description: "เก็บแผนและความคืบหน้าเดิมเมื่อสลับเคส D-MyTax"
+          schema: { type: boolean, default: false }
       responses:
         '200': { description: Loaded, content: { application/json: { schema: { $ref: '#/components/schemas/DemoResult' } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -1084,6 +1098,15 @@ components:
         reply: { type: string, description: "Money figures not found in tool results are removed" }
         toolCalls: { type: array, items: { type: object, required: [tool], properties: { tool: { type: string } } }, description: "Read tools the agent used, for transparency" }
         pendingActions: { type: array, items: { $ref: '#/components/schemas/PendingAction' } }
+        planLinks:
+          type: array
+          description: "แผนรับเงินที่บันทึกในโปรไฟล์ของแชต และผู้ใช้ยังไม่ได้แจ้งว่าได้รับเงิน"
+          items:
+            type: object
+            required: [taskId, title]
+            properties:
+              taskId: { type: string }
+              title: { type: string }
         memoryAdded: { type: array, items: { $ref: '#/components/schemas/MemoryItem' } }
         quickReplies: { type: array, items: { type: string } }
         guard: { $ref: '#/components/schemas/GuardResult' }
@@ -1270,6 +1293,28 @@ components:
         profile: { $ref: '#/components/schemas/Profile' }
         facts: { $ref: '#/components/schemas/Facts' }
         taskCount: { type: integer }
+        dataStatus: { type: string, enum: [mock] }
+        identity: { $ref: '#/components/schemas/GovIdentity' }
+        sources:
+          type: array
+          description: Display summaries of synthetic source records for the demo persona.
+          items: { $ref: '#/components/schemas/DemoSourceSummary' }
+
+    DemoSourceSummary:
+      type: object
+      required: [field, label, value]
+      properties:
+        field: { type: string, enum: [identity, disabilityCard, ss33, taxWithheld] }
+        label: { type: string }
+        value: { type: string }
+
+    DemoProfilePreview:
+      type: object
+      required: [profile, identity, sources, dataStatus]
+      properties:
+        profile: { $ref: '#/components/schemas/Profile' }
+        identity: { $ref: '#/components/schemas/GovIdentity' }
+        sources: { type: array, minItems: 1, items: { $ref: '#/components/schemas/DemoSourceSummary' } }
         dataStatus: { type: string, enum: [mock] }
 
     Taxonomies:

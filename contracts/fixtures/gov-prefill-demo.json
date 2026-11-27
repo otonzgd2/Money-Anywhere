@@ -14,6 +14,7 @@
   "sourceRecords": {
     "thaid": {
       "source": "DOPA ThaID",
+      "asOf": "2026-11-27",
       "input": "Existing synthetic identity returned by Money Anywhere's mock callback",
       "derivedFact": "ageBand",
       "publicReference": "https://www.bora.dopa.go.th/app-thaid/"

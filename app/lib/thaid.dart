@@ -26,7 +26,7 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
       title: const Text('🪪 เชื่อม ThaID ดึงสิทธิ์จากรัฐ'),
       content: const Text('ThaID จะส่งข้อมูลตัวตนให้แอป: ชื่อ-นามสกุล (ไทย/อังกฤษ), วันเกิด, เพศ, ที่อยู่ตามทะเบียนบ้าน, วันออกบัตรและวันหมดอายุ '
           'เลขบัตรประชาชนแอปเห็นแค่แบบปิดบัง\n\n'
-          'แอปใช้ข้อมูลนี้เติมโปรไฟล์และช่วงอายุให้ และขอข้อมูลสิทธิ์และเงินจากหน่วยงานเพื่อยืนยันผลแทนการตอบคำถามเอง\n\n'
+          'แอปใช้ข้อมูลนี้เติมโปรไฟล์และช่วยตรวจสิทธิ์จากหน่วยงาน\n\n'
           'โหมดสาธิต: ยังเชื่อม ThaID จริงไม่ได้ (ต้องมีข้อตกลงกับผู้ให้บริการ) แอปจะข้ามขั้นยืนยันตัวตนและใช้ข้อมูลจำลองที่ทำงานเหมือนเชื่อมได้ ทุกรายการติดป้าย DEMO / MOCK\n\n'
           'ยกเลิกการเชื่อมได้ทุกเมื่อที่แท็บ ฉัน'),
       actions: [
@@ -52,6 +52,7 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     await app.api.post('/v1/me/gov-link/callback', {'state': s['state'], 'code': 'demo-bypass'});
     if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
+    app.chat.reset();
     app.bump();
     if (context.mounted) toast(context, 'เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เติมโปรไฟล์ให้แล้ว เงินที่หน่วยงานมีข้อมูลจะขึ้นว่า ยืนยันจากหน่วยงาน');
     return true;
@@ -67,6 +68,7 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
 Future<void> disconnectThaid(BuildContext context, AppState app) async {
   try {
     await app.api.delete('/v1/me/gov-link');
+    app.chat.reset();
     app.bump();
     if (context.mounted) toast(context, 'ยกเลิกการเชื่อม ThaID และลบข้อมูลจากหน่วยงานแล้ว');
   } on ApiException catch (e) {
@@ -85,62 +87,53 @@ Future<Map<String, dynamic>?> govIdentity(Api api) async {
   }
 }
 
-const _claimRows = <(String, String)>[
-  ('name', 'ชื่อ-นามสกุล'), ('name_en', 'ชื่อ (อังกฤษ)'), ('birthdate', 'วันเกิด'), ('gender', 'เพศ'),
-  ('address', 'ที่อยู่ตามทะเบียนบ้าน'), ('date_of_issuance', 'วันออกบัตร'), ('date_of_expiry', 'วันบัตรหมดอายุ'), ('ial', 'ระดับยืนยันตัวตน'),
-];
-const _thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+class ThaidProfileIdentity {
+  ThaidProfileIdentity(Map<String, dynamic> data)
+      : _data = data,
+        _claims = data['claims'] is Map ? data['claims'] as Map : const {},
+        _derived = data['derived'] is Map ? data['derived'] as Map : const {};
 
-String _show(String key, Object? v) {
-  if (v == null || '$v'.isEmpty) return '-';
-  if (key == 'address' && v is Map) return '${v['formatted'] ?? '-'}';
-  if (key == 'gender') return v == 'male' ? 'ชาย' : v == 'female' ? 'หญิง' : '$v';
-  final d = DateTime.tryParse('$v');
-  if (d != null && '$v'.length == 10) return '${d.day} ${_thaiMonths[d.month - 1]} ${d.year + 543}';
-  return '$v';
-}
+  final Map<String, dynamic> _data;
+  final Map<dynamic, dynamic> _claims;
+  final Map<dynamic, dynamic> _derived;
 
-/// Profile block "ข้อมูลจาก ThaID": every claim the link returned, read-only, with the DEMO / MOCK label.
-class ThaidIdentityCard extends StatelessWidget {
-  const ThaidIdentityCard({super.key, required this.identity});
-  final Map<String, dynamic> identity;
+  bool get mock => _data['dataStatus'] != 'live';
+  String? get displayName => _thaidText(_claims['name']) ?? _thaidText(_derived['displayName']);
+  String? get district => _thaidText(_address['locality']) ?? _thaidText(_derived['district']);
 
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    final c = Map<String, dynamic>.from((identity['claims'] as Map?) ?? const {});
-    final d = Map<String, dynamic>.from((identity['derived'] as Map?) ?? const {});
-    final mock = identity['dataStatus'] != 'live';
-    return Card(
-      color: const Color(0xFFECFDF5),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Text('🪪', style: TextStyle(fontSize: 22)),
-            const SizedBox(width: 8),
-            Expanded(child: Text('ข้อมูลจาก ThaID', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold))),
-            if (mock) const Chip(label: Text('DEMO / MOCK'), visualDensity: VisualDensity.compact),
-          ]),
-          const SizedBox(height: 6),
-          _row(t, 'เลขบัตรประชาชน', '${identity['pidMasked'] ?? '-'}'),
-          for (final (k, label) in _claimRows) _row(t, label, _show(k, c[k])),
-          if (d['age'] != null) _row(t, 'อายุ (คิดจากวันเกิด)', '${d['age']} ปี'),
-          const SizedBox(height: 6),
-          Text(mock ? 'ข้อมูลสังเคราะห์ ไม่ใช่ข้อมูลจริงจากรัฐ แก้ในแอปไม่ได้ ยกเลิกการเชื่อมได้ที่แท็บ ฉัน' : 'ข้อมูลจากกรมการปกครอง แก้ในแอปไม่ได้', style: t.bodySmall),
-        ]),
-      ),
-    );
+  String? get maskedId {
+    final tail = RegExp(r'(\d{2})-?(\d)$').firstMatch(_thaidText(_data['pidMasked']) ?? '');
+    return tail == null ? null : 'XXX${tail[1]}${tail[2]}';
   }
 
-  Widget _row(TextTheme t, String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 130, child: Text(label, style: t.bodySmall)),
-          Expanded(child: Text(value, style: t.bodyMedium)),
-        ]),
-      );
+  int? get age {
+    final birthday = DateTime.tryParse(_thaidText(_claims['birthdate']) ?? '');
+    if (birthday != null) {
+      final today = DateTime.now();
+      if (birthday.isAfter(today)) return null;
+      final beforeBirthday = today.month < birthday.month ||
+          (today.month == birthday.month && today.day < birthday.day);
+      return today.year - birthday.year - (beforeBirthday ? 1 : 0);
+    }
+    final age = _derived['age'];
+    return age is int && age >= 0 ? age : null;
+  }
+
+  Map<dynamic, dynamic> get _address => _claims['address'] is Map ? _claims['address'] as Map : const {};
+
+  String? get address {
+    final formatted = _thaidText(_address['formatted']);
+    if (formatted != null) return formatted;
+    final parts = [
+      for (final field in ['street_address', 'locality', 'region', 'postal_code'])
+        ?_thaidText(_address[field]),
+    ];
+    return parts.isEmpty ? null : parts.join(' ');
+  }
 }
+
+String? _thaidText(Object? value) =>
+    value is String && value.trim().isNotEmpty ? value.trim() : null;
 
 /// Home card: "connect" before, a small connected strip after. Hidden when the server runs with the mode off.
 class ThaidCard extends StatelessWidget {
