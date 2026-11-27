@@ -139,6 +139,14 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     && /text\/html/.test(htmlReport.headers.get('content-type')) && /text\/plain/.test(mdReport.headers.get('content-type'))
     && reportBytes.equals(fs.readFileSync(path.join(reportDir, 'thai-senior-benefits-2026-11-27.html')))
     && markdownBytes.equals(fs.readFileSync(path.join(reportDir, 'thai-senior-benefits-2026-11-27.md'))));
+  const bangkokReport = '/docs/sources/bangkok-benefits-2026-11-27';
+  const [bangkokHtml, bangkokMarkdown] = await Promise.all([fetch(base + bangkokReport + '.html'), fetch(base + bangkokReport + '.md')]);
+  const bangkokHtmlBytes = Buffer.from(await bangkokHtml.arrayBuffer());
+  const bangkokMdBytes = Buffer.from(await bangkokMarkdown.arrayBuffer());
+  check('the Bangkok report and its Markdown link serve the published project files', bangkokHtml.ok && bangkokMarkdown.ok
+    && /text\/html/.test(bangkokHtml.headers.get('content-type')) && /text\/plain/.test(bangkokMarkdown.headers.get('content-type'))
+    && bangkokHtmlBytes.equals(fs.readFileSync(path.join(reportDir, 'bangkok-benefits-2026-11-27.html')))
+    && bangkokMdBytes.equals(fs.readFileSync(path.join(reportDir, 'bangkok-benefits-2026-11-27.md'))));
   const reportRow = reportBytes.toString('utf8').match(/<tr id="item-1"[^>]*>([\s\S]*?)<\/tr>/)?.[1] || '';
   for (const [id, guideId] of [['old_age', '8386002e-d892-4975-ad48-7f06332310a8'], ['disability', '31d48bd3-6f27-4ffb-9063-03b2e2093083']]) {
     const url = 'https://gov.bangkok.go.th/ServiceDetail?id=' + guideId;

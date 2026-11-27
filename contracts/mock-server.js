@@ -812,9 +812,9 @@ function createServer(opts = {}) {
       if (!fs.existsSync(f)) return send(404, { code: 'NOT_FOUND', message: 'ยังไม่ได้สร้างเอกสาร รัน npm run docs', status: 404, retryable: false });
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(fs.readFileSync(f));
     }
-    const contactReport = /^\/docs\/sources\/(thai-senior-benefits-2026-11-27\.(html|md))$/.exec(u.pathname);
-    if (req.method === 'GET' && contactReport) {
-      const [, name, extension] = contactReport;
+    const sourceReport = /^\/docs\/sources\/((?:thai-senior-benefits|bangkok-benefits)-2026-11-27\.(html|md))$/.exec(u.pathname);
+    if (req.method === 'GET' && sourceReport) {
+      const [, name, extension] = sourceReport;
       let report;
       try {
         report = await fs.promises.readFile(path.join(DIR, '..', 'docs', 'product', 'sources', name));

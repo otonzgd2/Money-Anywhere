@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>สิทธิและบริการสำหรับคนตกงาน ผู้สูงอายุ และผู้พิการในกรุงเทพมหานคร</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper:#f2f7f6; --panel:#fff; --ink:#152e32; --muted:#465d60;
+      --link:#07516b; --border:#c8d7d7; --accent:#173e43;
+      --mint:#e7f5e9; --mint-head:#d6ebdb; --gold:#f6dc91;
+    }
+    * { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    html { scroll-padding-top:5rem; }
+    body { margin:0; color:var(--ink); background:var(--paper); font: 1.06rem/1.65 system-ui, "Noto Sans Thai", sans-serif; }
+    header { background:var(--accent); color:white; border-bottom:5px solid var(--gold); }
+    .container { width:min(100% - 2rem, 92rem); margin-inline:auto; }
+    .intro { padding-block:2rem; }
+    h1 { font-size:clamp(1.55rem, 4vw, 2.6rem); line-height:1.36; margin:.6rem 0; max-width:34ch; }
+    h2 { font-size:clamp(1.25rem, 3vw, 1.7rem); line-height:1.4; margin:0; }
+    p { margin:.55rem 0; }
+    .date { font-weight:700; color:var(--gold); }
+    header p { max-width:72ch; }
+    main { padding-block:1.6rem 2rem; }
+    a { color:var(--link); text-underline-offset: .2em; }
+    a:focus-visible, input:focus-visible, select:focus-visible, button:focus-visible, .table:focus-visible {
+      outline:3px solid #a64f00; outline-offset:3px;
+    }
+    .quick-links { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr)); gap:.7rem; padding:0; margin:.7rem 0 1.5rem; list-style:none; }
+    .quick-links a { display:block; background:var(--panel); border:1px solid var(--border); border-radius:.55rem; padding:.75rem .9rem; text-decoration:none; height:100%; }
+    .quick-links a:hover strong { text-decoration:underline; }
+    .quick-links span { display:block; color:var(--muted); }
+    .controls { display:grid; grid-template-columns:minmax(12rem, 2fr) repeat(2, minmax(10rem, 1fr)) auto; align-items:end; gap:.75rem; padding:.9rem; border:1px solid var(--border); border-radius:.7rem; background:var(--panel); }
+    .controls label { display:grid; gap:.25rem; font-weight:650; }
+    input, select, button { width:100%; min-height:2.8rem; font:inherit; color:var(--ink); border:1px solid #879fa1; border-radius:.4rem; background:white; padding:.35rem .65rem; }
+    button { cursor:pointer; font-weight:700; color:var(--link); }
+    .heading { margin:1.35rem 0 .65rem; }
+    .count { font-weight:700; }
+    .note { color:var(--muted); }
+    .table { background:var(--panel); border:1px solid var(--border); border-radius:.6rem; overflow:auto; max-height:74vh; }
+    table { border-collapse:separate; border-spacing:0; min-width:94rem; width:100%; }
+    thead th { position:sticky; top:0; z-index:1; text-align:left; background:#e1eef0; }
+    th, td { padding:.68rem .8rem; text-align:left; vertical-align:top; border-bottom:1px solid var(--border); border-right:1px solid #e5ecec; }
+    .benefit { min-width:12rem; font-weight:750; }
+    .amount { background:var(--mint); color:#144a37; min-width:13rem; }
+    thead .amount { background:var(--mint-head); }
+    .group { min-width:9rem; }
+    .scope { min-width:9rem; }
+    .eligibility, .contact { min-width:13rem; }
+    .documents, .sources { min-width:12rem; }
+    .tags { display:flex; flex-wrap:wrap; gap:.3rem; }
+    .tag { display:inline-block; white-space:nowrap; padding:.12rem .48rem; border:1px solid var(--border); border-radius:1rem; background:#f4f8f8; }
+    .kind { display:block; color:var(--muted); }
+    tr:target > * { border-top:3px solid #297a74; }
+    .sources-list { margin:0; padding-inline-start:1.2em; }
+    .sources-list li + li { margin-top:.25rem; }
+    .empty { padding:1rem; border:1px solid var(--border); background:white; border-radius:.5rem; }
+    footer { padding:1.25rem 0; }
+    @media (max-width:56rem) {
+      .controls { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .controls label:first-child { grid-column:1 / -1; }
+    }
+    @media (max-width:42rem) {
+      .container { width:calc(100% - 1.25rem); }
+      .intro { padding-block:1.3rem; }
+      .quick-links { grid-template-columns:1fr; }
+      .table { overflow:visible; border:0; max-height:none; background:transparent; }
+      table, tbody, tr, tbody th, td { display:block; width:100%; min-width:0 !important; }
+      thead { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
+      tbody tr { background:var(--panel); border:1px solid var(--border); border-radius:.6rem; margin-bottom:.85rem; overflow:hidden; scroll-margin-top:1rem; }
+      tbody th, td { border-right:0; padding:.54rem .7rem; }
+      .benefit { font-size:1.24rem; }
+      td:not(.group)::before { content:attr(data-label); display:block; font-size:.91rem; color:var(--muted); font-weight:700; }
+      td:last-child { border-bottom:0; }
+      tr:target > :not(:first-child) { border-top:0; }
+    }
+    @media print {
+      body, header { color:#000; background:#fff; font-size:10pt; }
+      .controls, .quick-links, footer a { display:none !important; }
+      .table { max-height:none; overflow:visible; }
+      table { min-width:0; }
+      thead th { position:static; }
+      tr { break-inside:avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container intro">
+      <p class="date">ตรวจแหล่งข้อมูล 27 พฤศจิกายน 2569 · 25 รายการ</p>
+      <h1>สิทธิและบริการสำหรับคนตกงาน ผู้สูงอายุ และผู้พิการในกรุงเทพมหานคร</h1>
+      <p>ขอบเขต 50 เขตกรุงเทพมหานคร รายการที่ระบุ “ระดับประเทศ” ใช้ช่องทางออนไลน์หรือหน่วยบริการที่รับเรื่องในกรุงเทพฯ ได้ตามเงื่อนไขของโครงการ</p>
+    </div>
+  </header>
+  <main class="container">
+    <section aria-labelledby="start">
+      <h2 id="start">เริ่มจากเรื่องที่ต้องการทำ</h2>
+      <ul class="quick-links">
+        <li><a href="#unemployment"><strong>เพิ่งออกจากงาน</strong><span>ดูเงื่อนไขขึ้นทะเบียนว่างงานและกำหนดรายงานตัว</span></a></li>
+        <li><a href="#old-age"><strong>ขอเบี้ยผู้สูงอายุ</strong><span>ดูสำนักงานเขตที่รับเรื่องและเอกสารยืนยันสิทธิ</span></a></li>
+        <li><a href="#disability-card"><strong>ยังไม่มีบัตรคนพิการ</strong><span>ดูจุดทำบัตรในกรุงเทพฯ และหลักฐานที่ใช้</span></a></li>
+      </ul>
+    </section>
+    <form class="controls" id="filters" role="search" aria-label="ค้นหาและกรองสิทธิ" hidden>
+      <label>ค้นหา<input type="search" id="query" placeholder="เช่น ว่างงาน เบี้ยความพิการ 1330"></label>
+      <label>กลุ่ม
+        <select id="group">
+          <option value="">ทุกกลุ่ม</option>
+          <option value="work">คนตกงาน</option>
+          <option value="senior">ผู้สูงอายุ</option>
+          <option value="disabled">ผู้พิการ</option>
+        </select>
+      </label>
+      <label>ขอบเขตบริการ
+        <select id="scope">
+          <option value="">ทุกขอบเขต</option>
+          <option value="national">ระดับประเทศ · ใช้ใน กทม.</option>
+          <option value="bma">บริการใน กทม.</option>
+        </select>
+      </label>
+      <button type="reset">ล้างตัวกรอง</button>
+    </form>
+    <section aria-labelledby="table-heading">
+      <div class="heading">
+        <h2 id="table-heading">ตารางสิทธิและบริการ</h2>
+        <p id="result-count" class="count" role="status" aria-live="polite">แสดง 25 จาก 25 รายการ</p>
+        <p class="note">เลือกกลุ่มเพื่อดูรายการที่เกี่ยวข้อง รายการหนึ่งอาจแสดงได้หลายกลุ่ม ก่อนยื่นเรื่องให้ตรวจทะเบียนบ้านหรือพื้นที่รับผิดชอบและเอกสารในคู่มือของหน่วยงาน</p>
+      </div>
+      <p id="empty" class="empty" hidden>ไม่พบรายการตรงกับคำค้นหาหรือตัวกรอง</p>
+      <div class="table" tabindex="0" role="region" aria-labelledby="table-heading">
+        <table role="table">
+          <thead role="rowgroup"><tr role="row"><th scope="col">สิทธิหรือบริการ</th><th scope="col">กลุ่ม</th><th scope="col" class="amount">เงินหรือค่าใช้จ่าย</th><th scope="col">ขอบเขตบริการ</th><th scope="col">ใครใช้ได้</th><th scope="col">ติดต่อในกรุงเทพฯ</th><th scope="col">เอกสารที่ควรเตรียม</th><th scope="col">แหล่งอ้างอิง</th></tr></thead>
+          <tbody role="rowgroup">
+            <tr id="unemployment" data-groups="work" data-scope="national">
+              <th class="benefit" scope="row">เงินทดแทนกรณีว่างงาน ม.33</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ถูกเลิกจ้าง 60% ไม่เกิน 180 วัน ลาออกหรือสิ้นสุดสัญญา 30% ไม่เกิน 90 วัน ตามฐานค่าจ้างและการพิจารณาของประกันสังคม</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">เคยเป็นผู้ประกันตน ม.33 ส่งสมทบอย่างน้อย 6 เดือนใน 15 เดือนก่อนว่างงาน ว่างงานอย่างน้อย 8 วัน และเข้าเงื่อนไขของ สปส.</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ขึ้นทะเบียนภายใน 30 วันนับจากวันออกจากงานและรายงานตัวตามนัดกับกรมการจัดหางาน ติดต่อสำนักงานจัดหางานกรุงเทพฯ พื้นที่ 1–10 หากต้องการความช่วยเหลือ เรื่องยอดจ่ายโทร 1506</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ข้อมูลการออกจากงาน และหลักฐานบัญชีธนาคารตามที่ระบบขอ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.sso.go.th/wpr/main/news/%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A7%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%8A%E0%B8%B2%E0%B8%AA%E0%B8%B1%E0%B8%A1%E0%B8%9E%E0%B8%B1%E0%B8%99%E0%B8%98%E0%B9%8C_detail_detail_1_16_0/%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A7-%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B1%E0%B8%99%E0%B8%95%E0%B8%99%E0%B8%A1%E0%B8%B2%E0%B8%95%E0%B8%A3%E0%B8%B2-33-%E0%B8%96%E0%B8%B9%E0%B8%81%E0%B9%80%E0%B8%A5%E0%B8%B4%E0%B8%81%E0%B8%88%E0%B9%89%E0%B8%B2%E0%B8%87-%E0%B8%AD%E0%B8%A2%E0%B9%88%E0%B8%B2%E0%B8%A5%E0%B8%B7%E0%B8%A1-%E0%B8%82%E0%B8%B6%E0%B9%89%E0%B8%99%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%A0%E0%B8%B2%E0%B8%A2%E0%B9%83%E0%B8%99-30-%E0%B8%A7%E0%B8%B1%E0%B8%99-%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B1%E0%B8%99%E0%B8%AA%E0%B8%B1%E0%B8%87%E0%B8%84%E0%B8%A1-%E0%B8%88%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B9%82%E0%B8%A2%E0%B8%8A%E0%B8%99%E0%B9%8C%E0%B8%97%E0%B8%94%E0%B9%81%E0%B8%97%E0%B8%99%E0%B9%83%E0%B8%AB%E0%B9%89%E0%B8%A3%E0%B9%89%E0%B8%AD%E0%B8%A2%E0%B8%A5%E0%B8%B0-60-%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B8%AA%E0%B8%B9%E0%B8%87%E0%B8%AA%E0%B8%B8%E0%B8%94-54-%E0%B8%AB%E0%B8%A1%E0%B8%B7%E0%B9%88%E0%B8%9933572_%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A7%20%3A%20%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B1%E0%B8%99%E0%B8%95%E0%B8%99%E0%B8%A1%E0%B8%B2%E0%B8%95%E0%B8%A3%E0%B8%B2%2033%20%E0%B8%96%E0%B8%B9%E0%B8%81%E0%B9%80%E0%B8%A5%E0%B8%B4%E0%B8%81%E0%B8%88%E0%B9%89%E0%B8%B2%E0%B8%87%20%E0%B8%AD%E0%B8%A2%E0%B9%88%E0%B8%B2%E0%B8%A5%E0%B8%B7%E0%B8%A1%20%21%20%E0%B8%82%E0%B8%B6%E0%B9%89%E0%B8%99%E0%B8%97%E0%B8%B0%E0%B9%80%E0%B8%9A%E0%B8%B5%E0%B8%A2%E0%B8%99%E0%B8%A0%E0%B8%B2%E0%B8%A2%E0%B9%83%E0%B8%99%2030%20%E0%B8%A7%E0%B8%B1%E0%B8%99%20%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B1%E0%B8%99%E0%B8%AA%E0%B8%B1%E0%B8%87%E0%B8%84%E0%B8%A1%20%E0%B8%88%E0%B9%88%E0%B8%B2%E0%B8%A2%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B9%82%E0%B8%A2%E0%B8%8A%E0%B8%99%E0%B9%8C%E0%B8%97%E0%B8%94%E0%B9%81%E0%B8%97%E0%B8%99%E0%B9%83%E0%B8%AB%E0%B9%89%E0%B8%A3%E0%B9%89%E0%B8%AD%E0%B8%A2%E0%B8%A5%E0%B8%B0%2060%20%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B8%AA%E0%B8%B9%E0%B8%87%E0%B8%AA%E0%B8%B8%E0%B8%94%205.4%20%E0%B8%AB%E0%B8%A1%E0%B8%B7%E0%B9%88%E0%B8%99_33572" target="_blank" rel="noopener noreferrer">เงื่อนไขและอัตราจาก สปส.</a></li><li><a href="https://www.doe.go.th/prd/download/download_by_pool_file/49334" target="_blank" rel="noopener noreferrer">คู่มือขึ้นทะเบียนและรายงานตัว</a></li><li><a href="https://e-service.doe.go.th/" target="_blank" rel="noopener noreferrer">e-Service กรมการจัดหางาน</a></li></ul></td>
+            </tr>
+            <tr id="severance" data-groups="work" data-scope="national">
+              <th class="benefit" scope="row">ค่าชดเชยจากนายจ้างเมื่อถูกเลิกจ้าง</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ตามอายุงาน อัตราค่าจ้าง และเหตุเลิกจ้างตามกฎหมาย</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ลูกจ้างที่ทำงานต่อเนื่องครบ 120 วันขึ้นไปและเข้าหลักเกณฑ์ ต้องตรวจข้อยกเว้นและลักษณะสัญญากับพนักงานตรวจแรงงาน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ถามฝ่ายบุคคลเป็นลายลักษณ์อักษร หากยังมีข้อพิพาท ติดต่อสำนักงานสวัสดิการและคุ้มครองแรงงานกรุงเทพมหานครพื้นที่ที่สถานที่ทำงานตั้งอยู่</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">หนังสือเลิกจ้าง สัญญาจ้างหรือหลักฐานเริ่มงาน สลิปค่าจ้าง และหลักฐานการจ่ายเงิน</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.mol.go.th/employee/%E0%B8%AA%E0%B8%B4%E0%B8%97%E0%B8%98%E0%B8%B4%E0%B8%AB%E0%B8%99%E0%B9%89%E0%B8%B2%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%99%E0%B8%B2%E0%B8%A2%E0%B8%88%E0%B9%89%E0%B8%B2%E0%B8%87-%E0%B8%A5%E0%B8%B9%E0%B8%81%E0%B8%88%E0%B9%89%E0%B8%B2%E0%B8%87" target="_blank" rel="noopener noreferrer">สิทธิและหน้าที่ตามกฎหมายแรงงาน</a></li><li><a href="https://eservice.labour.go.th/register/contact" target="_blank" rel="noopener noreferrer">ช่องทางร้องเรียนและสำนักงานแรงงาน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="unpaid-wages" data-groups="work" data-scope="national">
+              <th class="benefit" scope="row">ร้องเรียกค่าจ้างหรือเงินที่นายจ้างค้างจ่าย</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ตามยอดและหลักฐานที่พนักงานตรวจแรงงานพิจารณา</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">มีค่าจ้าง ค่าล่วงเวลา หรือเงินตามกฎหมายที่ยังไม่ได้รับ สามารถสอบถามได้แม้กำลังตกงาน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ยื่นคำร้องสิทธิได้รับเงินผ่าน e-Service กรมสวัสดิการและคุ้มครองแรงงาน หรือไปสำนักงานพื้นที่ใน กทม. ตามสถานที่ทำงาน</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน สลิปเงินเดือน ตารางเวลางาน รายการโอนเงิน หรือข้อความที่เกี่ยวข้อง</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://eservice.labour.go.th/" target="_blank" rel="noopener noreferrer">ระบบยื่นคำร้องแรงงาน</a></li><li><a href="https://eservice.labour.go.th/register/contact" target="_blank" rel="noopener noreferrer">ช่องทางร้องเรียนและสำนักงานแรงงาน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="employee-fund" data-groups="work" data-scope="national">
+              <th class="benefit" scope="row">กองทุนสงเคราะห์ลูกจ้างกรณีนายจ้างไม่จ่ายค่าชดเชย</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>เงินสงเคราะห์ตามเกณฑ์กองทุนและอายุงาน</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ใช้เมื่อพนักงานตรวจแรงงานมีคำสั่งเรื่องค่าชดเชยตามมาตรา 118 นายจ้างยังไม่ปฏิบัติตาม และเข้าเงื่อนไขของกองทุน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ขอให้สำนักงานสวัสดิการและคุ้มครองแรงงานกรุงเทพมหานครพื้นที่ที่รับคำร้องประเมินสิทธิและแนะนำการยื่น</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">แบบ สกล. 1 คำสั่งพนักงานตรวจแรงงาน และข้อมูลบัญชีรับโอนตามคู่มือ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://info.go.th/procedure/94e56d2e-7531-4826-a723-08ae42348858/view" target="_blank" rel="noopener noreferrer">คู่มือขอใช้กองทุนสงเคราะห์ลูกจ้าง</a></li><li><a href="https://eservice.labour.go.th/register/contact" target="_blank" rel="noopener noreferrer">ช่องทางร้องเรียนและสำนักงานแรงงาน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="sso-after-work" data-groups="work" data-scope="national">
+              <th class="benefit" scope="row">สิทธิรักษาพยาบาลหลังออกจากงาน ม.33</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ความคุ้มครองต่อได้ 6 เดือนตามเกณฑ์</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">สุขภาพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">สิทธิเดิมอาจต่อเนื่องในกรณีเจ็บป่วย คลอดบุตร ทุพพลภาพ หรือเสียชีวิต ขึ้นกับการส่งสมทบแต่ละกรณีและวันที่สิ้นสภาพ</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ตรวจวันสิ้นสุดสิทธิและสถานพยาบาลประกันสังคมกับ สปส. โทร 1506 ก่อนใช้บริการใน กทม.</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">เลขบัตรประชาชนและวันที่ออกจากงานเพื่อให้เจ้าหน้าที่ตรวจสิทธิ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://surin.prd.go.th/th/content/category/detail/id/9/iid/123123" target="_blank" rel="noopener noreferrer">ความคุ้มครองต่อหลังออกจากงาน</a></li><li><a href="https://eself.sso.go.th/" target="_blank" rel="noopener noreferrer">บริการอิเล็กทรอนิกส์ประกันสังคม</a></li></ul></td>
+            </tr>
+            <tr id="section-39" data-groups="work" data-scope="national">
+              <th class="benefit" scope="row">สมัครประกันสังคมต่อด้วยมาตรา 39</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>เงินสมทบปกติ 432 บาทต่อเดือน</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">สุขภาพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">เคยเป็น ม.33 ส่งสมทบอย่างน้อย 12 เดือน สมัครภายใน 6 เดือนหลังออกจากงาน และเข้าเงื่อนไขของ สปส. ความคุ้มครองมาตรา 39 มี 6 กรณี</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">สมัครผ่านช่องทางของ สปส. หรือติดต่อสำนักงานประกันสังคมในกรุงเทพฯ โทร 1506</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน แบบ สปส. 1-20 และหน้าสมุดบัญชีหากเลือกหักเงินสมทบอัตโนมัติ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.sso.go.th/wpr/assets/upload/files_storage/chainat_th/6d8900e7f4f461aed34180bd2414212d.pdf" target="_blank" rel="noopener noreferrer">เงื่อนไขและเอกสาร ม.39</a></li><li><a href="https://www.sso.go.th/wpr/mukdahan/service/%E0%B8%81%E0%B8%AD%E0%B8%87%E0%B8%97%E0%B8%B8%E0%B8%99%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B1%E0%B8%99%E0%B8%AA%E0%B8%B1%E0%B8%87%E0%B8%84%E0%B8%A1_detail_detail_9_125_697/237_237" target="_blank" rel="noopener noreferrer">อัตราเงินสมทบ ม.39</a></li><li><a href="https://eself.sso.go.th/" target="_blank" rel="noopener noreferrer">บริการอิเล็กทรอนิกส์ประกันสังคม</a></li></ul></td>
+            </tr>
+            <tr id="job-search" data-groups="work senior disabled" data-scope="national">
+              <th class="benefit" scope="row">หางานกับกรมการจัดหางาน</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span><span class="tag">ผู้สูงอายุ</span><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>บริการหางานของรัฐไม่มีค่าบริการ</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">งานและอาชีพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้หางานเลือกค้นตำแหน่งในกรุงเทพฯ ตามเขต ทักษะ และความพร้อม อัตราจ้างและเงื่อนไขขึ้นกับประกาศ</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ใช้ระบบไทยมีงานทำ หรือติดต่อสำนักงานจัดหางานกรุงเทพมหานครพื้นที่ 1–10 โทร 1694</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">ประวัติการทำงาน ทักษะ เอกสารการศึกษาหรือใบรับรองที่เกี่ยวข้อง</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://xn--72c5abh2bf8icw0m9d.doe.go.th/web/employee/intro?t=2" target="_blank" rel="noopener noreferrer">ไทยมีงานทำ กรมการจัดหางาน</a></li><li><a href="https://www.doe.go.th/prd/assets/upload/files/vgnew_th/a1c0ab775756316bbea6aacb64d8b8f6.pdf" target="_blank" rel="noopener noreferrer">รายชื่อสำนักงานจัดหางานและพื้นที่รับผิดชอบ</a></li></ul></td>
+            </tr>
+            <tr id="bma-training" data-groups="work senior disabled" data-scope="bma">
+              <th class="benefit" scope="row">อบรมที่โรงเรียนฝึกอาชีพกรุงเทพมหานคร</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span><span class="tag">ผู้สูงอายุ</span><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ตรวจค่าใช้จ่ายจากประกาศแยกตามหลักสูตร</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">บริการใน กทม.<span class="kind">งานและอาชีพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">เลือกหลักสูตรและสถานศึกษาที่เปิดรับตามรอบ เกณฑ์อายุและเอกสารต่างกันตามหลักสูตร</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">สมัครในระบบโรงเรียนฝึกอาชีพ กทม. หรือสอบถามโรงเรียนที่เลือกในระบบ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชนและเอกสารตามประกาศหลักสูตร</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://bmatraining.bangkok.go.th/" target="_blank" rel="noopener noreferrer">ระบบสมัครเรียน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="old-age" data-groups="senior" data-scope="bma">
+              <th class="benefit" scope="row">เบี้ยยังชีพผู้สูงอายุ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>600, 700, 800 หรือ 1,000 บาทต่อเดือน ตามช่วงอายุ 60–69, 70–79, 80–89 และ 90 ปีขึ้นไป</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">บริการใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">คนไทยอายุ 60 ปีขึ้นไป มีชื่อในทะเบียนบ้านกรุงเทพฯ และผ่านเกณฑ์ยืนยันสิทธิ ผู้รับบำนาญหรือสวัสดิการประจำให้สำนักงานเขตตรวจเงื่อนไข</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ติดต่อฝ่ายพัฒนาชุมชนและสวัสดิการสังคมของสำนักงานเขตตามทะเบียนบ้าน คู่มือ กทม. มีช่องทาง BMA OSS</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ทะเบียนบ้าน สมุดบัญชีหากรับโอน และหลักฐานมอบอำนาจหากยื่นแทน</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://gov.bangkok.go.th/ServiceDetail?id=8386002e-d892-4975-ad48-7f06332310a8" target="_blank" rel="noopener noreferrer">คู่มือเบี้ยยังชีพ กทม.</a></li></ul></td>
+            </tr>
+            <tr id="old-age-pension" data-groups="work senior" data-scope="national">
+              <th class="benefit" scope="row">บำเหน็จหรือบำนาญชราภาพประกันสังคม</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ยอดตามประวัติการส่งสมทบและเกณฑ์ที่ สปส. ใช้พิจารณา</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้ประกันตนที่อายุครบ 55 ปีและสิ้นสภาพผู้ประกันตน สปส. ใช้จำนวนเดือนสมทบพิจารณาว่าเข้ากรณีบำเหน็จหรือบำนาญ โดยเกณฑ์บำนาญกำหนดส่งสมทบตั้งแต่ 180 เดือน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ติดต่อสำนักงานประกันสังคมในกรุงเทพฯ หรือเช็กประวัติสมทบผ่าน e-Self Service โทร 1506</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ข้อมูลการสิ้นสภาพผู้ประกันตน และสมุดบัญชีตามที่ สปส. กำหนด</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.sso.go.th/wpr/assets/upload/files_storage/chainat_th/6d8900e7f4f461aed34180bd2414212d.pdf" target="_blank" rel="noopener noreferrer">คู่มือกรณีชราภาพ</a></li><li><a href="https://eself.sso.go.th/" target="_blank" rel="noopener noreferrer">บริการอิเล็กทรอนิกส์ประกันสังคม</a></li></ul></td>
+            </tr>
+            <tr id="senior-clinic" data-groups="senior" data-scope="bma">
+              <th class="benefit" scope="row">คลินิกผู้สูงอายุและคัดกรองสุขภาพ กทม.</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>บริการตรวจและประเมินตามสิทธิรักษา</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">บริการใน กทม.<span class="kind">สุขภาพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้สูงอายุที่ต้องการประเมินสุขภาพหรือคัดกรองความเสี่ยง สอบถามวันให้บริการและกลุ่มที่รับในแต่ละศูนย์</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ติดต่อศูนย์บริการสาธารณสุขหรือโรงพยาบาลสังกัด กทม. ใกล้บ้าน ใช้ Bangkok Health Map หาหน่วยบริการ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ยาที่ใช้อยู่ และประวัติการรักษาถ้ามี</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://webportal.bangkok.go.th/healthcenter7/page/sub/15422" target="_blank" rel="noopener noreferrer">คลินิกผู้สูงอายุของ กทม.</a></li><li><a href="https://healthmap.bangkok.go.th/" target="_blank" rel="noopener noreferrer">แผนที่หน่วยบริการสุขภาพ กทม.</a></li></ul></td>
+            </tr>
+            <tr id="long-term-care" data-groups="senior disabled" data-scope="bma">
+              <th class="benefit" scope="row">ประเมินและดูแลระยะยาวที่บ้าน (LTC)</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>บริการตามแผนดูแลรายบุคคล</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">บริการใน กทม.<span class="kind">สุขภาพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้มีภาวะพึ่งพิงที่ผ่านการประเมินความสามารถทำกิจวัตรประจำวัน (ADL) และได้รับอนุมัติแผนดูแล</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">แจ้งศูนย์บริการสาธารณสุข กทม. หรือหน่วยบริการประจำให้ประเมินที่บ้าน ติดต่อ สปสช. 1330 เพื่อสอบถามเส้นทางรับบริการ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ประวัติการรักษา ที่อยู่ที่พักจริง และข้อมูลผู้ดูแล</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://media.nhso.go.th/assets/portals/1/files/11%20Factsheet%20LTC%202566%E2%80%932569.pdf" target="_blank" rel="noopener noreferrer">บริการ LTC และวิธีประเมินจาก สปสช.</a></li><li><a href="https://webportal.bangkok.go.th/phn/page/sub/25593/%E0%B8%82%E0%B9%88%E0%B8%B2%E0%B8%A7%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%8A%E0%B8%B2%E0%B8%AA%E0%B8%B1%E0%B8%A1%E0%B8%9E%E0%B8%B1%E0%B8%99%E0%B8%98%E0%B9%8C/0/info/373481/%E0%B8%84%E0%B8%B9%E0%B9%88%E0%B8%A1%E0%B8%B7%E0%B8%AD%E0%B8%9C%E0%B8%B9%E0%B9%89%E0%B9%83%E0%B8%8A%E0%B9%89%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%A3%E0%B8%B0%E0%B8%9A%E0%B8%9A%E0%B8%AB%E0%B8%A5%E0%B8%B1%E0%B8%87%E0%B8%9A%E0%B9%89%E0%B8%B2%E0%B8%99_Bangkok-PORTAL.pdf" target="_blank" rel="noopener noreferrer">การดำเนินงาน LTC ใน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="senior-home" data-groups="senior" data-scope="national">
+              <th class="benefit" scope="row">ขอปรับปรุงบ้านให้ปลอดภัยสำหรับผู้สูงอายุ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ช่วยปรับสภาพบ้านตามการประเมินและงบของโครงการ</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">ความช่วยเหลือ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้สูงอายุฐานะยากลำบากหรือรายได้ไม่พอ บ้านมีความเสี่ยงหรือไม่เหมาะกับการดำรงชีวิต เมื่อเจ้าของบ้านเป็นบุคคลอื่นต้องใช้หนังสือยินยอมตามเกณฑ์</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">เริ่มสอบถามฝ่ายพัฒนาชุมชนและสวัสดิการสังคมสำนักงานเขตใน กทม. เพื่อประสานหน่วยรับเรื่อง หรือสอบถามกรมกิจการผู้สูงอายุ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ทะเบียนบ้าน รูปส่วนที่ต้องซ่อม แบบคำขอ และหลักฐานสิทธิหรือความยินยอมของเจ้าของบ้าน</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://info.go.th/procedure/9abc22c5-26f2-45b9-891a-0ffbc3c7409f/view" target="_blank" rel="noopener noreferrer">คู่มือขอปรับสภาพบ้านผู้สูงอายุ</a></li><li><a href="https://www.dop.go.th/th/laws/2/11/850" target="_blank" rel="noopener noreferrer">ระเบียบกรมกิจการผู้สูงอายุ</a></li></ul></td>
+            </tr>
+            <tr id="senior-hardship" data-groups="senior" data-scope="national">
+              <th class="benefit" scope="row">ขอสงเคราะห์ผู้สูงอายุในภาวะยากลำบาก</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>รูปแบบและวงเงินตามหลักเกณฑ์และการประเมินรายกรณี</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">ความช่วยเหลือ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้สูงอายุประสบความเดือดร้อนด้านการดำรงชีพ ถูกทอดทิ้ง หรือขาดคนดูแล เจ้าหน้าที่ประเมินข้อเท็จจริงและความจำเป็น</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">แจ้งศูนย์ช่วยเหลือสังคม 1300 เพื่อประสานหน่วยช่วยเหลือในกรุงเทพฯ หรือเริ่มที่ฝ่ายพัฒนาชุมชนและสวัสดิการสังคมสำนักงานเขต</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ข้อมูลที่อยู่ และรายละเอียดปัญหาที่ต้องการความช่วยเหลือ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.dop.go.th/th/service_information/1/7" target="_blank" rel="noopener noreferrer">คู่มือสงเคราะห์ผู้สูงอายุของกรมกิจการผู้สูงอายุ</a></li><li><a href="https://www.dop.go.th/download/knowledge/th1640743978-1031_0.pdf" target="_blank" rel="noopener noreferrer">ขั้นตอนประเมินและประสานความช่วยเหลือ</a></li></ul></td>
+            </tr>
+            <tr id="senior-funeral" data-groups="senior" data-scope="bma">
+              <th class="benefit" scope="row">เงินสงเคราะห์ค่าจัดการศพผู้สูงอายุ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>3,000 บาทต่อรายเมื่อผ่านเกณฑ์และได้รับอนุมัติ</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">บริการใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้รับผิดชอบจัดการศพของผู้สูงอายุที่เข้าเกณฑ์สวัสดิการแห่งรัฐหรือมีหนังสือรับรองตามระเบียบ ยื่นภายใน 6 เดือนนับจากวันออกใบมรณบัตร</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ยื่นฝ่ายพัฒนาชุมชนและสวัสดิการสังคมสำนักงานเขตตามทะเบียนบ้านของผู้เสียชีวิตหรือพื้นที่ที่คู่มือ กทม. ระบุ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">ใบมรณบัตร บัตรประชาชนผู้ยื่น แบบ ศผส. 01 สมุดบัญชี และแบบ ศผส. 02 เมื่อเข้ากรณี</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://gov.bangkok.go.th/ServiceDetail?id=7962fb49-133f-4c52-a942-57a34f67a9b2" target="_blank" rel="noopener noreferrer">คู่มือยื่นคำขอในกรุงเทพฯ</a></li><li><a href="https://www.dop.go.th/th/news/1/5575" target="_blank" rel="noopener noreferrer">อัตราและเงื่อนไขจากกรมกิจการผู้สูงอายุ</a></li></ul></td>
+            </tr>
+            <tr id="senior-loan" data-groups="senior" data-scope="national">
+              <th class="benefit" scope="row">กู้เงินประกอบอาชีพจากกองทุนผู้สูงอายุ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>เงินกู้ตามวงเงินอนุมัติ ผู้กู้ต้องชำระคืน</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">งานและอาชีพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้มีอายุ 60 ปีบริบูรณ์ขึ้นไปที่มีแผนประกอบอาชีพและผ่านเกณฑ์ความสามารถในการชำระคืนและการค้ำประกัน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ใช้ช่องทางของกองทุนผู้สูงอายุ เลือกกรุงเทพฯ หรือสอบถามจุดรับคำขอจากกองทุนก่อนเดินทาง</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ทะเบียนบ้าน รายละเอียดอาชีพและผู้ค้ำประกันตามคู่มือ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.dop.go.th/th/know/5/2526" target="_blank" rel="noopener noreferrer">คู่มือกู้รายบุคคลจากกรมกิจการผู้สูงอายุ</a></li></ul></td>
+            </tr>
+            <tr id="disability-card" data-groups="disabled" data-scope="national">
+              <th class="benefit" scope="row">ทำหรือขอต่อบัตรประจำตัวคนพิการ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>บริการออกบัตรตามเกณฑ์ พก.</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เอกสารและตรวจสิทธิ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">คนไทยที่มีความพิการตามเกณฑ์ กรณียื่นแทนใช้เอกสารของผู้ยื่นแทนตามคู่มือ</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ศูนย์บริการคนพิการกรุงเทพมหานคร ถนนราชวิถี เขตราชเทวี หรือจุดรับคำขอในคู่มือ โทร 1479</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน ทะเบียนบ้าน เอกสารรับรองความพิการเมื่อเกณฑ์กำหนด และหลักฐานของผู้ยื่นแทนถ้ามี</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://info.go.th/procedure/94e56d15-b4a6-49d7-be20-a424a3525798/view" target="_blank" rel="noopener noreferrer">คู่มือทำบัตรและจุดบริการในกรุงเทพฯ</a></li></ul></td>
+            </tr>
+            <tr id="disability-allowance" data-groups="disabled" data-scope="bma">
+              <th class="benefit" scope="row">เบี้ยความพิการ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>อายุ 18 ปีขึ้นไป 800 บาทต่อเดือน อายุต่ำกว่า 18 ปี 1,000 บาทต่อเดือน เงินเพิ่ม 200 บาทสำหรับผู้ใหญ่ที่เข้าเงื่อนไขสวัสดิการแห่งรัฐ</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">บริการใน กทม.<span class="kind">เงิน</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">มีบัตรประจำตัวคนพิการและทะเบียนบ้านในกรุงเทพฯ ตรวจเงื่อนไขสถานสงเคราะห์และสิทธิประกอบกับสำนักงานเขต</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ยื่นฝ่ายพัฒนาชุมชนและสวัสดิการสังคมสำนักงานเขตตามทะเบียนบ้าน หรือใช้ช่องทาง BMA OSS ที่คู่มือระบุ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรคนพิการ บัตรประชาชน ทะเบียนบ้าน สมุดบัญชีกรณีรับโอน และหลักฐานมอบอำนาจถ้ามี</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://gov.bangkok.go.th/ServiceDetail?id=31d48bd3-6f27-4ffb-9063-03b2e2093083" target="_blank" rel="noopener noreferrer">คู่มือเบี้ยความพิการ กทม.</a></li><li><a href="https://webportal.bangkok.go.th/user_files/356/1705551080623be3389877f2.17275348.pdf" target="_blank" rel="noopener noreferrer">อัตราอ้างอิงจากคู่มือหน่วยงาน กทม.</a></li><li><a href="https://narathiwat.prd.go.th/th/content/category/detail/id/9/iid/561754" target="_blank" rel="noopener noreferrer">อัตราและเงินเพิ่มจากกรมประชาสัมพันธ์</a></li></ul></td>
+            </tr>
+            <tr id="disability-rehab" data-groups="disabled" data-scope="national">
+              <th class="benefit" scope="row">ฟื้นฟูและขอกายอุปกรณ์ตามสิทธิบัตรทอง ท.74</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>กายอุปกรณ์และบริการฟื้นฟูตามสิทธิและการประเมินของแพทย์</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">สุขภาพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้ขึ้นทะเบียนคนพิการกับ พก. และใช้สิทธิบัตรทองประเภท ท.74 ขอให้หน่วยบริการตรวจสิทธิและประเมินความจำเป็นของอุปกรณ์</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ติดต่อหน่วยบริการใน กทม. ตามสิทธิ หรือโทร สปสช. 1330 เพื่อเช็กสิทธิและจุดบริการ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน บัตรคนพิการ เอกสารทางการแพทย์หรือใบส่งต่อตามที่หน่วยบริการขอ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://media.nhso.go.th/assets/portals/1/files/UC_69_final.pdf" target="_blank" rel="noopener noreferrer">คู่มือสิทธิบัตรทอง สปสช. 2569</a></li><li><a href="https://healthmap.bangkok.go.th/" target="_blank" rel="noopener noreferrer">แผนที่หน่วยบริการสุขภาพใน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="disability-employment" data-groups="disabled work" data-scope="national">
+              <th class="benefit" scope="row">สมัครงานสำหรับคนพิการตามมาตรา 33</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้พิการ</span><span class="tag">คนตกงาน</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>ค่าจ้างตามสัญญาจ้างและกฎหมายแรงงาน</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">งานและอาชีพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">คนพิการที่สนใจทำงานกับหน่วยงานหรือนายจ้าง สมัครตามคุณสมบัติของตำแหน่งงานและระบบจัดหางาน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">สำนักงานจัดหางานกรุงเทพมหานครพื้นที่ 1–10 จับคู่งานหรือแนะนำช่องทางสมัคร โทร 1694</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชน บัตรคนพิการ ประวัติย่อ และใบรับรองทักษะตามตำแหน่ง</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://lb.mol.go.th/%E0%B8%84%E0%B8%99%E0%B8%AB%E0%B8%B2%E0%B8%87%E0%B8%B2%E0%B8%99-%E0%B8%84%E0%B8%99%E0%B8%A7%E0%B9%88%E0%B8%B2%E0%B8%87%E0%B8%87%E0%B8%B2%E0%B8%99/%E0%B8%87%E0%B8%B2%E0%B8%99%E0%B8%AA%E0%B8%B3%E0%B8%AB%E0%B8%A3%E0%B8%B1%E0%B8%9A%E0%B8%84%E0%B8%99%E0%B8%9E%E0%B8%B4%E0%B8%81%E0%B8%B2%E0%B8%A3/%E0%B8%82%E0%B9%89%E0%B8%AD%E0%B8%A1%E0%B8%B9%E0%B8%A5%E0%B9%80%E0%B8%81%E0%B8%B5%E0%B9%88%E0%B8%A2%E0%B8%A7%E0%B8%81%E0%B8%B1%E0%B8%9A%E0%B8%84%E0%B8%99%E0%B8%9E%E0%B8%B4%E0%B8%81%E0%B8%B2%E0%B8%A3/" target="_blank" rel="noopener noreferrer">วิธีรับบริการจัดหางานคนพิการ กระทรวงแรงงาน</a></li><li><a href="https://www.doe.go.th/prd/assets/upload/files/vgnew_th/a1c0ab775756316bbea6aacb64d8b8f6.pdf" target="_blank" rel="noopener noreferrer">รายชื่อสำนักงานจัดหางานและพื้นที่รับผิดชอบ</a></li></ul></td>
+            </tr>
+            <tr id="disability-section-35" data-groups="disabled" data-scope="national">
+              <th class="benefit" scope="row">ขอรับการส่งเสริมอาชีพตามมาตรา 35</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>รูปแบบสนับสนุนตามข้อตกลงและสิทธิที่อนุมัติ</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">งานและอาชีพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">คนพิการหรือผู้ดูแลที่เข้าเกณฑ์อาจขอรับการส่งเสริมอาชีพ เช่น ฝึกงาน พื้นที่จำหน่ายสินค้า หรืออุปกรณ์ ตรวจคุณสมบัติและรอบที่เปิดกับกรมการจัดหางาน</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">สอบถามสำนักงานจัดหางานกรุงเทพมหานครพื้นที่ 1–10 ตามภูมิลำเนาหรือช่องทาง e-Service ที่กรมประกาศ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรคนพิการ บัตรประชาชน เอกสารแสดงการเป็นผู้ดูแลหากยื่นในฐานะผู้ดูแล และเอกสารตามรูปแบบที่ขอ</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://hrm.mol.go.th/wp-content/uploads/sites/3/2020/07/%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%AA%E0%B9%88%E0%B8%87%E0%B9%80%E0%B8%AA%E0%B8%A3%E0%B8%B4%E0%B8%A1%E0%B9%81%E0%B8%A5%E0%B8%B0%E0%B8%9E%E0%B8%B1%E0%B8%92%E0%B8%99%E0%B8%B2%E0%B8%84%E0%B8%B8%E0%B8%93%E0%B8%A0%E0%B8%B2%E0%B8%9E%E0%B8%8A%E0%B8%B5%E0%B8%A7%E0%B8%B4%E0%B8%95%E0%B8%84%E0%B8%99%E0%B8%9E%E0%B8%B4%E0%B8%81%E0%B8%B2%E0%B8%A3.pdf" target="_blank" rel="noopener noreferrer">หลักเกณฑ์และการติดต่อใน กทม. กระทรวงแรงงาน</a></li><li><a href="https://www.doe.go.th/prd/main/news/param/site/1/cat/7/sub/0/pull/detail/view/detail/object_id/75313" target="_blank" rel="noopener noreferrer">ช่องทาง e-Service ของกรมการจัดหางาน</a></li></ul></td>
+            </tr>
+            <tr id="disability-loan" data-groups="disabled" data-scope="national">
+              <th class="benefit" scope="row">กู้เงินประกอบอาชีพจากกองทุนคนพิการ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>วงเงินรายบุคคลปกติไม่เกิน 60,000 บาท วงเงินสูงกว่าพิจารณาตามระเบียบ ผู้กู้ต้องชำระคืน</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">งานและอาชีพ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">คนพิการหรือผู้ดูแลที่เข้าเกณฑ์ มีแผนประกอบอาชีพ ความสามารถชำระคืน และหลักฐานตามระเบียบ</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ยื่นผ่านระบบ e-Fund ของ พก. หรือสอบถามกองทุนคนพิการเรื่องจุดรับคำขอในกรุงเทพฯ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรคนพิการ บัตรประชาชน รายละเอียดกิจการ หลักฐานรายได้ และเอกสารผู้ค้ำประกันตามกรณี</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://dfund.dep.go.th/?p=2189" target="_blank" rel="noopener noreferrer">หลักเกณฑ์วงเงินและการกู้ยืม</a></li><li><a href="https://efund.dep.go.th/selfPetition.do?loanType=2&amp;ms=1635059350013" target="_blank" rel="noopener noreferrer">แบบยื่นคำขอ e-Fund</a></li></ul></td>
+            </tr>
+            <tr id="health-check" data-groups="work senior disabled" data-scope="national">
+              <th class="benefit" scope="row">ตรวจสิทธิรักษาพยาบาลและขอลงทะเบียนบัตรทอง</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span><span class="tag">ผู้สูงอายุ</span><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>บริการตรวจสิทธิและลงทะเบียนตามหลักเกณฑ์</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เอกสารและตรวจสิทธิ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ตรวจสถานะสิทธิหลักก่อน หากสิทธิเดิมสิ้นสุดและเข้าเกณฑ์บัตรทองจึงเลือกรับบริการกับหน่วยบริการในระบบ</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">โทร สปสช. 1330 ใช้ช่องทางในคู่มือบัตรทอง หรือสอบถาม สปสช. เขตกรุงเทพมหานครและหน่วยบริการใกล้บ้าน</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัตรประชาชนและหลักฐานที่อยู่จริงกรณีลงทะเบียนหรือเปลี่ยนหน่วยบริการตามที่กำหนด</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://media.nhso.go.th/assets/portals/1/files/UC_69_final.pdf" target="_blank" rel="noopener noreferrer">คู่มือสิทธิบัตรทอง สปสช. 2569</a></li><li><a href="https://healthmap.bangkok.go.th/" target="_blank" rel="noopener noreferrer">แผนที่หน่วยบริการสุขภาพใน กทม.</a></li></ul></td>
+            </tr>
+            <tr id="allowance-check" data-groups="senior disabled" data-scope="national">
+              <th class="benefit" scope="row">เช็กเบี้ยและสถานะการโอนผ่านทางรัฐ</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">ผู้สูงอายุ</span><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>แสดงข้อมูลสิทธิหรือสถานะจากหน่วยงานตามที่ระบบมี</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">เอกสารและตรวจสิทธิ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้ที่ยืนยันตัวตนในแอปทางรัฐสามารถตรวจข้อมูลเบี้ยที่เชื่อมจากหน่วยงาน การยื่นขอรับครั้งแรกและแก้ข้อมูลทะเบียนบ้านให้ประสานสำนักงานเขต</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">ใช้แอปทางรัฐ หากข้อมูลไม่ตรงให้ติดต่อสำนักงานเขตที่ดูแลเบี้ยในกรุงเทพฯ</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">บัญชีทางรัฐที่ยืนยันตัวตนแล้ว</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://www.dga.or.th/document-sharing/dga-channel/101204/" target="_blank" rel="noopener noreferrer">วิธีตรวจเบี้ยผ่านทางรัฐจาก สพร.</a></li></ul></td>
+            </tr>
+            <tr id="social-hotline" data-groups="work senior disabled" data-scope="national">
+              <th class="benefit" scope="row">ขอความช่วยเหลือเมื่อขาดที่อยู่หรือผู้ดูแล</th>
+              <td class="group" data-label="กลุ่ม"><div class="tags"><span class="tag">คนตกงาน</span><span class="tag">ผู้สูงอายุ</span><span class="tag">ผู้พิการ</span></div></td>
+              <td class="amount" data-label="เงินหรือค่าใช้จ่าย"><strong>บริการรับเรื่อง ประเมิน และส่งต่อ</strong></td>
+              <td class="scope" data-label="ขอบเขตบริการ">ระดับประเทศ · ใช้ใน กทม.<span class="kind">ความช่วยเหลือ</span></td>
+              <td class="eligibility" data-label="ใครใช้ได้">ผู้ประสบปัญหาสังคม เช่น ถูกทอดทิ้ง ไร้ที่พึ่ง หรือมีปัญหาการดูแล สามารถขอให้เจ้าหน้าที่ประเมินความช่วยเหลือได้</td>
+              <td class="contact" data-label="ติดต่อในกรุงเทพฯ">โทรศูนย์ช่วยเหลือสังคม 1300 ตลอด 24 ชั่วโมง แจ้งเขตและจุดที่พักในกรุงเทพฯ เพื่อประสานหน่วยรับเรื่อง</td>
+              <td class="documents" data-label="เอกสารที่ควรเตรียม">ข้อมูลติดต่อ พิกัดหรือสถานที่ที่พบ และรายละเอียดความเดือดร้อนเบื้องต้น</td>
+              <td class="sources" data-label="แหล่งอ้างอิง"><ul class="sources-list"><li><a href="https://1300thailand.m-society.go.th/" target="_blank" rel="noopener noreferrer">ศูนย์ช่วยเหลือสังคมและช่องทางแจ้งเหตุของ พม.</a></li></ul></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <footer>
+      <p class="note">จำนวนเงินในตารางเป็นอัตราหรือกรอบตามแหล่งอ้างอิง การอนุมัติและยอดเฉพาะรายขึ้นกับผู้รับผิดชอบแต่ละสิทธิ</p>
+      <a href="bangkok-benefits-2026-11-27.md">เปิดรายงานฉบับ Markdown</a>
+    </footer>
+  </main>
+  <script>
+    const filters = document.querySelector('#filters');
+    const query = document.querySelector('#query');
+    const group = document.querySelector('#group');
+    const scope = document.querySelector('#scope');
+    const count = document.querySelector('#result-count');
+    const empty = document.querySelector('#empty');
+    const normalize = text => text.normalize('NFC').toLocaleLowerCase('th');
+    const rows = Array.from(document.querySelectorAll('tbody tr'), element => ({
+      element,
+      groups: element.dataset.groups.split(' '),
+      scope: element.dataset.scope,
+      text: normalize(element.textContent),
+    }));
+
+    function updateResults() {
+      const terms = normalize(query.value.trim()).split(/\s+/).filter(Boolean);
+      let visible = 0;
+      for (const row of rows) {
+        const matchesGroup = !group.value || row.groups.includes(group.value);
+        const matchesScope = !scope.value || row.scope === scope.value;
+        row.element.hidden = !(matchesGroup && matchesScope && terms.every(term => row.text.includes(term)));
+        if (!row.element.hidden) visible++;
+      }
+      count.textContent = 'แสดง ' + visible + ' จาก ' + rows.length + ' รายการ';
+      empty.hidden = visible > 0;
+    }
+
+    filters.addEventListener('submit', event => {
+      event.preventDefault();
+      updateResults();
+    });
+    filters.addEventListener('input', updateResults);
+    filters.addEventListener('change', updateResults);
+    filters.addEventListener('reset', () => requestAnimationFrame(updateResults));
+    for (const shortcut of document.querySelectorAll('.quick-links a')) {
+      shortcut.addEventListener('click', () => {
+        filters.reset();
+        updateResults();
+      });
+    }
+    filters.hidden = false;
+    updateResults();
+  </script>
+</body>
+</html>
