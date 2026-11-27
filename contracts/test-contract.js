@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 // Tests always use the memory store and no AI log, whatever the shell has set.
 delete process.env.DATA_FILE; delete process.env.AI_LOG_FILE; delete process.env.AI_DAILY_LIMIT; delete process.env.RETENTION_DAYS;
+delete process.env.APP_MODE;
 const SwaggerParser = require('@apidevtools/swagger-parser');
 const Ajv = require('ajv');
 const addFormats = require('ajv-formats');
@@ -183,6 +184,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('suspicious hidden by default and counted', all.data.items.every(o => !o.suspicious) && all.data.hiddenSuspicious === 1);
   check('every item has a source URL and a data status', all.data.items.every(o => /^https?:\/\//.test(o.provenance.sourceUrl) && o.provenance.dataStatus));
   check('pins only for exact precision with coordinates', all.data.items.every(o => o.location.precision !== 'exact' || (typeof o.location.lat === 'number' && typeof o.location.distanceKm === 'number')));
+  check('legacy fixtures never claim database coordinate evidence', all.data.items.every(o => o.location.coordinateSource === undefined));
   check('X-Total-Count header', all.headers.get('x-total-count') === String(all.data.items.length));
   const near = await call('searchOpportunities', { query: { radiusKm: 1 } });
   check('radius filter narrows located items', near.data.items.filter(o => o.location.precision === 'exact').every(o => o.location.distanceKm <= 1) && near.data.items.length < all.data.items.length);
@@ -324,12 +326,17 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('goal plan: with no skills known, only options that need no special skill (no tutoring jobs or skill ideas)', noSkill.parts.filter(p => p.kind !== 'benefit').every(p => !p.matched.length && p.kind !== 'skill') && !noSkill.parts.some(p => /ติว|สอน/.test(p.title)));
 
   // Tasks
-  const task = await call('createTask', { body: { opportunityId: 'mock_j1' }, expect: 201 });
-  const again = await call('createTask', { body: { opportunityId: 'mock_j1' }, expect: 201 });
-  check('saving the same opportunity twice does not duplicate', again.data.id === task.data.id);
+  const task = await call('createTask', { body: { opportunityId: 'mock_j1', districtCode: '1047' }, expect: 201 });
+  const again = await call('createTask', { body: { opportunityId: 'mock_j1', districtCode: '1033' }, expect: 201 });
+  check('saving the same opportunity from another district reuses the task and its original context',
+    again.data.id === task.data.id && again.data.districtCode === '1047');
   await call('createTask', { body: { opportunityId: 'nope' }, expect: 404 });
   const id = task.data.id;
   await call('getTask', { params: { id }, expect: 200 });
+  const saved = (await call('listTasks', { query: { status: 'active' } })).data.items.find(t => t.id === id);
+  const source = (await call('getOpportunity', { params: { id: 'mock_j1' } })).data;
+  check('task list reads the category from the legacy catalogue without SQLite',
+    saved?.category === source.category && saved.districtCode === '1047');
   await call('createTaskEvent', { params: { id }, body: { type: 'undo' }, expect: 409 });
   const k = { 'Idempotency-Key': 'tap-1' };
   const e1 = await call('createTaskEvent', { params: { id }, body: { type: 'complete_step' }, headers: k, expect: 201 });
@@ -390,13 +397,20 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   // Integrations (inbound)
   await call('upsertOpportunitiesBatch', { body: { provider: 'curated', items: [] }, expect: 401 });
   const batch = await partner('upsertOpportunitiesBatch', { body: { provider: 'curated', dataStatus: 'curated', attribution: 'ทีมคัดเอง', items: [
-    { externalId: 'c1', title: 'งานช่วยร้านกาแฟ (curated ทดสอบ)', category: 'job_part', mapGroup: 'job', money: { basis: 'listing', min: 350, max: 400, unit: 'บาท/วัน' }, location: { precision: 'exact', text: 'ทดสอบ', lat: 13.7466, lng: 100.5347 }, sourceUrl: 'https://example.org/curated/c1' },
+    { externalId: 'c1', title: 'งานช่วยร้านกาแฟ (curated ทดสอบ)', category: 'job_part', mapGroup: 'job', money: { basis: 'listing', min: 350, max: 400, unit: 'บาท/วัน' }, location: { precision: 'exact', text: 'ทดสอบ', lat: 13.7466, lng: 100.5347 }, sourceUrl: 'https://example.org/curated/c1',
+      summary: 'งานร้านกาแฟกะเช้า', job: { shift: 'เช้า' }, documents: ['ประวัติการทำงาน'],
+      locations: [{ districtCode: '1047', districtName: 'บางนา', precision: 'city' }],
+      contacts: [{ purpose: 'apply', type: 'website', label: 'ฝ่ายบุคคล', destination: 'https://agency.test/apply', districtCode: '1047' }] },
     { externalId: 'c2', title: 'ไม่มีลิงก์', category: 'job_part', mapGroup: 'job', money: { basis: 'none' } },
     { externalId: 'c3', title: 'exact ไม่มีพิกัด', category: 'job_part', mapGroup: 'job', money: { basis: 'none' }, location: { precision: 'exact' }, sourceUrl: 'https://example.org/c3' }
   ] }, expect: 200 });
   check('batch accepts valid rows and rejects rows without link or coordinates', batch.data.accepted === 1 && batch.data.rejected.length === 2);
   const found = await call('searchOpportunities', { query: { q: 'ร้านกาแฟ' } });
   check('ingested item is searchable with curated status', found.data.items.length === 1 && found.data.items[0].provenance.dataStatus === 'curated');
+  const planSource = (await call('getOpportunity', { params: { id: 'curated_c1' } })).data;
+  check('detail preserves source-backed plan sections, typed contact and district context',
+    planSource.job.shift === 'เช้า' && planSource.documents[0] === 'ประวัติการทำงาน'
+    && planSource.contacts[0].destination === 'https://agency.test/apply' && planSource.locations[0].districtCode === '1047');
   const dupRow = { externalId: 'z9', title: 'งานช่วยร้านกาแฟ', category: 'job_part', mapGroup: 'job', money: { basis: 'none' }, sourceUrl: 'https://example.org/other/z9' };
   const dup = await partner('upsertOpportunitiesBatch', { body: { provider: 'partner2', items: [dupRow, { ...dupRow, externalId: 'z10', title: 'งานใหม่ไม่ซ้ำ', sourceUrl: 'https://broken.test/z10' }] }, expect: 200 });
   check('same title from another source is merged, not duplicated (A10)', dup.data.accepted === 1 && dup.data.merged.length === 1 && dup.data.merged[0].existingId === 'curated_c1'
@@ -433,6 +447,23 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const savedAfterPreview = await demo('getProfile');
   check('viewing mock sources keeps the saved profile', savedAfterPreview.data.displayName === dp.data.profile.displayName);
   await demo('previewDemoProfile', { params: { id: 'p1' }, expect: 404 });
+  const limitedPreview = await noDevice('previewDemoProfile', { params: { id: 'gov-prefill' }, query: { sources: ['tangRat', 'dMyTax'] }, expect: 200 });
+  check('partial demo preview supports sources independent of ThaID', !limitedPreview.data.identity
+    && limitedPreview.data.sources.map(s => s.label).join(',') === 'ทางรัฐ,D-MyTax');
+  const emptyPreview = await noDevice('previewDemoProfile', { params: { id: 'gov-prefill' }, query: { sources: '' }, expect: 200 });
+  check('explicit empty source selection returns an empty synthetic profile', !emptyPreview.data.identity && emptyPreview.data.sources.length === 0);
+  await demo('loadDemoPersona', { params: { id: 'gov-prefill' }, query: { sources: 'unknown' }, expect: 400 });
+  check('a rejected selection leaves the current profile alone', (await demo('getProfile')).data.displayName === dp.data.profile.displayName);
+
+  const sourcePlans = client(base, { 'X-Device-Id': 'device-demo-source-plan' });
+  await sourcePlans('loadDemoPersona', { params: { id: 'gov-prefill' }, expect: 200 });
+  const sourcePlan = await sourcePlans('createTask', { body: { moneyId: 'old_age' }, expect: 201 });
+  await sourcePlans('createTaskEvent', { params: { id: sourcePlan.data.id }, body: { type: 'complete_step' }, expect: 201 });
+  const reduced = await sourcePlans('loadDemoPersona', { params: { id: 'gov-prefill' }, query: { sources: 'dMyTax', keepPlans: true }, expect: 200 });
+  const keptSourcePlan = await sourcePlans('getTask', { params: { id: sourcePlan.data.id }, expect: 200 });
+  check('switching demo sources refreshes imported facts and keeps saved plan progress', reduced.data.taskCount === 1
+    && reduced.data.facts.taxWithheld === true && reduced.data.facts.ageBand === undefined
+    && !reduced.data.identity && keptSourcePlan.data.doneCount === 1);
 
   const taxPlans = client(base, { 'X-Device-Id': 'device-dmytax-plan-scenario' });
   await taxPlans('loadDemoPersona', { params: { id: 'dmytax-after' }, expect: 200 });
@@ -465,6 +496,30 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('health shows store, layout, retention, notifier, AI limit and job states', h2.data.store === 'memory' && h2.data.storeLayout === 2 && h2.data.retention.days === 0 && h2.data.retention.mode === 'archive' && h2.data.notifier === 'mock' && h2.data.aiDailyLimit === 50 && h2.data.jobs.some(j => j.name === 'link_check' && j.lastRunAt));
   server.close();
 
+  const userServer = createServer({ appMode: 'user', govConnected: true, demo: true, jobs: false });
+  try {
+    const user = client(await listen(userServer), { 'X-Device-Id': 'device-user-0001' });
+    const userConfig = await user('getAppConfig', { headers: { 'If-None-Match': cfg.headers.get('etag') }, expect: 200 });
+    check('user config reports provider access required and overrides demo flags',
+      userConfig.data.mode === 'user' && userConfig.data.governmentConnections.thaid === 'approval_required'
+      && userConfig.data.governmentConnections.tangRat === 'access_required'
+      && userConfig.data.featureFlags.govConnected === false && userConfig.data.featureFlags.demo === false);
+    const userNotice = await user('getPrivacyNotice', { expect: 200 });
+    check('user mode does not request consent for an unavailable provider', !userNotice.data.purposes.some(p => p.id === 'gov'));
+    const govCalls = [
+      await user('getGovLink', { expect: 404 }),
+      await user('startGovLink', { expect: 404 }),
+      await user('finishGovLink', { body: { state: 'demo', code: 'demo-bypass' }, expect: 404 }),
+      await user('deleteGovLink', { expect: 404 }),
+    ];
+    check('user mode blocks every mock ThaID endpoint', govCalls.every(r => r.data.code === 'FEATURE_DISABLED'));
+    await user('previewDemoProfile', { params: { id: 'gov-prefill' }, expect: 404 });
+    await user('loadDemoPersona', { params: { id: 'gov-prefill' }, expect: 404 });
+    check('personal profile remains empty after demo load is blocked', (await user('getProfile', { expect: 404 })).data.code === 'NOT_FOUND');
+  } finally {
+    userServer.close();
+  }
+
   // ================= Persistence: a restart keeps device data (B1) =================
   const dataFile = path.join(os.tmpdir(), 'ma-test-' + process.pid + '.json');
   if (fs.existsSync(dataFile)) fs.unlinkSync(dataFile);
@@ -488,6 +543,13 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   // A layout 1 file (written by API 0.10 and older) still loads.
   const { unpackDevice } = require('./adapters/store');
   fs.writeFileSync(dataFile, JSON.stringify({ version: 1, devices: [unpackDevice(rec)] }));
+  let rejectedDemoData = false;
+  try {
+    createServer({ appMode: 'user', dataFile, jobs: false });
+  } catch (e) {
+    rejectedDemoData = e.message === 'DATA_FILE belongs to a different APP_MODE';
+  }
+  check('user mode does not open a legacy demo store', rejectedDemoData);
   const ps3 = createServer({ dataFile, jobs: false }); const pb3 = await listen(ps3);
   check('file store reads layout 1 files', (await client(pb3, { 'X-Device-Id': 'device-pers-0001' })('getProfile', { expect: 200 })).data.district === 'บางกะปิ');
   ps3.close(); fs.unlinkSync(dataFile);
@@ -781,7 +843,8 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     const listings = await jobClient('searchOpportunities', { query: jobQuery, expect: 200 });
     check('SQLite search and detail use the row from disk and keep the mock label', listings.data.items.length === 1
       && listings.data.items[0].id === detail.data.id && detail.data.title === 'SQLite ประกาศแม่บ้านสำหรับทดสอบ'
-      && detail.data.provenance.dataStatus === 'mock' && detail.data.provenance.attribution.includes('DEMO / MOCK'));
+      && detail.data.provenance.dataStatus === 'mock' && detail.data.provenance.attribution.includes('DEMO / MOCK')
+      && detail.data.location.coordinateSource === undefined);
     const page1 = await jobClient('searchOpportunities', { query: { group: 'job', radiusKm: 50, sort: 'money', limit: 1 }, expect: 200 });
     const page2 = await jobClient('searchOpportunities', { query: { group: 'job', radiusKm: 50, sort: 'money', limit: 1, cursor: page1.data.nextCursor }, expect: 200 });
     check('SQLite search keeps mobile pagination', Boolean(page1.data.nextCursor) && page1.data.items[0]?.id !== page2.data.items[0]?.id);
@@ -871,12 +934,43 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     } finally {
       sql.close();
     }
+    await jobClient('createConsent', { body: consentBody({ core: true }), expect: 201 });
+    const savedJob = (await jobClient('createTask', { body: { opportunityId: 'fixture_b_b1' }, expect: 201 })).data;
     await jobPartner('receiveWebhook', { params: { provider: 'fixture_b' }, body: { event: 'opportunity.closed', externalId: 'b1' }, expect: 202 });
     await jobClient('getOpportunity', { params: { id: 'fixture_b_b1' }, expect: 404 });
+    const archived = (await jobClient('getOpportunity', { params: { id: 'fixture_b_b1' }, query: { includeClosed: true } })).data;
+    await jobClient('getOpportunity', { params: { id: 'fixture_review_a1' }, query: { includeClosed: true }, expect: 404 });
+    check('a saved plan can read a closed SQLite source without exposing unreviewed jobs',
+      archived.status === 'closed' && archived.id === 'fixture_b_b1' && archived.provenance.sourceUrl.endsWith('#apply'));
+    const listedJob = (await jobClient('listTasks')).data.items.find(t => t.id === savedJob.id);
+    check('task list keeps the category for a job closed in SQLite', listedJob?.category === archived.category);
     const listed = (await jobClient('listSources')).data.items;
     check('SQLite source state tracks partner pushes and batches do not remove other sources',
       listed.some(source => source.provider === 'fixture_a' && source.state === 'ok' && source.itemCount === 1)
       && listed.some(source => source.provider === 'mock_doe' && source.itemCount === 26));
+
+    const bangNa = { precision: 'exact', lat: 13.66, lng: 100.60, province: 'กรุงเทพมหานคร', district: 'เขตบางนา', workMode: 'onsite' };
+    const scopedJob = (externalId, location) => ({ ...firstListing, externalId, location,
+      title: `งานประจำทดสอบพิกัด ${externalId}`, category: 'job_full', sourceUrl: `https://example.org/jobs/${externalId}` });
+    await sendJobs('fixture_review', [
+      scopedJob('exact', bangNa),
+      scopedJob('district-only', { precision: 'city', province: 'กรุงเทพมหานคร', district: 'บางนา' }),
+      scopedJob('remote', { ...bangNa, workMode: 'remote' }),
+    ]);
+    const reviewed = new DatabaseSync(jobDbFile);
+    try {
+      reviewed.prepare("UPDATE job_posting SET status = 'active' WHERE id IN (?, ?, ?)").run(
+        'fixture_review_exact', 'fixture_review_district-only', 'fixture_review_remote');
+    } finally {
+      reviewed.close();
+    }
+    const scoped = (await jobClient('searchOpportunities', { query: {
+      area: 'bangkok', districtCode: '1047', district: 'บางนา', category: 'job_full', q: 'งานประจำทดสอบพิกัด', radiusKm: 1,
+    } })).data.items;
+    const exact = (await jobClient('getOpportunity', { params: { id: 'fixture_review_exact' } })).data;
+    check('Bangkok district results retain database jobs with and without coordinates and only exact onsite rows get evidence',
+      scoped.length === 3 && scoped.filter(o => o.location.coordinateSource === 'database').map(o => o.id).join() === exact.id
+      && exact.location.coordinateSource === 'database' && exact.location.lat === bangNa.lat);
     await new Promise(resolve => jobServer.close(resolve));
 
     seedDemoJobs(jobDbFile);
@@ -901,16 +995,22 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     jobServer = createServer({ jobDbFile, jobs: false, demo: true });
     const mockBase = await listen(jobServer);
     const bangkokClient = client(mockBase, { 'X-Device-Id': 'device-bangkok-mock' });
-    const bangNa = (await bangkokClient('searchOpportunities', {
+    const bangNaGrants = (await bangkokClient('searchOpportunities', {
       query: { district: 'บางนา', category: 'grant', dataMode: 'mock', limit: 100 }, expect: 200
     })).data.items;
     const khlongSan = (await bangkokClient('searchOpportunities', {
       query: { district: 'คลองสาน', category: 'grant', dataMode: 'mock', limit: 100 }, expect: 200
     })).data.items;
     check('Bangkok mock grants are visible from SQLite with the required 20 and 10 district quotas',
-      bangNa.length === 20 && khlongSan.length === 10 && [...bangNa, ...khlongSan].every(item =>
+      bangNaGrants.length === 20 && khlongSan.length === 10 && [...bangNaGrants, ...khlongSan].every(item =>
         item.provenance.provider === BANGKOK_DEMO_PROVIDER && item.provenance.dataStatus === 'mock'));
-    const sample = bangNa[0];
+    const firstMockPage = (await bangkokClient('searchOpportunities', {
+      query: { district: 'บางนา', category: 'grant', dataMode: 'mock', limit: 1 }, expect: 200
+    })).data;
+    check('unpinnable Bangkok demo pages remain pageable in list mode without advertising map locations',
+      firstMockPage.items.length === 1 && firstMockPage.totalCount === 20
+      && Boolean(firstMockPage.nextCursor) && firstMockPage.hasMoreMapLocations === false);
+    const sample = bangNaGrants[0];
     const link = new URL(sample.provenance.sourceUrl);
     const info = await fetch(link);
     check('Bangkok Info link uses the current origin and serves the demo page for the selected ID',

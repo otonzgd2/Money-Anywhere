@@ -169,7 +169,10 @@ class _HomeTabState extends State<HomeTab> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
-              const Align(alignment: Alignment.centerRight, child: DemoPill()),
+              Row(children: [
+                Expanded(child: Text('ทางรอด', style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
+                if (app.allowsDemo) const DemoPill(),
+              ]),
               const SizedBox(height: 8),
               if (error != null && error!.isNetwork) OfflineCard(app: app, onRetry: _load),
               if (!loaded) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),

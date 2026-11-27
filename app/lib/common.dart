@@ -8,6 +8,7 @@ import 'chat.dart';
 
 enum DemoChatProfile {
   connected('gov-prefill-chat', 'DEMO · โปรไฟล์เชื่อม 4 แหล่ง'),
+  sources('gov-prefill-selection', 'DEMO · ทดลองเชื่อมแหล่งข้อมูล'),
   tax('dmytax', 'DEMO · D-MyTax');
 
   const DemoChatProfile(this.deviceSuffix, this.planLabel);
@@ -22,6 +23,8 @@ class AppState {
 
   final Api api;
   final bool demo;
+  bool startupDemoEnabled = false;
+  bool get allowsDemo => demo || startupDemoEnabled;
   final ChatSession chat = ChatSession();
   final ValueNotifier<int> changed;
   final ValueNotifier<bool> largeText = ValueNotifier(false);
@@ -201,10 +204,12 @@ Future<void> _askApplied(BuildContext context, AppState app, {required String ti
 
 /// Create (or reuse) the task for a money item or an opportunity. With [applied], the steps up to
 /// "ยื่น/ติดต่อ" are marked done as reported by the person.
-Future<bool> saveToPlan(BuildContext context, AppState app, {String? moneyId, String? opportunityId, bool applied = false}) async {
+Future<bool> saveToPlan(BuildContext context, AppState app, {String? moneyId, String? opportunityId, String? districtCode, bool applied = false}) async {
   if (!await ensureConsent(context, app, why: 'เพื่อบันทึกเป็นแผนทีละขั้นและติดตามความคืบหน้า')) return false;
   try {
-    var t = await app.api.post('/v1/tasks', moneyId != null ? {'moneyId': moneyId} : {'opportunityId': opportunityId});
+    var t = await app.api.post('/v1/tasks', moneyId != null ? {'moneyId': moneyId} : {
+      'opportunityId': opportunityId, 'districtCode': ?districtCode,
+    });
     if (applied) {
       final steps = (t['steps'] as List).length;
       final target = steps > 2 ? 2 : steps - 1;

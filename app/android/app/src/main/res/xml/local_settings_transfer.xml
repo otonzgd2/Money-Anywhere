@@ -4,10 +4,12 @@
         <exclude domain="file" path="money_anywhere_device_id" />
         <exclude domain="file" path="money_anywhere_server" />
         <exclude domain="file" path="money_anywhere_wifi_default" />
+        <exclude domain="file" path="money_anywhere_thang_rot_onboarding_v1" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="money_anywhere_device_id" />
         <exclude domain="file" path="money_anywhere_server" />
         <exclude domain="file" path="money_anywhere_wifi_default" />
+        <exclude domain="file" path="money_anywhere_thang_rot_onboarding_v1" />
     </device-transfer>
 </data-extraction-rules>

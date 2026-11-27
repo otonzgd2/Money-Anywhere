@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
+import 'package:money_anywhere/demo_sources_screen.dart';
 import 'package:money_anywhere/me_tab.dart';
 import 'package:money_anywhere/profile_overview_screen.dart';
 
@@ -43,11 +44,13 @@ class _ProfileApi extends Api {
     this.profile,
     this.unavailable = false,
     this.demoEnabled = false,
+    this.userMode = false,
     this.identity,
   });
   Map<String, dynamic>? profile;
   bool unavailable;
   final bool demoEnabled;
+  final bool userMode;
   final Map<String, dynamic>? identity;
 
   @override
@@ -73,6 +76,13 @@ class _ProfileApi extends Api {
         return {'largeText': false};
       case '/v1/app-config':
         return {
+          if (userMode) ...{
+            'mode': 'user',
+            'governmentConnections': {
+              'thaid': 'approval_required',
+              'tangRat': 'access_required',
+            },
+          },
           'featureFlags': {'demo': demoEnabled},
           'routes': {
             'me': {
@@ -81,7 +91,7 @@ class _ProfileApi extends Api {
                   'id': 'demo.gov-prefill',
                   'items': [
                     {
-                      'label': 'โปรไฟล์เชื่อม 4 แหล่ง (DEMO)',
+                      'label': 'ทดลองเชื่อมแหล่งข้อมูล (DEMO)',
                       'sub': 'ข้อมูลตัวอย่าง',
                       'onTap': {
                         'action': 'demo.load',
@@ -116,6 +126,70 @@ class _ProfileApi extends Api {
   }
 }
 
+class _SelectableDemoApi extends _ProfileApi {
+  _SelectableDemoApi() : super(demoEnabled: true);
+
+  final previews = <Uri>[];
+  final chatSelections = <Uri>[];
+
+  @override
+  Future<Map<String, dynamic>> get(String path) async {
+    final uri = Uri.parse(path);
+    if (uri.path == '/v1/demo/personas/gov-prefill' && uri.hasQuery) {
+      previews.add(uri);
+      final sources = uri.queryParameters['sources']!.split(',');
+      const fields = {
+        'thaid': 'identity',
+        'tangRat': 'disabilityCard',
+        'socialSecurity': 'ss33',
+        'dMyTax': 'taxWithheld',
+      };
+      return {
+        'dataStatus': 'mock',
+        'profile': sources.contains('thaid') ? _demoResponse['profile'] : {},
+        if (sources.contains('thaid')) 'identity': _demoResponse['identity'],
+        'sources': [
+          for (final row in (_demoResponse['sources'] as List).cast<Map>())
+            if (sources.any((source) => fields[source] == row['field'])) row,
+        ],
+      };
+    }
+    return super.get(path);
+  }
+
+  @override
+  Api forDemo(String name) {
+    expect(name, 'gov-prefill-selection');
+    return _SelectionChatApi(chatSelections);
+  }
+}
+
+class _SelectionChatApi extends Api {
+  _SelectionChatApi(this.selections);
+
+  final List<Uri> selections;
+
+  @override
+  Future<void> consent({required bool ai}) async => expect(ai, isTrue);
+
+  @override
+  Future<Map<String, dynamic>> post(
+    String path, [
+    Object? body,
+    Map<String, String>? headers,
+  ]) async {
+    if (path == '/v1/ai/conversations') {
+      expect(body, {'mode': 'guided'});
+      return {'conversationId': 'selected-demo', 'greeting': 'เริ่มทดสอบแชต'};
+    }
+    final uri = Uri.parse(path);
+    expect(uri.path, '/v1/demo/personas/gov-prefill');
+    expect(uri.queryParameters['keepPlans'], 'true');
+    selections.add(uri);
+    return _demoResponse;
+  }
+}
+
 Future<void> _openProfile(
   WidgetTester tester,
   Api api, {
@@ -134,6 +208,108 @@ Future<void> _openProfile(
 }
 
 void main() {
+  testWidgets(
+    'connected accounts opens the demo previews and a fresh chat per selection',
+    (tester) async {
+      final api = _SelectableDemoApi();
+      tester.view.physicalSize = const Size(800, 1500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(api.close);
+      await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
+      await tester.pumpAndSettle();
+      expect(find.text('บัญชีที่เชื่อมต่อ'), findsOneWidget);
+      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsOneWidget);
+      final menu = find.text('ทดลองเชื่อมแหล่งข้อมูล (DEMO)');
+      expect(
+        tester.getTopLeft(menu).dy,
+        greaterThan(tester.getTopLeft(find.text('บัญชีที่เชื่อมต่อ')).dy),
+      );
+      expect(
+        tester.getTopLeft(menu).dy,
+        lessThan(tester.getTopLeft(find.text('การใช้งาน')).dy),
+      );
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+
+      expect(find.text('เลือก 4 จาก 4 แหล่ง'), findsOneWidget);
+      expect(
+        tester
+            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .every((tile) => tile.value == true),
+        isTrue,
+      );
+      await tester.tap(find.text('ดูโปรไฟล์ตัวอย่าง'));
+      await tester.pumpAndSettle();
+      expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
+      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
+      expect(
+        api.previews.single.queryParameters['sources'],
+        'thaid,tangRat,socialSecurity,dMyTax',
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('D-MyTax'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ดูบัญชีที่เชื่อมต่อ'));
+      await tester.pumpAndSettle();
+      expect(find.text('บัญชีที่เชื่อมต่อ'), findsOneWidget);
+      expect(find.text('บัตรประจำตัวคนพิการ'), findsOneWidget);
+      expect(find.text('D-MyTax'), findsNothing);
+      expect(find.text('นายสมศักดิ์ สมมติ'), findsNothing);
+      expect(
+        api.previews.last.queryParameters['sources'],
+        'thaid,tangRat,socialSecurity',
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('D-MyTax'));
+      await tester.pumpAndSettle();
+
+      for (final source in ['D-MyTax', 'ประกันสังคม', 'ทางรัฐ']) {
+        await tester.tap(find.text(source));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('ทดสอบแชต'));
+        await tester.pumpAndSettle();
+        expect(find.text('เริ่มทดสอบแชต'), findsOneWidget);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+      }
+      expect(api.chatSelections.map((uri) => uri.queryParameters['sources']), [
+        'thaid,tangRat,socialSecurity',
+        'thaid,tangRat',
+        'thaid',
+      ]);
+      expect(find.text('เลือก 1 จาก 4 แหล่ง'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the Me tab shows live provider availability and hides demo connections in user mode',
+    (tester) async {
+      final api = _ProfileApi(userMode: true);
+      tester.view.physicalSize = const Size(800, 1500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(api.close);
+      await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
+      await tester.pumpAndSettle();
+
+      expect(find.text('ThaID'), findsOneWidget);
+      expect(find.text('ทางรัฐ'), findsOneWidget);
+      expect(find.text('รอกรมการปกครองอนุมัติการเชื่อมต่อ'), findsOneWidget);
+      expect(
+        find.text('รอสิทธิ์เข้าถึงข้อมูลจากหน่วยงานเจ้าของบริการ'),
+        findsOneWidget,
+      );
+      expect(find.text('เชื่อม ThaID'), findsNothing);
+      expect(find.text('สำหรับสาธิต (DEMO)'), findsNothing);
+      expect(find.text('ทดลองเชื่อมแหล่งข้อมูล (DEMO)'), findsNothing);
+      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
+    },
+  );
+
   testWidgets(
     'the Me profile keeps the saved details and opens the example separately',
     (tester) async {
@@ -165,13 +341,13 @@ void main() {
       expect(find.text('ข้อมูลส่วนตัว'), findsOneWidget);
       expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
       expect(find.text('DEMO / MOCK'), findsOneWidget);
-      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsOneWidget);
+      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
       expect(api.profile?['displayName'], 'มาลี แก้ไข');
     },
   );
 
   testWidgets(
-    'an empty saved profile displays the native identity and imported values in one profile',
+    'an empty saved profile displays personal identity from the demo without connection details',
     (tester) async {
       await _openProfile(tester, _ProfileApi(demoEnabled: true));
 
@@ -180,7 +356,7 @@ void main() {
       expect(find.text('65 ปี'), findsOneWidget);
       expect(find.text('ที่อยู่ตามทะเบียนบ้าน'), findsOneWidget);
       expect(find.text('XXX123'), findsOneWidget);
-      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsOneWidget);
+      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
       expect(find.text('ยังไม่ได้ตั้งชื่อ'), findsNothing);
       expect(find.textContaining('60-69'), findsNothing);
       expect(find.text('วันออกบัตร'), findsNothing);
@@ -266,23 +442,73 @@ void main() {
     expect(find.text('ชื่อเล่นตัวอย่าง'), findsOneWidget);
   });
 
-  testWidgets('shows the four synthetic sources and marks the demo profile', (
-    tester,
-  ) async {
-    await _openProfile(
-      tester,
-      _ProfileApi(),
-      demo: ProfileDemo.fromResponse(_demoResponse)!,
-    );
+  testWidgets(
+    'marks the demo profile and leaves source labels to connected accounts',
+    (tester) async {
+      await _openProfile(
+        tester,
+        _ProfileApi(),
+        demo: ProfileDemo.fromResponse(_demoResponse)!,
+      );
 
-    expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
-    expect(find.text('DEMO / MOCK'), findsOneWidget);
-    expect(find.text('ข้อมูลส่วนตัว'), findsOneWidget);
-    for (final source in ['ThaID', 'ทางรัฐ', 'ประกันสังคม', 'D-MyTax']) {
-      expect(find.text(source), findsOneWidget);
-    }
-    expect(find.text('แก้ไขโปรไฟล์'), findsNothing);
-  });
+      expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
+      expect(find.text('DEMO / MOCK'), findsOneWidget);
+      expect(find.text('ข้อมูลส่วนตัว'), findsOneWidget);
+      for (final source in ['ThaID', 'ทางรัฐ', 'ประกันสังคม', 'D-MyTax']) {
+        expect(find.text(source), findsNothing);
+      }
+      expect(find.text('แก้ไขโปรไฟล์'), findsNothing);
+    },
+  );
+
+  final sourceRows = (_demoResponse['sources'] as List)
+      .cast<Map<String, String>>();
+  for (var mask = 0; mask < (1 << sourceRows.length); mask++) {
+    final selected = [
+      for (var i = 0; i < sourceRows.length; i++)
+        if ((mask & (1 << i)) != 0) sourceRows[i],
+    ];
+    final hasIdentity = selected.any((source) => source['field'] == 'identity');
+    final labels = selected.map((source) => source['label']).toSet();
+    testWidgets(
+      'renders selected demo sources only: ${labels.join(', ')} ($mask)',
+      (tester) async {
+        final demo = ProfileDemo.fromResponse({
+          'dataStatus': 'mock',
+          'profile': hasIdentity
+              ? _demoResponse['profile']
+              : <String, dynamic>{},
+          if (hasIdentity) 'identity': _demoResponse['identity'],
+          'sources': selected,
+        });
+        await _openProfile(tester, _ProfileApi(), demo: demo!);
+        expect(find.text('DEMO / MOCK'), findsOneWidget);
+        expect(
+          find.text('เลขบัตรประชาชน'),
+          hasIdentity ? findsOneWidget : findsNothing,
+        );
+        for (final row in sourceRows) {
+          expect(find.text(row['label']!), findsNothing);
+        }
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: DemoConnectionDetails(demo: demo)),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('DEMO / MOCK'), findsOneWidget);
+        for (final row in sourceRows) {
+          final label = row['label']!;
+          expect(
+            find.text(label),
+            labels.contains(label) ? findsOneWidget : findsNothing,
+          );
+        }
+        expect(find.text('เลขบัตรประชาชน'), findsNothing);
+      },
+    );
+  }
 
   testWidgets('omits unavailable identity fields on an empty profile', (
     tester,

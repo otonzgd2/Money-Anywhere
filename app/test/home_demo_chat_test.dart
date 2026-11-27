@@ -6,7 +6,7 @@ import 'package:money_anywhere/home_tab.dart';
 import 'package:money_anywhere/main.dart';
 
 class _ChatApi extends Api {
-  _ChatApi({this.demoClient, this.taxClient});
+  _ChatApi({this.demoClient, this.taxClient, this.sourcesClient});
   static const _task = {
     'id': 't-demo',
     'title': 'เงินทดแทนกรณีว่างงาน',
@@ -14,7 +14,7 @@ class _ChatApi extends Api {
     'doneCount': 1,
     'status': 'active',
   };
-  final _ChatApi? demoClient, taxClient;
+  final _ChatApi? demoClient, taxClient, sourcesClient;
   final demoFacts = <String, Object?>{'ageBand': '60-69', 'ss33': true, 'disabilityCard': true, 'taxWithheld': true};
   final previewFacts = <Map<String, Object?>>[];
   bool seeded = false;
@@ -24,6 +24,7 @@ class _ChatApi extends Api {
   @override
   Api forDemo(String name) {
     if (name == 'dmytax') return taxClient!;
+    if (name == 'gov-prefill-selection') return sourcesClient!;
     expect(name, 'gov-prefill-chat');
     return demoClient!;
   }
@@ -57,6 +58,8 @@ class _ChatApi extends Api {
         return _task;
       case '/v1/tasks':
         return {'items': [if (saved) _task]};
+      case '/v1/money/unemployment':
+        return {'title': 'เงินทดแทนกรณีว่างงาน', 'status': 'need'};
       default:
         if (path.startsWith('/v1/opportunities?')) return {'items': []};
         throw StateError('Unexpected GET $path');
@@ -205,10 +208,12 @@ void main() {
       (tester) async {
         final demo = _ChatApi();
         final tax = _ChatApi();
-        final personal = _ChatApi(demoClient: demo, taxClient: tax);
+        final sources = _ChatApi();
+        final personal = _ChatApi(demoClient: demo, taxClient: tax, sourcesClient: sources);
         addTearDown(personal.close);
         addTearDown(demo.close);
         addTearDown(tax.close);
+        addTearDown(sources.close);
         await tester.pumpWidget(MoneyAnywhereApp(app: AppState(personal)));
         await tester.pumpAndSettle();
         await tester.tap(find.text('เริ่มคุยเลย ›'));
@@ -234,7 +239,7 @@ void main() {
         expect(find.textContaining('ขั้นต่อไป: ขึ้นทะเบียนว่างงาน'), findsOneWidget);
         await tester.tap(find.text('ดูแผนของฉัน ›'));
         await tester.pumpAndSettle();
-        expect(find.text('แผนของฉัน · DEMO'), findsOneWidget);
+        expect(find.text('รายละเอียดแผน'), findsOneWidget);
         expect(find.text('เงินทดแทนกรณีว่างงาน'), findsOneWidget);
         expect(find.text('ทำแล้ว 1 จาก 2 ขั้น'), findsOneWidget);
 
@@ -244,7 +249,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('เปิดแผน เงินทดแทนกรณีว่างงาน'));
         await tester.pumpAndSettle();
-        expect(find.text('แผนของฉัน · DEMO'), findsOneWidget);
+        expect(find.text('รายละเอียดแผน'), findsOneWidget);
         expect(find.text('ทำแล้ว 1 จาก 2 ขั้น'), findsOneWidget);
         await tester.pageBack();
         await tester.pumpAndSettle();
@@ -256,7 +261,7 @@ void main() {
         expect(find.text('ยังไม่มีแผน'), findsNothing);
         await tester.tap(find.text('เงินทดแทนกรณีว่างงาน'));
         await tester.pumpAndSettle();
-        expect(find.text('แผนของฉัน · DEMO'), findsOneWidget);
+        expect(find.text('รายละเอียดแผน'), findsOneWidget);
         expect(find.text('ทำแล้ว 1 จาก 2 ขั้น'), findsOneWidget);
       },
     );

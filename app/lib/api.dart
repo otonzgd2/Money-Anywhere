@@ -139,6 +139,18 @@ class Api {
     _settings.write('server', baseUrl);
   }
 
+  static const _onboardingKey = 'thang_rot_onboarding_v1';
+
+  String get onboardingChoices =>
+      _settings._read(_settings._file(_settings.directory, _onboardingKey)) ?? '';
+
+  void saveOnboardingChoices(String choices) {
+    final target = _settings._file(_settings.directory, _onboardingKey);
+    final pending = File('${target.path}.tmp');
+    pending.writeAsStringSync(choices, flush: true);
+    pending.renameSync(target.path);
+  }
+
   Future<Map<String, dynamic>> get(String path) => _send('GET', path);
   Future<Map<String, dynamic>> post(String path, [Object? body, Map<String, String>? headers]) => _send('POST', path, body, headers);
   Future<Map<String, dynamic>> patch(String path, Object body) => _send('PATCH', path, body);

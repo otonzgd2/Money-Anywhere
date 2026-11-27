@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.13.0
+  version: 0.14.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -332,6 +332,8 @@ paths:
         - { name: category, in: query, schema: { type: string, description: "one of the 10 categories" } }
         - { name: province, in: query, schema: { type: string }, description: "Matches a provider-supplied province." }
         - { name: district, in: query, schema: { type: string }, description: "Matches a provider-supplied district." }
+        - { name: districtCode, in: query, schema: { type: string }, description: "Matches a location district code. Supply district for legacy locations that only have a name." }
+        - { name: area, in: query, schema: { type: string, enum: [bangkok] }, description: "Bangkok catalogue scope. Includes listings without a province and uses the catalogue area instead of the profile radius." }
         - { name: skill, in: query, schema: { type: string }, description: "Matches a skill from the posting." }
         - { name: workMode, in: query, schema: { type: string, enum: [onsite, hybrid, remote] } }
         - { name: lat, in: query, schema: { type: number, description: "Search point. Defaults to the profile location." } }
@@ -351,7 +353,9 @@ paths:
       operationId: getOpportunity
       tags: [Opportunity]
       summary: "ดูรายละเอียดโอกาสหนึ่งรายการ"
-      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: includeClosed, in: query, schema: { type: boolean, default: false }, description: "Return a closed SQLite posting for a saved plan. Pending and rejected postings stay hidden." }
       responses:
         '200': { description: Opportunity, content: { application/json: { schema: { $ref: '#/components/schemas/Opportunity' } } } }
         '404': { $ref: '#/components/responses/Error' }
@@ -582,9 +586,10 @@ paths:
       operationId: previewDemoProfile
       tags: [Demo]
       summary: "แสดงโปรไฟล์และแหล่งข้อมูลจำลองโดยไม่โหลดทับข้อมูลของเครื่อง"
-      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      parameters: [ { $ref: '#/components/parameters/Id' }, { $ref: '#/components/parameters/DemoPrefillSources' } ]
       responses:
         '200': { description: Synthetic preview, content: { application/json: { schema: { $ref: '#/components/schemas/DemoProfilePreview' } } } }
+        '400': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
     post:
       operationId: loadDemoPersona
@@ -593,9 +598,10 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/DeviceId' }
         - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/DemoPrefillSources' }
         - name: keepPlans
           in: query
-          description: "เก็บแผนและความคืบหน้าเดิมเมื่อสลับเคส D-MyTax"
+          description: "เก็บแผนและความคืบหน้าเดิมเมื่อสลับชุดแหล่งข้อมูลใน gov-prefill หรือเคส D-MyTax"
           schema: { type: boolean, default: false }
       responses:
         '200': { description: Loaded, content: { application/json: { schema: { $ref: '#/components/schemas/DemoResult' } } } }
@@ -610,6 +616,11 @@ components:
     Id: { name: id, in: path, required: true, schema: { type: string } }
     Limit: { name: limit, in: query, schema: { type: integer, default: 30, minimum: 1, maximum: 100 } }
     Cursor: { name: cursor, in: query, schema: { type: string }, description: "Opaque. Use nextCursor from the previous page." }
+    DemoPrefillSources:
+      name: sources
+      in: query
+      description: "สำหรับ gov-prefill ระบุ thaid,tangRat,socialSecurity,dMyTax คั่นด้วยจุลภาค เว้นค่าเป็นค่าว่างเมื่อไม่เชื่อมสักแหล่ง ละพารามิเตอร์เพื่อใช้ทั้ง 4 แหล่ง"
+      schema: { type: string }
 
   responses:
     Error:
@@ -645,6 +656,14 @@ components:
         configVersion: { type: string }
         minAppVersion: { type: string }
         noticeVersion: { type: string, description: "Ask for consent again when the stored consent has another version" }
+        mode: { type: string, enum: [demo, user], description: "Server mode" }
+        governmentConnections:
+          type: object
+          description: "Live provider availability in user mode"
+          required: [thaid, tangRat]
+          properties:
+            thaid: { type: string, enum: [approval_required] }
+            tangRat: { type: string, enum: [access_required] }
         featureFlags: { type: object, additionalProperties: { type: boolean } }
         tabs: { type: array, items: { type: object } }
         routes: { type: object }
@@ -911,10 +930,37 @@ components:
         workMode: { type: string, enum: [onsite, hybrid, remote] }
         province: { type: string }
         district: { type: string }
+        districtCode: { type: string }
+        districtName: { type: string }
+        areaType: { type: string }
+        address: { type: string }
+        travelInfo: { type: string }
+        coordinateSource: { type: string, enum: [database], readOnly: true, description: "Set by the database adapter for exact, non-mock coordinates." }
         text: { type: string }
         lat: { type: number }
         lng: { type: number }
         distanceKm: { type: number, description: "From the search point. Set by search." }
+
+    PlanContact:
+      type: object
+      required: [label]
+      properties:
+        purpose: { type: string, description: "For example apply, submit, ask_before_visit or follow_up." }
+        type: { type: string, description: "For example website, phone, email, map or office." }
+        label: { type: string }
+        destination: { type: string }
+        hoursText: { type: string }
+        instructions: { type: string }
+        districtCode: { type: string }
+        sourceUrl: { type: string }
+        checkedAt: { type: string }
+
+    PlanContacts:
+      type: array
+      items:
+        oneOf:
+          - { type: string }
+          - { $ref: '#/components/schemas/PlanContact' }
 
     Provenance:
       type: object
@@ -951,6 +997,18 @@ components:
         category: { type: string, description: "One of the 10 requirement categories" }
         mapGroup: { type: string }
         location: { $ref: '#/components/schemas/Location' }
+        locations: { type: array, items: { $ref: '#/components/schemas/Location' } }
+        description: { type: string }
+        contacts: { $ref: '#/components/schemas/PlanContacts' }
+        status: { type: string, enum: [active, closed, expired] }
+        summary: { type: string }
+        availability: { type: string, enum: [open, upcoming, paused, closed, expired] }
+        checkedAt: { type: string }
+        documents: { type: array, items: { type: string } }
+        claim: { type: object }
+        job: { type: object }
+        income: { type: object }
+        grant: { type: object }
         money: { $ref: '#/components/schemas/Money' }
         conditions: { type: array, items: { type: string } }
         provenance: { $ref: '#/components/schemas/Provenance' }
@@ -971,6 +1029,17 @@ components:
         category: { type: string }
         mapGroup: { type: string }
         location: { $ref: '#/components/schemas/Location' }
+        locations: { type: array, items: { $ref: '#/components/schemas/Location' } }
+        description: { type: string }
+        contacts: { $ref: '#/components/schemas/PlanContacts' }
+        summary: { type: string }
+        availability: { type: string, enum: [open, upcoming, paused, closed, expired] }
+        checkedAt: { type: string }
+        documents: { type: array, items: { type: string } }
+        claim: { type: object }
+        job: { type: object }
+        income: { type: object }
+        grant: { type: object }
         money: { $ref: '#/components/schemas/Money' }
         conditions: { type: array, items: { type: string } }
         sourceUrl: { type: string, format: uri }
@@ -1021,6 +1090,7 @@ components:
         items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } }
         nextCursor: { type: string }
         totalCount: { type: integer, minimum: 0, description: "Matching visible items across all pages." }
+        hasMoreMapLocations: { type: boolean, description: "Whether a later result has database coordinates available for the map." }
         hiddenSuspicious: { type: integer }
         suggestions: { type: array, items: { $ref: '#/components/schemas/Suggestion' }, description: "Only when there are no results (FR-08)" }
         sourceWarnings: { type: array, items: { type: string }, description: "Providers whose last fetch failed. Details in /v1/sources." }
@@ -1191,6 +1261,7 @@ components:
       properties:
         opportunityId: { type: string }
         moneyId: { type: string }
+        districtCode: { type: string, pattern: '^[0-9]{4}$', description: "Optional area context, independent of the saved item identity." }
 
     Outcome:
       type: object
@@ -1208,6 +1279,7 @@ components:
         id: { type: string }
         opportunityId: { type: string }
         moneyId: { type: string }
+        districtCode: { type: string, pattern: '^[0-9]{4}$' }
         title: { type: string }
         steps: { type: array, items: { type: string } }
         doneCount: { type: integer }
@@ -1220,7 +1292,15 @@ components:
     TaskList:
       type: object
       required: [items]
-      properties: { items: { type: array, items: { $ref: '#/components/schemas/Task' } } }
+      properties:
+        items:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Task'
+              - type: object
+                properties:
+                  category: { type: string, description: "Category from the existing catalogue, if the saved opportunity is still available in it" }
 
     TaskEventRequest:
       type: object
@@ -1337,11 +1417,11 @@ components:
 
     DemoProfilePreview:
       type: object
-      required: [profile, identity, sources, dataStatus]
+      required: [profile, sources, dataStatus]
       properties:
         profile: { $ref: '#/components/schemas/Profile' }
         identity: { $ref: '#/components/schemas/GovIdentity' }
-        sources: { type: array, minItems: 1, items: { $ref: '#/components/schemas/DemoSourceSummary' } }
+        sources: { type: array, items: { $ref: '#/components/schemas/DemoSourceSummary' } }
         dataStatus: { type: string, enum: [mock] }
 
     Taxonomies:

@@ -2,12 +2,40 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'opportunity_catalog.dart';
 import 'task_screen.dart';
 
 typedef _SavedPlan = ({DemoChatProfile? demo, Map<String, dynamic> task});
 typedef _PlanList = ({List<_SavedPlan> plans, ApiException? error});
 
-/// Tab 📋 แผนของฉัน (ui-states.md S7): every saved plan with its status and progress.
+const _background = Color(0xFFF3F7F4);
+const _accent = Color(0xFF086348);
+const _text = Color(0xFF172C25);
+const _secondaryText = Color(0xFF466055);
+const _cardShape = RoundedRectangleBorder(
+  side: BorderSide(color: Color(0xFFDCE7DF)),
+  borderRadius: BorderRadius.all(Radius.circular(15)),
+);
+
+enum _PlanStatus {
+  active('active', Color(0xFF155744), Color(0xFFE6F4EC)),
+  blocked('blocked', Color(0xFF852F1B), Color(0xFFFBECE5)),
+  snoozed('snoozed', Color(0xFF624F1C), Color(0xFFF8F0DC)),
+  finished('finished', Color(0xFF3B554A), Color(0xFFEDF2EE)),
+  unknown(null, Color(0xFF3B554A), Color(0xFFEDF2EE));
+
+  const _PlanStatus(this.api, this.foreground, this.background);
+
+  final String? api;
+  final Color foreground, background;
+
+  String get label => taskStatusLabel[api] ?? 'ไม่ระบุสถานะ';
+
+  static _PlanStatus of(Object? value) =>
+      values.where((status) => status.api == value).firstOrNull ?? unknown;
+}
+
+/// Shows the status and progress of plans saved across all profiles.
 class PlansTab extends StatefulWidget {
   const PlansTab({super.key, required this.app});
   final AppState app;
@@ -47,11 +75,16 @@ class _PlansTabState extends State<PlansTab> {
   }
 
   Future<_PlanList> _loadFrom(DemoChatProfile? demo) async {
-    final api = demo == null ? widget.app.api : widget.app.api.forDemo(demo.deviceSuffix);
+    final api = demo == null
+        ? widget.app.api
+        : widget.app.api.forDemo(demo.deviceSuffix);
     try {
       final r = await api.get('/v1/tasks');
       final items = (r['items'] as List).cast<Map<String, dynamic>>();
-      return (plans: [for (final task in items) (demo: demo, task: task)], error: null);
+      return (
+        plans: [for (final task in items) (demo: demo, task: task)],
+        error: null,
+      );
     } on ApiException catch (e) {
       return (plans: const <_SavedPlan>[], error: e);
     } finally {
@@ -63,7 +96,11 @@ class _PlansTabState extends State<PlansTab> {
     final demo = plan.demo;
     final app = demo == null ? widget.app : widget.app.forDemoChat(demo);
     try {
-      await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => TaskScreen(app: app, taskId: '${plan.task['id']}')));
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => TaskScreen(app: app, taskId: '${plan.task['id']}'),
+        ),
+      );
     } finally {
       if (demo != null) app.api.close();
     }
@@ -71,55 +108,347 @@ class _PlansTabState extends State<PlansTab> {
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    final list = plans ?? const [];
-    // Order: active first, then blocked, snoozed, finished (same rule as the home "next step").
-    const order = {'active': 0, 'blocked': 1, 'snoozed': 2, 'finished': 3};
-    final sorted = [...list]..sort((a, b) => (order[a.task['status']] ?? 9).compareTo(order[b.task['status']] ?? 9));
+    final list = plans ?? const <_SavedPlan>[];
+    final failure = error;
+    final byStatus = {
+      for (final status in _PlanStatus.values) status: <_SavedPlan>[],
+    };
+    for (final plan in list) {
+      byStatus[_PlanStatus.of(plan.task['status'])]!.add(plan);
+    }
+    final groups = [
+      (label: 'กำลังทำ', plans: byStatus[_PlanStatus.active]!),
+      (
+        label: 'รอดำเนินการ',
+        plans: [
+          ...byStatus[_PlanStatus.blocked]!,
+          ...byStatus[_PlanStatus.snoozed]!,
+        ],
+      ),
+      (label: 'เสร็จแล้ว', plans: byStatus[_PlanStatus.finished]!),
+      (label: 'ไม่ระบุสถานะ', plans: byStatus[_PlanStatus.unknown]!),
+    ].where((group) => group.plans.isNotEmpty).toList();
+
     return Scaffold(
-      appBar: AppBar(title: const Text('แผนของฉัน')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          if (error != null && error!.isNetwork) OfflineCard(app: widget.app, onRetry: _load),
-          if (error != null && !error!.isNetwork) Text(error!.message),
-          if (plans == null && error == null) const Center(child: CircularProgressIndicator()),
-          if (plans != null && error == null && list.isEmpty)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('ยังไม่มีแผน', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                  const Text('เช็คเงินที่ควรได้ แล้วกด "บันทึกเป็นแผน" หรือบันทึกงานจากแท็บ โอกาส'),
-                  const SizedBox(height: 8),
-                  FilledButton(onPressed: () => widget.app.goTab(0), child: const Text('ไปเช็คเงินที่หน้าแรก')),
-                ]),
+      backgroundColor: _background,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: CustomScrollView(
+            key: const PageStorageKey('saved-plans'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(child: _header(list.length)),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(13, 14, 13, 20),
+                sliver: SliverList.list(
+                  children: [
+                    if (failure != null) ...[
+                      _loadError(failure),
+                      if (list.isNotEmpty) const SizedBox(height: 14),
+                    ] else if (plans == null)
+                      const Center(child: CircularProgressIndicator())
+                    else if (list.isEmpty)
+                      _emptyCard(),
+                    for (final (index, group) in groups.indexed) ...[
+                      if (index > 0) const SizedBox(height: 18),
+                      if (groups.length > 1)
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                          child: Semantics(
+                            header: true,
+                            child: Text(
+                              group.label,
+                              style: const TextStyle(
+                                color: Color(0xFF37564B),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      for (final (position, plan) in group.plans.indexed) ...[
+                        if (position > 0) const SizedBox(height: 9),
+                        _planCard(plan),
+                      ],
+                    ],
+                    if (list.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(4, 11, 4, 0),
+                        child: Text(
+                          'สถานะและความคืบหน้าอิงจากที่คุณแจ้ง',
+                          style: TextStyle(
+                            color: Color(0xFF506960),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          for (final plan in sorted) _planCard(plan),
-          const SizedBox(height: 8),
-          Text('ยืนยันจากภายนอก: ยังไม่มี สถานะทั้งหมดคุณเป็นผู้แจ้ง', style: t.bodySmall),
-        ]),
+            ],
+          ),
+        ),
       ),
     );
   }
 
+  Widget _loadError(ApiException failure) {
+    if (failure.isNetwork) return OfflineCard(app: widget.app, onRetry: _load);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(failure.message),
+            const SizedBox(height: 8),
+            FilledButton(onPressed: _load, child: const Text('ลองใหม่')),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header(int count) => Container(
+    padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+    decoration: const BoxDecoration(
+      color: Color(0xFF163E35),
+      gradient: RadialGradient(
+        center: Alignment.topRight,
+        radius: 1.1,
+        colors: [Color(0xFF2D6658), Color(0xFF163E35)],
+      ),
+      borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          header: true,
+          child: const Text(
+            'แผนของฉัน',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 26,
+              height: 1.3,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        if (count > 0) ...[
+          const SizedBox(height: 4),
+          Text(
+            '$count แผนที่บันทึก',
+            style: const TextStyle(color: Color(0xFFD3E6DC), fontSize: 14),
+          ),
+        ],
+      ],
+    ),
+  );
+
+  Widget _emptyCard() => Material(
+    color: Colors.white,
+    shape: _cardShape,
+    child: Padding(
+      padding: const EdgeInsets.all(17),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: const Text(
+              'ยังไม่มีแผน',
+              style: TextStyle(
+                color: _text,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 5),
+          const Text(
+            'บันทึกสิทธิ์หรืองานที่สนใจ แล้วกลับมาติดตามความคืบหน้าที่นี่',
+            style: TextStyle(color: _secondaryText),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: _accent,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(48, 48),
+            ),
+            onPressed: () => widget.app.goTab(0),
+            child: const Text(
+              'ไปเช็คเงินที่หน้าแรก',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   Widget _planCard(_SavedPlan plan) {
     final task = plan.task;
-    final done = task['doneCount'] as num;
-    final stepCount = (task['steps'] as List).length;
-    return Card(
-      child: ListTile(
-        title: Text('${task['title']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (plan.demo case final demo?) Text(demo.planLabel),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(value: stepCount == 0 ? 0 : done / stepCount),
-          const SizedBox(height: 4),
-          Text('${taskStatusLabel[task['status']] ?? task['status']} · ทำแล้ว $done/$stepCount ขั้น · ผู้ใช้แจ้ง'),
-        ]),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => _openPlan(plan),
+    final status = _PlanStatus.of(task['status']);
+    final category =
+        OpportunityCategory.of(task) ??
+        OpportunityCategory.forMoney(task['moneyId'] as String? ?? '');
+    final steps = task['steps'] as List;
+    final doneCount = (task['doneCount'] as num?)?.toInt() ?? 0;
+    final done = doneCount.clamp(0, steps.length);
+    final next =
+        status != _PlanStatus.finished &&
+            doneCount >= 0 &&
+            doneCount < steps.length
+        ? steps[doneCount] as String
+        : null;
+    return MergeSemantics(
+      key: ValueKey((plan.demo, task['id'])),
+      child: Semantics(
+        button: true,
+        child: Material(
+          color: Colors.white,
+          elevation: 1,
+          shadowColor: const Color(0x1A163E35),
+          shape: _cardShape,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => _openPlan(plan),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              child: Column(
+                spacing: 7,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: category == null
+                            ? const SizedBox.shrink()
+                            : Text(
+                                category.label,
+                                style: TextStyle(
+                                  color: category.color,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: status.background,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              child: Text(
+                                status.label,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: status.foreground,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${task['title']}',
+                          style: const TextStyle(
+                            color: _text,
+                            fontSize: 16,
+                            height: 1.35,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 18,
+                        color: Color(0xFF50786A),
+                      ),
+                    ],
+                  ),
+                  if (plan.demo case final demo?)
+                    Text(
+                      demo.planLabel,
+                      style: const TextStyle(
+                        color: _secondaryText,
+                        fontSize: 12,
+                      ),
+                    ),
+                  if (next != null && next.isNotEmpty)
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: 'ขั้นถัดไป ',
+                            style: TextStyle(
+                              color: Color(0xFF304E43),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextSpan(text: next),
+                        ],
+                      ),
+                      style: const TextStyle(
+                        color: _secondaryText,
+                        fontSize: 12,
+                        height: 1.45,
+                      ),
+                    ),
+                  if (steps.isNotEmpty)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ExcludeSemantics(
+                            child: LinearProgressIndicator(
+                              value: done / steps.length,
+                              minHeight: 5,
+                              color: _accent,
+                              backgroundColor: const Color(0xFFE3EDE6),
+                              borderRadius: const BorderRadius.all(
+                                Radius.circular(3),
+                              ),
+                              trackGap: 0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Text(
+                          '$done/${steps.length} ขั้น',
+                          semanticsLabel:
+                              'ทำแล้ว $done จาก ${steps.length} ขั้น',
+                          style: const TextStyle(
+                            color: _secondaryText,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

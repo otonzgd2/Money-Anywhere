@@ -6,32 +6,40 @@ import 'money.dart';
 import 'profile_screen.dart';
 import 'thaid.dart';
 
-typedef _DemoField = ({String field, String source, String value});
+typedef DemoConnection = ({String field, String source, String value});
 
 class ProfileDemo {
-  const ProfileDemo._(this._profile, this.identity, this._fields);
+  const ProfileDemo._(this._profile, this.identity, this.connections);
 
   final Map<String, dynamic> _profile;
-  final ThaidProfileIdentity identity;
-  final List<_DemoField> _fields;
+  final ThaidProfileIdentity? identity;
+  final List<DemoConnection> connections;
 
   static ProfileDemo? fromResponse(Map<String, dynamic> response) {
     if (response case {
       'dataStatus': 'mock',
       'profile': final Map<String, dynamic> profile,
-      'identity': final Map<String, dynamic> identity,
       'sources': final List sources,
     }) {
-      if (identity['dataStatus'] != 'mock') return null;
-      return ProfileDemo._(profile, ThaidProfileIdentity(identity), [
-        for (final source in sources)
-          if (source case {
-            'field': final String field,
-            'label': final String label,
-            'value': final String value,
-          })
-            (field: field, source: label, value: value),
-      ]);
+      final identity = response['identity'];
+      if (identity != null &&
+          (identity is! Map<String, dynamic> ||
+              identity['dataStatus'] != 'mock')) {
+        return null;
+      }
+      return ProfileDemo._(
+        profile,
+        identity == null ? null : ThaidProfileIdentity(identity),
+        [
+          for (final source in sources)
+            if (source case {
+              'field': final String field,
+              'label': final String label,
+              'value': final String value,
+            })
+              (field: field, source: label, value: value),
+        ],
+      );
     }
     return null;
   }
@@ -57,7 +65,7 @@ class ProfileSnapshot {
       identity?.displayName ?? _text(_profile['displayName']);
   String? get district => identity?.district ?? _text(_profile['district']);
   int? get age => identity?.age;
-  bool get mock => identity?.mock == true;
+  bool get mock => sample != null || identity?.mock == true;
 
   static Future<ProfileSnapshot> load(
     Api api, {
@@ -269,32 +277,6 @@ class _ProfileDetails extends StatelessWidget {
           value: jobDistrict,
         ),
     ];
-    final importedRows = <Widget>[
-      for (final field in data.sample?._fields ?? const <_DemoField>[])
-        if (field.field != 'identity')
-          switch (field.field) {
-            'disabilityCard' => _ProfileRow(
-              icon: Icons.accessible_forward,
-              label: 'บัตรประจำตัวคนพิการ',
-              value: field.value,
-              source: field.source,
-            ),
-            'ss33' => _ProfileRow(
-              icon: Icons.shield_outlined,
-              label: 'การส่งเงินสมทบ',
-              value: field.value,
-              source: field.source,
-            ),
-            'taxWithheld' => _ProfileRow(
-              icon: Icons.receipt_long_outlined,
-              label: 'ภาษีหัก ณ ที่จ่าย',
-              value: field.value,
-              source: field.source,
-            ),
-            _ => const SizedBox.shrink(),
-          },
-    ];
-
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
@@ -337,23 +319,10 @@ class _ProfileDetails extends StatelessWidget {
             ),
           ),
         ),
-        if (personalRows.isNotEmpty || importedRows.isNotEmpty) ...[
+        if (personalRows.isNotEmpty) ...[
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'ข้อมูลส่วนตัว',
-                  style: theme.textTheme.titleMedium,
-                ),
-              ),
-              if (identity != null)
-                Text('ThaID', style: theme.textTheme.labelMedium),
-            ],
-          ),
+          Text('ข้อมูลส่วนตัว', style: theme.textTheme.titleMedium),
           ...personalRows,
-          if (importedRows.isNotEmpty) const Divider(height: 16),
-          ...importedRows,
         ],
         if (hours != null ||
             targetText != null ||
@@ -422,12 +391,10 @@ class _ProfileRow extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.value,
-    this.source,
   });
   final IconData icon;
   final String label;
   final String value;
-  final String? source;
 
   @override
   Widget build(BuildContext context) {
@@ -438,9 +405,6 @@ class _ProfileRow extends StatelessWidget {
       leading: Icon(icon),
       title: Text(label),
       subtitle: Text(value),
-      trailing: source == null
-          ? null
-          : Text(source!, style: Theme.of(context).textTheme.labelSmall),
     );
   }
 }

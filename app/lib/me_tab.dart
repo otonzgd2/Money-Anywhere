@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'api.dart';
 import 'chat.dart';
 import 'common.dart';
+import 'demo_sources_screen.dart';
 import 'income_plan_screen.dart';
 import 'profile_overview_screen.dart';
 import 'profile_screen.dart';
@@ -30,6 +31,8 @@ class _MeTabState extends State<MeTab> {
   List<Map<String, dynamic>> memory = [];
   ApiException? error;
   bool loaded = false;
+  bool userMode = false;
+  Map<String, dynamic>? governmentConnections;
   GovState gov = GovState.disabled;
   Api get api => widget.app.api;
 
@@ -56,13 +59,18 @@ class _MeTabState extends State<MeTab> {
       final cur = c['current'] as Map<String, dynamic>?;
       final m = await api.get('/v1/me/memory');
       final s = await api.get('/v1/me/settings');
+      if (!mounted) return;
       widget.app.largeText.value = s['largeText'] == true;
       gov = await govState(api);
-      final config = await api.get('/v1/app-config').onError<ApiException>((_, _) => <String, dynamic>{});
+      final config = await api.get('/v1/app-config').onError<ApiException>((_, _) => const <String, dynamic>{});
       if (!mounted) return;
       setState(() {
-        profileRoute = _profileRoute(config);
-        demoCases = _demoCases(config);
+        if (config.isNotEmpty) {
+          userMode = config['mode'] == 'user';
+          governmentConnections = config['governmentConnections'] as Map<String, dynamic>?;
+          profileRoute = _profileRoute(config);
+          demoCases = _demoCases(config);
+        }
         purposes = cur == null ? null : (cur['purposes'] as Map).map((k, v) => MapEntry('$k', v == true));
         history = ((c['items'] as List?) ?? const []).length;
         memory = (m['items'] as List).cast<Map<String, dynamic>>();
@@ -206,42 +214,74 @@ class _MeTabState extends State<MeTab> {
     return const [];
   }
 
-  Future<Map<String, dynamic>> _seedDemo(Api demoApi, String path) async {
-    final loaded = await demoApi.post(path);
-    if (loaded['dataStatus'] != 'mock') {
-      throw ApiException(0, 'DEMO_DATA', 'โหลดข้อมูลจำลองไม่ได้');
-    }
-    return loaded;
-  }
-
-  Future<ProfileDemo> _readProfileDemo(Api demoApi, String path) async {
-    return ProfileDemo.fromResponse(await _seedDemo(demoApi, path)) ??
-        (throw ApiException(0, 'DEMO_DATA', 'ไม่พบข้อมูลจากแหล่งจำลอง'));
-  }
-
   Future<void> _openDemo(_DemoCase scenario) async {
     if (openingDemo) return;
+    if (scenario.route == 'me.profile') {
+      await Navigator.of(context).push<void>(MaterialPageRoute(
+        builder: (_) => DemoSourcesScreen(app: widget.app, personaPath: scenario.path),
+      ));
+      return;
+    }
     setState(() => openingDemo = true);
-    final opensProfile = scenario.route == 'me.profile';
-    final demoApp = opensProfile ? null : widget.app.forDemoChat(DemoChatProfile.tax);
-    final demoApi = demoApp?.api ?? api.forDemo('gov-prefill');
+    final demoApp = widget.app.forDemoChat(DemoChatProfile.tax);
     try {
-      final Widget screen;
-      if (opensProfile) {
-        final demo = await _readProfileDemo(demoApi, scenario.path);
-        screen = ProfileOverviewScreen(app: widget.app, demo: demo);
-      } else {
-        await _seedDemo(demoApi, '${scenario.path}?keepPlans=true');
-        screen = ChatScreen(app: demoApp!, session: demoApp.chat, title: 'D-MyTax · DEMO / MOCK');
-      }
+      final loaded = await demoApp.api.post('${scenario.path}?keepPlans=true');
+      if (loaded['dataStatus'] != 'mock') throw ApiException(0, 'DEMO_DATA', 'โหลดข้อมูลจำลองไม่ได้');
       if (!mounted) return;
-      await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => screen));
+      await Navigator.of(context).push<void>(MaterialPageRoute(
+        builder: (_) => ChatScreen(app: demoApp, session: demoApp.chat, title: 'D-MyTax · DEMO / MOCK'),
+      ));
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
     } finally {
-      demoApi.close();
+      demoApp.api.close();
       if (mounted) setState(() => openingDemo = false);
     }
+  }
+
+  Widget _demoTile(_DemoCase scenario) => ListTile(
+        leading: Icon(scenario.route == 'me.profile' ? Icons.link : Icons.receipt_long),
+        title: Text(scenario.label),
+        subtitle: Text(scenario.subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        enabled: !openingDemo,
+        onTap: () => _openDemo(scenario),
+      );
+
+  Widget _demoAccounts() {
+    return FutureBuilder<ProfileSnapshot?>(
+      future: profileSummary,
+      builder: (context, state) {
+        if (state.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        final sample = state.data?.sample;
+        if (sample != null && sample.connections.isNotEmpty && gov != GovState.connected) {
+          return DemoConnectionDetails(
+            demo: sample,
+            onConnectThaid: gov == GovState.notConnected ? () => connectThaid(context, widget.app) : null,
+          );
+        }
+        return switch (gov) {
+          GovState.disabled => const ListTile(
+            title: Text('ThaID'),
+            subtitle: Text('server ปิดโหมดนี้อยู่'),
+          ),
+          GovState.notConnected => ListTile(
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('เชื่อม ThaID'),
+            subtitle: const Text('โหมดสาธิต ใช้ข้อมูลจำลอง'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => connectThaid(context, widget.app),
+          ),
+          GovState.connected => ListTile(
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('ThaID เชื่อมแล้ว (ข้อมูลจำลอง)'),
+            trailing: TextButton(onPressed: () => disconnectThaid(context, widget.app), child: const Text('ยกเลิก')),
+          ),
+        };
+      },
+    );
   }
 
   Widget _profileTile() {
@@ -300,13 +340,26 @@ class _MeTabState extends State<MeTab> {
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IncomePlanScreen(app: widget.app))),
         ),
         _head('บัญชีที่เชื่อมต่อ'),
-        if (gov == GovState.disabled) const ListTile(title: Text('ThaID'), subtitle: Text('server ปิดโหมดนี้อยู่')),
-        if (gov == GovState.notConnected)
-          ListTile(leading: const Text('🪪', style: TextStyle(fontSize: 22)), title: const Text('เชื่อม ThaID'), subtitle: const Text('โหมดสาธิต ใช้ข้อมูลจำลอง'),
-              trailing: const Icon(Icons.chevron_right), onTap: () => connectThaid(context, widget.app)),
-        if (gov == GovState.connected)
-          ListTile(leading: const Text('🪪', style: TextStyle(fontSize: 22)), title: const Text('ThaID เชื่อมแล้ว (ข้อมูลจำลอง)'),
-              trailing: TextButton(onPressed: () => disconnectThaid(context, widget.app), child: const Text('ยกเลิก'))),
+        if (userMode) ...[
+          ListTile(
+            leading: const Icon(Icons.badge_outlined),
+            title: const Text('ThaID'),
+            subtitle: Text(governmentConnections?['thaid'] == 'approval_required'
+                ? 'รอกรมการปกครองอนุมัติการเชื่อมต่อ'
+                : 'ยังไม่เปิดการเชื่อมต่อ'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.account_balance_outlined),
+            title: const Text('ทางรัฐ'),
+            subtitle: Text(governmentConnections?['tangRat'] == 'access_required'
+                ? 'รอสิทธิ์เข้าถึงข้อมูลจากหน่วยงานเจ้าของบริการ'
+                : 'ยังไม่เปิดการเชื่อมต่อ'),
+          ),
+        ] else ...[
+          _demoAccounts(),
+          for (final scenario in demoCases)
+            if (scenario.route == 'me.profile') _demoTile(scenario),
+        ],
         ListTile(
           leading: const Text('🔌', style: TextStyle(fontSize: 22)),
           title: const Text('แหล่งข้อมูลที่เชื่อมต่อ'),
@@ -349,34 +402,30 @@ class _MeTabState extends State<MeTab> {
           title: const Text('รู้ทันมิจฉาชีพ'),
           onTap: () => _info('สัญญาณเตือน', '• ให้โอนเงินก่อน ค่ามัดจำ ค่าธรรมเนียม\n• ขอเลขบัตร รหัสผ่าน OTP ทางแชท\n• รายได้สูงผิดปกติ งานง่ายเกินจริง\n• เงินกู้คือหนี้ ไม่ใช่รายได้\nสงสัยโทรสายด่วนตำรวจไซเบอร์ 1441'),
         ),
-        _head('สำหรับสาธิต (DEMO)'),
-        for (final scenario in demoCases)
-          ListTile(
-            leading: Icon(scenario.route == 'me.profile' ? Icons.badge_outlined : Icons.receipt_long),
-            title: Text(scenario.label),
-            subtitle: Text(scenario.subtitle),
-            trailing: const Icon(Icons.chevron_right),
-            enabled: !openingDemo,
-            onTap: () => _openDemo(scenario),
-          ),
-        for (final p in const [
-          ['p1', 'สมชาย 65 ปี ยังไม่ได้เบี้ยผู้สูงอายุ'],
-          ['p2', 'สุดา 28 ปี ถูกเลิกจ้าง หางาน'],
-          ['p3', 'มานี 40 ปี อาชีพอิสระ รายได้จากทักษะ'],
-          ['p4', 'วิชัย 45 ปี ถูกเลิกจ้าง นายจ้างค้างค่าจ้าง'],
-          ['p5', 'นิด 32 ปี แม่เลี้ยงเดี่ยว ลูก 3 ขวบ'],
-          ['p6', 'สมศักดิ์ 52 ปี ผู้พิการ มีบัตรสวัสดิการ'],
-          ['p7', 'ต้น 20 ปี นักศึกษา หางานพาร์ตไทม์'],
-          ['p8', 'ยายบุญมี 78 ปี ได้เบี้ยอยู่แล้ว อยากมีรายได้เสริม'],
-        ])
-          ListTile(title: Text('โหลดผู้ใช้ตัวอย่าง: ${p[1]}'), leading: const Icon(Icons.person_outline), onTap: () => _persona(p[0], p[1])),
+        if (!userMode) ...[
+          _head('สำหรับสาธิต (DEMO)'),
+          for (final scenario in demoCases)
+            if (scenario.route == 'assistant') _demoTile(scenario),
+          for (final p in const [
+            ['p1', 'สมชาย 65 ปี ยังไม่ได้เบี้ยผู้สูงอายุ'],
+            ['p2', 'สุดา 28 ปี ถูกเลิกจ้าง หางาน'],
+            ['p3', 'มานี 40 ปี อาชีพอิสระ รายได้จากทักษะ'],
+            ['p4', 'วิชัย 45 ปี ถูกเลิกจ้าง นายจ้างค้างค่าจ้าง'],
+            ['p5', 'นิด 32 ปี แม่เลี้ยงเดี่ยว ลูก 3 ขวบ'],
+            ['p6', 'สมศักดิ์ 52 ปี ผู้พิการ มีบัตรสวัสดิการ'],
+            ['p7', 'ต้น 20 ปี นักศึกษา หางานพาร์ตไทม์'],
+            ['p8', 'ยายบุญมี 78 ปี ได้เบี้ยอยู่แล้ว อยากมีรายได้เสริม'],
+          ])
+            ListTile(title: Text('โหลดผู้ใช้ตัวอย่าง: ${p[1]}'), leading: const Icon(Icons.person_outline), onTap: () => _persona(p[0], p[1])),
+        ],
         ListTile(
           title: const Text('ที่อยู่ server'),
           subtitle: Text(api.baseUrl),
           trailing: const Icon(Icons.edit),
           onTap: () => editServer(context, widget.app, () { widget.app.bump(); setState(() {}); }),
         ),
-        const Padding(padding: EdgeInsets.all(8), child: DemoPill(text: 'เวอร์ชันสาธิต · ผู้ใช้สมมติ · ไม่มีการเข้าสู่ระบบ')),
+        if (!userMode)
+          const Padding(padding: EdgeInsets.all(8), child: DemoPill(text: 'เวอร์ชันสาธิต · ผู้ใช้สมมติ · ไม่มีการเข้าสู่ระบบ')),
       ]),
     );
   }

@@ -63,7 +63,7 @@ async function runDemo() {
 
     await request('/v1/me/facts', 'PATCH', fixture.initialAnswers);
     const baseline = await guidedQuestions(request);
-    assert.deepEqual(Object.keys(baseline), ['ageBand', 'ss33', 'disabilityCard']);
+    assert.deepEqual(Object.keys(baseline), ['ageBand', 'ss33', 'disabilityCard', 'taxWithheld']);
     const waitingForAge = await request('/v1/ai/conversations', 'POST', { mode: 'guided' }, 201);
     assert.equal(waitingForAge.step.fact, 'ageBand');
 
@@ -79,6 +79,7 @@ async function runDemo() {
     assert.equal((await request('/v1/me/facts')).ageBand, linkedFacts.ageBand);
     confirmed.push('A conversation started before linking ThaID advances without overwriting the imported age');
     const afterThaId = await guidedQuestions(request);
+    // This legacy mock endpoint also returns agency entitlements, including the tax refund.
     assert.deepEqual(Object.keys(afterThaId), ['ss33', 'disabilityCard']);
     confirmed.push('Synthetic ThaID age band skips the age question');
 
@@ -106,7 +107,7 @@ async function runDemo() {
 
     await request('/v1/me/consents', 'POST', consent(false), 201);
     const afterRevocation = await guidedQuestions(request);
-    assert.deepEqual(Object.keys(afterRevocation), ['ageBand']);
+    assert.deepEqual(Object.keys(afterRevocation), ['ageBand', 'taxWithheld']);
     assert.equal((await request('/v1/me/gov-link')).status, 'not_connected');
     confirmed.push('Withdrawing government-data consent removes the mock ThaID age band');
 
@@ -146,7 +147,7 @@ async function runDemo() {
     assert.equal(loadedTaxPersona.dataStatus, 'mock');
     const importedTaxFacts = { taxWithheld: (await taxRequest('/v1/me/facts')).taxWithheld };
     assert.deepEqual(importedTaxFacts, expectedTaxFacts);
-    assert.equal((await request('/v1/me/facts')).taxWithheld, false);
+    assert.equal((await request('/v1/me/facts')).taxWithheld, undefined);
     const afterDMyTax = await guidedQuestions(taxRequest);
     assert.deepEqual(Object.keys(afterDMyTax), []);
     const refund = (await taxRequest('/v1/money')).items.find(item => item.id === 'tax_refund');
@@ -177,6 +178,41 @@ async function runDemo() {
     assert.deepEqual(await request('/v1/me/facts'), principalFacts);
     confirmed.push('All four synthetic sources appear on an isolated profile and supply the guided chat facts');
 
+    // Reuse one isolated device so each case also tests clearing facts left by the previous case.
+    const matrixRequest = requestFor(base, 'device-gov-prefill-combinations');
+    const connections = [
+      { id: 'thaid', label: 'ThaID', fact: 'ageBand', value: '60-69' },
+      { id: 'tangRat', label: 'ทางรัฐ', fact: 'disabilityCard', value: true },
+      { id: 'socialSecurity', label: 'ประกันสังคม', fact: 'ss33', value: true },
+      { id: 'dMyTax', label: 'D-MyTax', fact: 'taxWithheld', value: true }
+    ];
+    const combinations = [];
+    for (let mask = 0; mask < 2 ** connections.length; mask++) {
+      const selected = connections.filter((_, index) => mask & (1 << index));
+      const expectedSources = selected.map(source => source.label);
+      const missingQuestions = Object.keys(baseline).filter(fact => !selected.some(source => source.fact === fact));
+      const scenario = '/v1/demo/personas/gov-prefill?sources=' + selected.map(source => source.id).join(',');
+      const preview = await matrixRequest(scenario);
+      const loaded = await matrixRequest(scenario, 'POST');
+      const caseLabel = expectedSources.join(' + ') || 'no sources';
+      assert.equal(preview.dataStatus, 'mock', caseLabel);
+      assert.equal(loaded.dataStatus, 'mock', caseLabel);
+      assert.deepEqual(preview.sources.map(source => source.label), expectedSources, caseLabel);
+      assert.deepEqual(loaded.sources, preview.sources, caseLabel);
+      const hasIdentity = selected.some(source => source.id === 'thaid');
+      assert.equal(Boolean(preview.identity), hasIdentity, caseLabel);
+      assert.equal(Boolean(loaded.identity), hasIdentity, caseLabel);
+      assert.equal(Boolean(loaded.profile.displayName), hasIdentity, caseLabel);
+      assert.deepEqual(await matrixRequest('/v1/me/facts'), {
+        ...fixture.initialAnswers,
+        ...Object.fromEntries(selected.map(source => [source.fact, source.value]))
+      }, caseLabel);
+      const questions = Object.keys(await guidedQuestions(matrixRequest));
+      assert.deepEqual(questions, missingQuestions, caseLabel);
+      combinations.push({ sources: expectedSources, questions });
+    }
+    confirmed.push('All 16 source combinations show only selected data and ask only missing guided questions');
+
     console.log(JSON.stringify({
       dataStatus: fixture.dataStatus,
       factsFromSample: { ageBand: linkedFacts.ageBand, ...tangRat, ...socialSecurity },
@@ -189,6 +225,7 @@ async function runDemo() {
         refundScreeningStatus: refund.status
       },
       profileDemo: { name: profile.displayName, sources: loadedProfile.sources },
+      sourceCombinations: combinations,
       checksPassed: confirmed
     }, null, 2));
   } finally {

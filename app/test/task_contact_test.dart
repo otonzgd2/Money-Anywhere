@@ -13,16 +13,17 @@ const _seniorGuide = '/docs/sources/thai-senior-benefits-2026-11-27.html#item-1'
 const _jobTitle = 'งานแพ็คของ รายวัน (กะเช้า & กะบ่าย #2 + งานเสริม)';
 const _listingTitle = 'ผู้ช่วยร้านอาหาร พาร์ตไทม์';
 const _demoPage = '$_baseUrl/docs/mockups/job-application.html';
-final _demoUrl = '$_demoPage#title=${Uri.encodeComponent(_jobTitle)}';
 final _detailsDemoUrl = '$_demoPage#title=${Uri.encodeComponent(_listingTitle)}';
 const _jobUrl = 'https://careers.company.test/apply';
 
 class _ContactApi extends Api {
-  _ContactApi({required this.moneyPlan, this.jobUrl, this.listingMissing = false}) : super(baseUrl: _baseUrl);
+  _ContactApi({required this.moneyPlan, this.jobUrl, this.listingMissing = false, this.mock = false}) : super(baseUrl: _baseUrl);
 
   final bool moneyPlan;
   final String? jobUrl;
   final bool listingMissing;
+  final bool mock;
+  int sourceReads = 0;
 
   Map<String, dynamic> get task => {
     'id': 't1',
@@ -38,15 +39,17 @@ class _ContactApi extends Api {
 
   @override
   Future<Map<String, dynamic>> get(String path) async {
-    switch (path) {
+    switch (Uri.parse(path).path) {
       case '/v1/tasks/t1': return task;
       case '/v1/tasks': return {'items': [task]};
       case '/v1/opportunities/job-1':
+        sourceReads++;
         if (listingMissing) throw ApiException(404, 'NOT_FOUND', 'ไม่พบประกาศ');
-        return {'title': _listingTitle, 'mapGroup': 'job', 'provenance': {'dataStatus': 'curated', 'sourceUrl': jobUrl}};
+        return {'title': _listingTitle, 'category': 'job_part', 'mapGroup': 'job',
+          'provenance': {'dataStatus': mock ? 'mock' : 'curated', 'sourceUrl': jobUrl}};
       case '/v1/money/old_age': return {
         'title': 'เบี้ยยังชีพผู้สูงอายุ', 'status': 'likely', 'amount': {'value': 600},
-        'documents': [], 'channels': [{'title': 'สำนักงานเขตตามทะเบียนบ้าน', 'kind': 'office'}],
+        'documents': [{'text': 'บัตรประจำตัว', 'ready': false}], 'channels': [{'title': 'สำนักงานเขตตามทะเบียนบ้าน', 'kind': 'office'}],
         'contactGuide': _seniorGuide,
       };
       default: throw StateError('Unexpected path $path');
@@ -98,14 +101,15 @@ class _LinkResponse implements HttpClientResponse {
 }
 
 void main() {
-  Future<void> openContact(WidgetTester tester, {required bool moneyPlan, String? jobUrl, bool listingMissing = false}) async {
-    final api = _ContactApi(moneyPlan: moneyPlan, jobUrl: jobUrl, listingMissing: listingMissing);
+  Future<_ContactApi> openContact(WidgetTester tester, {required bool moneyPlan, String? jobUrl, bool listingMissing = false, bool mock = false}) async {
+    final api = _ContactApi(moneyPlan: moneyPlan, jobUrl: jobUrl, listingMissing: listingMissing, mock: mock);
     addTearDown(api.close);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpWidget(MaterialApp(home: TaskScreen(app: AppState(api), taskId: 't1')));
+    await tester.pumpWidget(MaterialApp(home: TaskScreen(app: AppState(api)..startupDemoEnabled = true, taskId: 't1')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('ข้อมูลติดต่อ'));
     await tester.pumpAndSettle();
+    return api;
   }
 
   Future<void> returnFromBrowser(WidgetTester tester) async {
@@ -130,14 +134,12 @@ void main() {
   }
 
   Future<void> applyFromDetails(WidgetTester tester, {String? sourceUrl}) async {
-    final api = _ContactApi(moneyPlan: false);
+    final api = _ContactApi(moneyPlan: false, jobUrl: sourceUrl);
     addTearDown(api.close);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-    await tester.pumpWidget(MaterialApp(home: OppScreen(app: AppState(api), opp: {
-      'id': 'job-1', 'title': _listingTitle, 'mapGroup': 'job', 'money': {'basis': 'none'},
-      'provenance': {'dataStatus': 'curated', 'sourceUrl': sourceUrl},
-    })));
-    await tester.tap(find.text('สมัครงาน ↗'));
+    await tester.pumpWidget(MaterialApp(home: OppScreen(app: AppState(api)..startupDemoEnabled = true, opportunityId: 'job-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('รายละเอียดงาน'));
     await tester.pumpAndSettle();
   }
 
@@ -171,88 +173,60 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('a job without a real URL opens the demo HTML directly from the plan', (tester) async {
+  testWidgets('AC-11 a mock job opens its sample only after the user taps', (tester) async {
     final opened = recordLinks();
-    await openContact(tester, moneyPlan: false);
-    expect(opened, [_demoUrl]);
-    expect(find.text('ข้อมูลติดต่อ'), findsOneWidget);
-
+    final api = await openContact(tester, moneyPlan: false, mock: true);
+    expect(opened, isEmpty);
+    expect(find.text(_listingTitle), findsOneWidget);
+    expect(find.text('พาร์ตไทม์'), findsOneWidget);
+    expect(find.text('DEMO / MOCK'), findsOneWidget);
+    await tester.tap(find.text('ดูรายละเอียดงานตัวอย่าง'));
+    await tester.pumpAndSettle();
+    expect(opened, [_detailsDemoUrl]);
     await returnFromBrowser(tester);
     expect(find.text('กลับมาแล้ว 👋'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('ทำแล้ว 0 จาก 1 ขั้น'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, 'ข้อมูลติดต่อ')).focusNode?.hasFocus, isTrue);
+    expect(api.sourceReads, 1);
   });
 
-  testWidgets('a deleted job posting opens the demo HTML from the saved plan', (tester) async {
+  testWidgets('AC-12 a deleted source keeps the saved plan and shows a distinct empty state', (tester) async {
     final opened = recordLinks();
     await openContact(tester, moneyPlan: false, listingMissing: true);
-    expect(opened, [_demoUrl]);
-  });
-
-  testWidgets('an application URL returning 404 opens the demo HTML immediately', (tester) async {
-    final opened = recordLinks();
-    await HttpOverrides.runZoned(
-      () => openContact(tester, moneyPlan: false, jobUrl: _jobUrl),
-      createHttpClient: (_) => _LinkClient(404),
-    );
-    expect(opened, [_demoUrl]);
-  });
-
-  testWidgets('a reachable application URL opens the employer site', (tester) async {
-    final opened = recordLinks();
-    await HttpOverrides.runZoned(
-      () => openContact(tester, moneyPlan: false, jobUrl: _jobUrl),
-      createHttpClient: (_) => _LinkClient(200),
-    );
     expect(opened, isEmpty);
-    await tester.tap(find.text('เปิดหน้าสมัครงาน'));
+    expect(find.text(_jobTitle), findsOneWidget);
+    expect(find.text('ไม่พบประกาศหรือข้อมูลต้นทางแล้ว'), findsOneWidget);
+    expect(find.text('ยังไม่มีช่องทางติดต่อที่ตรวจสอบได้'), findsOneWidget);
+    expect(find.text('ดูรายละเอียดงานตัวอย่าง'), findsNothing);
+  });
+
+  testWidgets('a real plan uses the supplied source link with no apply prompt on return', (tester) async {
+    final opened = recordLinks();
+    await openContact(tester, moneyPlan: false, jobUrl: _jobUrl);
+    expect(opened, isEmpty);
+    await tester.tap(find.text('เปิดเว็บไซต์'));
     await tester.pumpAndSettle();
     expect(opened, [_jobUrl]);
-
-    await returnFromBrowser(tester);
-    expect(find.text('กลับมาแล้ว 👋'), findsOneWidget);
-    await tester.tap(find.text('ไม่ต้องบันทึก'));
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('a failed browser launch of a reachable job URL opens the demo HTML', (tester) async {
-    final opened = recordLinks(launch: (url) => url == _demoUrl);
-    await HttpOverrides.runZoned(
-      () => openContact(tester, moneyPlan: false, jobUrl: _jobUrl),
-      createHttpClient: (_) => _LinkClient(200),
-    );
-    await tester.tap(find.text('เปิดหน้าสมัครงาน'));
-    await tester.pumpAndSettle();
-    expect(opened, [_jobUrl, _demoUrl]);
-  });
-
-  testWidgets('a failed browser launch of the demo gives the user a retry', (tester) async {
-    var allowLaunch = false;
-    final opened = recordLinks(launch: (_) => allowLaunch);
-    await openContact(tester, moneyPlan: false);
-    expect(find.text('เปิดหน้าสมัครงานจำลองไม่ได้'), findsOneWidget);
-    allowLaunch = true;
-    await tester.tap(find.text('ลองเปิดหน้าสมัครงานจำลองอีกครั้ง'));
-    await tester.pumpAndSettle();
-    expect(opened, [_demoUrl, _demoUrl]);
-    expect(find.text('ข้อมูลติดต่อ'), findsOneWidget);
-  });
-
-  testWidgets('a benefit plan opens the contact channels of that exact benefit', (tester) async {
-    await openContact(tester, moneyPlan: true);
-    expect(find.text('เส้นทางรับเงิน'), findsOneWidget);
-    expect(find.text('สำนักงานเขตตามทะเบียนบ้าน'), findsOneWidget);
-    expect(find.text('ข้อมูลสมัครงาน'), findsNothing);
-  });
-
-  testWidgets('contact opens the project HTML at the correct row without asking whether a claim was filed', (tester) async {
-    final opened = recordLinks();
-
-    await openContact(tester, moneyPlan: true);
-    await tester.tap(find.text('ติดต่อ ↗'));
-    await tester.pumpAndSettle();
-    expect(opened, ['$_baseUrl$_seniorGuide']);
-
     await returnFromBrowser(tester);
     expect(find.text('กลับมาแล้ว 👋'), findsNothing);
+  });
+
+  testWidgets('a benefit plan keeps documents, contact guide and the original claim route', (tester) async {
+    final opened = recordLinks();
+    await openContact(tester, moneyPlan: true);
+    expect(find.text('ข้อมูลติดต่อ'), findsOneWidget);
+    expect(find.text('สำนักงานเขตตามทะเบียนบ้าน'), findsOneWidget);
+    expect(find.text('• บัตรประจำตัว'), findsOneWidget);
+    expect(opened, isEmpty);
+    await tester.tap(find.text('อ่านคู่มือติดต่อหน่วยงาน'));
+    await tester.pumpAndSettle();
+    expect(opened, ['$_baseUrl$_seniorGuide']);
+    await returnFromBrowser(tester);
+    expect(find.text('กลับมาแล้ว 👋'), findsNothing);
+    await tester.tap(find.text('ดูวิธียื่นและติดตามผล'));
+    await tester.pumpAndSettle();
     expect(find.text('เส้นทางรับเงิน'), findsOneWidget);
   });
 }

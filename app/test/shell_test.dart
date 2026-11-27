@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_ui/material_ui.dart' show CircularProgressIndicator;
 
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
@@ -15,18 +14,24 @@ Future<void> settle(WidgetTester tester) async {
   await tester.pump();
 }
 
+class _StartupApi extends Api {
+  @override
+  Future<Map<String, dynamic>> get(String path) async => throw ApiException(503, 'TEST', 'offline');
+}
+
 void main() {
   testWidgets('draws a startup screen while local settings are loading', (tester) async {
     final startup = Completer<AppState>();
-    final api = Api(baseUrl: 'http://127.0.0.1:9');
+    final api = _StartupApi();
     addTearDown(api.close);
-    await tester.pumpWidget(MoneyAnywhereStartup(app: startup.future));
+    await tester.pumpWidget(MoneyAnywhereStartup(initialize: () => startup.future));
 
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(ThangRotSplash), findsOneWidget);
+    expect(find.bySemanticsLabel('ทางรอด'), findsOneWidget);
 
     startup.complete(AppState(api));
-    await settle(tester);
-    expect(find.text('หน้าแรก'), findsWidgets);
+    await tester.pumpAndSettle();
+    expect(find.text('ตรวจโหมดแอปไม่ได้'), findsOneWidget);
   });
 
   testWidgets('4 tabs and the new-person home (ui-states.md §1, §3)', (tester) async {

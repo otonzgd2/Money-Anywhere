@@ -16,7 +16,6 @@ const baseline = {
   work: 'ทำงานประจำ',
   disabilityCard: false
 };
-delete baseline.taxWithheld;
 
 const samplePersona = {
   profile: {

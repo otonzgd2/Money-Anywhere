@@ -71,10 +71,15 @@ function openJobDatabase(file) {
 
 // SQLite stores nullable fields as NULL, while the API omits absent optional fields.
 function toOpportunity(row) {
+  const remote = row.work_mode === 'remote' || row.provider === 'jobicy';
+  const exact = row.loc_precision === 'exact' && !remote && row.data_status !== 'mock'
+    && Number.isFinite(row.lat) && Math.abs(row.lat) <= 90
+    && Number.isFinite(row.lng) && Math.abs(row.lng) <= 180;
   return {
     id: row.id,
     title: row.title,
     organization: row.organization ?? undefined,
+    status: row.status === 'active' ? undefined : row.status,
     category: row.category,
     mapGroup: row.map_group,
     location: {
@@ -83,9 +88,10 @@ function toOpportunity(row) {
       province: row.province ?? undefined,
       district: row.district ?? undefined,
       workMode: row.work_mode ?? (row.provider === 'jobicy' ? 'remote' : undefined),
-      isRemote: row.work_mode === 'remote' || row.provider === 'jobicy' ? true : undefined,
+      isRemote: remote ? true : undefined,
       lat: row.lat ?? undefined,
-      lng: row.lng ?? undefined
+      lng: row.lng ?? undefined,
+      coordinateSource: exact ? 'database' : undefined
     },
     money: {
       basis: row.money_basis,
@@ -126,6 +132,8 @@ function openJobCatalogue(file, { includeBangkokDemo = true } = {}) {
     const selectJobs = 'SELECT p.*, s.data_status, s.attribution ' + visibleListings;
     const list = db.prepare(selectJobs + ' ORDER BY p.rowid');
     const get = db.prepare(selectJobs + ' AND p.id = ?');
+    const getClosed = db.prepare("SELECT p.*, s.data_status, s.attribution FROM job_posting p JOIN job_source s ON s.provider = p.provider"
+      + " WHERE " + visibleSources + " AND " + visibleGroup + " AND p.status IN ('closed', 'expired') AND p.id = ?");
     const duplicate = db.prepare('SELECT p.id ' + visibleListings
       + " AND NOT " + isBangkokDemo + " AND p.dedup_key = ? AND p.provider <> ? ORDER BY p.rowid LIMIT 1");
     const sources = db.prepare(
@@ -148,6 +156,10 @@ function openJobCatalogue(file, { includeBangkokDemo = true } = {}) {
       get(id) {
         if (id == null) return undefined;
         const row = get.get(id);
+        return row && toOpportunity(row);
+      },
+      getClosed(id) {
+        const row = getClosed.get(id);
         return row && toOpportunity(row);
       },
       findDuplicate: (key, provider) => duplicate.get(key, provider),

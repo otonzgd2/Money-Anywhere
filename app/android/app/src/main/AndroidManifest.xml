@@ -2,7 +2,7 @@
     <!-- Calls the demo server (contracts/mock-server.js). Demo uses plain http on the laptop / adb reverse. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="Money Anywhere"
+        android:label="ทางรอด"
         android:usesCleartextTraffic="true"
         android:fullBackupContent="@xml/local_settings_backup"
         android:dataExtractionRules="@xml/local_settings_transfer"

@@ -109,10 +109,10 @@
   .aihero u { color:#fff; cursor:pointer; display:inline-block; margin-top:6px; font-size:13.5px; }
 
   .tabs { display:flex; background:#eef5f1; padding:8px 6px 12px; flex:none; }
-  .tabs div { flex:1; text-align:center; font-size:12px; color:var(--mut); cursor:pointer; font-weight:600; }
-  .tabs div span { display:block; width:56px; margin:0 auto 3px; padding:3px 0; border-radius:16px; font-size:20px; }
-  .tabs div.on { color:var(--ink); }
-  .tabs div.on span { background:#b7ebd3; }
+  .tabs button { flex:1; min-height:48px; border:0; background:transparent; text-align:center; font-size:12px; color:var(--mut); cursor:pointer; font-weight:600; }
+  .tabs button span { display:block; width:56px; margin:0 auto 3px; padding:3px 0; border-radius:16px; font-size:20px; }
+  .tabs button.on { color:var(--ink); }
+  .tabs button.on span { background:#b7ebd3; }
 
   .chat { flex:1; overflow-y:auto; padding:6px 12px; display:flex; flex-direction:column; gap:6px; }
   .chat::-webkit-scrollbar { width:0; }
@@ -159,6 +159,89 @@
   .hidden { display:none !important; }
   /* ฉัน > ตัวอักษรใหญ่ (the app scales text 1.3x) */
   .xl .body > *, .xl .chat > *, .xl .msheet > *, .xl .dlg > * { zoom:1.2; }
+  .phone, .side { max-width:100%; }
+  button.back, button.act { border:0; background:transparent; color:inherit; flex:none; }
+  #v-task .back, #v-task .act, #v-task-contact .back { width:44px; height:44px; }
+  .tabs button:focus-visible, #plansBody button:focus-visible, #taskBody :is(button,a):focus-visible, #taskContactBody :is(button,a):focus-visible,
+  #v-task .appbar button:focus-visible, #v-task-contact .appbar button:focus-visible { outline:3px solid #174ea6; outline-offset:2px; }
+  #plansBody { padding:0 0 20px; background:#f3f7f4; }
+  .plan-list-header {
+    padding:22px 20px 20px; border-radius:0 0 24px 24px; color:#fff;
+    background:radial-gradient(ellipse at top right,#2d6658 0%,transparent 63%),#163e35;
+  }
+  .plan-list-header h1 { margin:0; font-size:1.625rem; font-weight:750; line-height:1.3; overflow-wrap:anywhere; }
+  .plan-list-header p { margin:4px 0 0; color:#d3e6dc; font-size:.875rem; }
+  .plan-list-content { padding:14px 13px 0; }
+  .plan-list-section + .plan-list-section { margin-top:18px; }
+  .plan-list-section h2 { margin:0 4px 8px; color:#37564b; font-size:.875rem; line-height:1.45; }
+  .plan-list { list-style:none; padding:0; margin:0; display:grid; gap:9px; }
+  .plan-item {
+    display:grid; gap:7px; width:100%; min-height:48px; padding:11px 12px;
+    border:1px solid #dce7df; border-radius:15px; background:#fff;
+    box-shadow:0 2px 4px #163e3509; color:#172c25; text-align:left; cursor:pointer;
+  }
+  .plan-item:hover { border-color:#87ae9a; background:#fbfdfb; }
+  .plan-item:active { background:#eef5f0; }
+  .plan-item-meta { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; }
+  .plan-item-category { font-size:.75rem; font-weight:650; color:#31584c; overflow-wrap:anywhere; }
+  .plan-item[data-layout="employment"] .plan-item-category { color:#255191; }
+  .plan-item[data-layout="income"] .plan-item-category { color:#774a2d; }
+  .plan-item[data-layout="grant"] .plan-item-category { color:#653e82; }
+  .plan-item-status { padding:2px 7px; border-radius:12px; color:#155744; background:#e6f4ec; font-size:.6875rem; font-weight:650; }
+  .plan-item-status[data-status="blocked"] { color:#852f1b; background:#fbece5; }
+  .plan-item-status[data-status="snoozed"] { color:#624f1c; background:#f8f0dc; }
+  .plan-item-status[data-status="finished"] { color:#3b554a; background:#edf2ee; }
+  .plan-item-title-row { display:grid; grid-template-columns:minmax(0,1fr) 18px; gap:5px; align-items:center; }
+  .plan-item-title { font-size:1rem; line-height:1.35; font-weight:750; overflow-wrap:anywhere; }
+  .plan-item-arrow { font-size:1.35rem; line-height:.8; text-align:right; color:#50786a; }
+  .plan-item-next { color:#466055; font-size:.75rem; line-height:1.45; overflow-wrap:anywhere; }
+  .plan-item-next b { color:#304e43; }
+  .plan-item-progress { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:9px; align-items:center; }
+  .plan-item-progress .plan-progress { height:5px; min-width:0; background:#e3ede6; }
+  .plan-item-progress .plan-progress::-webkit-progress-bar { background:#e3ede6; }
+  .plan-item-progress span { color:#466055; font-size:.6875rem; font-variant-numeric:tabular-nums; }
+  .plan-list-note { color:#506960; font-size:.75rem; margin:11px 4px 0; }
+  .plan-list-empty { border:1px solid #dce7df; border-radius:15px; background:#fff; padding:17px; }
+  .plan-list-empty h2 { font-size:1.1rem; margin:0 0 5px; }
+  .plan-list-empty p { color:#466055; margin:0 0 12px; }
+  .plan-list-empty .btn:not(.out) { background:#086348; }
+  .plan-hero { --strong:#105c46; --tint:#e8f7ef; color:#102923; background:var(--tint); border:1px solid var(--strong); border-radius:18px; padding:14px; margin:4px 0 12px; }
+  .plan-hero[data-layout="employment"] { --strong:#204d9a; --tint:#eaf1ff; }
+  .plan-hero[data-layout="income"] { --strong:#694128; --tint:#fbefe5; }
+  .plan-hero[data-layout="grant"] { --strong:#634083; --tint:#f1eafa; }
+  .plan-hero h2 { font-size:1.3rem; line-height:1.4; margin:8px 0; overflow-wrap:anywhere; }
+  .plan-hero h2:focus { outline:none; }
+  .plan-category { display:inline-block; padding:3px 9px; border-radius:15px; color:var(--strong); background:#fff; font-weight:750; font-size:.78rem; }
+  .plan-hero .pill { margin-left:4px; }
+  .plan-owner { margin:2px 0; overflow-wrap:anywhere; }
+  .plan-value { color:var(--strong); font-weight:750; font-size:1rem; margin:8px 0 0; overflow-wrap:anywhere; }
+  .plan-hero .btn, .plan-section .btn { background:#086348; }
+  .plan-hero .btn.out, .plan-section .btn.out { color:#06513b; background:transparent; }
+  .plan-section { margin:10px 0; padding:14px; border:1px solid var(--line); box-shadow:none; }
+  .plan-section h3, .plan-channel h4 { font-size:1rem; line-height:1.4; margin:0 0 6px; }
+  .plan-section p, .plan-channel p { margin:5px 0; overflow-wrap:anywhere; white-space:pre-line; }
+  .plan-facts { margin:0; }
+  .plan-facts div { display:grid; grid-template-columns:minmax(0, 6.5rem) minmax(0, 1fr); gap:4px 8px; padding:8px 0; border-bottom:1px solid var(--line); font-size:.875rem; line-height:1.45; }
+  .plan-facts div:last-child { border:0; padding-bottom:0; }
+  .plan-facts dt { color:var(--mut); }
+  .plan-facts dd { margin:0; overflow-wrap:anywhere; }
+  .plan-bullets { margin:4px 0 0; padding-left:1.3rem; }
+  .plan-bullets li + li { margin-top:4px; }
+  .plan-progress { appearance:none; width:100%; height:8px; border:0; border-radius:6px; background:#dbe8e2; vertical-align:middle; }
+  .plan-progress::-webkit-progress-bar { background:#dbe8e2; border-radius:6px; }
+  .plan-progress::-webkit-progress-value { background:#086348; border-radius:6px; }
+  .plan-progress::-moz-progress-bar { background:#086348; border-radius:6px; }
+  .plan-steps { margin:8px 0; padding-left:1.3rem; }
+  .plan-steps li { padding:4px 0 6px 3px; }
+  .plan-steps [aria-current="step"] { font-weight:750; }
+  .plan-channel { border-top:1px solid var(--line); padding:12px 0; }
+  .plan-channel:last-child { padding-bottom:0; }
+  .plan-link { text-align:center; text-decoration:none; }
+  @media (max-width:620px) {
+    body { padding:10px; gap:14px; flex-direction:column; align-items:center; }
+    .phone { order:-1; height:min(780px, calc(100dvh - 20px)); width:min(380px,100%); }
+    .side { width:min(380px,100%); }
+  }
 </style>
 </head>
 <body>
@@ -166,6 +249,7 @@
 <div class="side">
   <h1>Money Anywhere</h1>
   <p>Clickable mock v3 ตรงกับแอป Flutter ใน <code>app/lib</code> (26 พ.ย. 2569) ตาม <code>docs/design/ui-states.md</code> ข้อมูลทั้งหมดเป็นข้อมูลสมมติ ไม่ได้เรียก server หรือ AI จริง</p>
+  <button class="sbtn" type="button" onclick="openPlanSamples()">ลองแผนของฉันครบ 10 หมวด</button>
   <div class="nav" id="nav"></div>
   <div class="grp">ผู้ใช้ตัวอย่าง (เหมือน ฉัน > สำหรับสาธิต)</div>
   <select id="persona" onchange="loadPersona(this.value)" style="width:100%;padding:8px;border-radius:10px;font-size:12.5px"></select>
@@ -194,7 +278,7 @@
     <div id="map" class="hidden"></div>
     <div class="fab" id="oppFab" onclick="toggleMap()"></div>
   </div>
-  <div class="view" id="v-plans"><div class="appbar"><div class="ttl">แผนของฉัน</div></div><div class="body" id="plansBody"></div></div>
+  <div class="view" id="v-plans"><div class="body" id="plansBody" role="region" tabindex="-1" aria-labelledby="plansHeading"></div></div>
   <div class="view" id="v-me"><div class="appbar"><div class="ttl">ฉัน</div></div><div class="body" id="meBody" style="padding:0 10px 24px"></div></div>
 
   <!-- Full-screen flows: bottom bar hidden, back returns -->
@@ -208,7 +292,14 @@
   <div class="view" id="v-quick"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">เช็คเงินที่ควรได้</div></div><div class="body" id="quickBody"></div></div>
   <div class="view" id="v-route"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">เส้นทางรับเงิน</div></div><div class="body" id="routeBody"></div></div>
   <div class="view" id="v-oppd"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">รายละเอียด</div></div><div class="body" id="oppdBody"></div></div>
-  <div class="view" id="v-task"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">แผนของฉัน</div><div class="act" id="taskDel" onclick="tDelete()" title="ลบแผน">🗑️</div></div><div class="body" id="taskBody"></div></div>
+  <div class="view" id="v-task">
+    <div class="appbar"><button class="back" type="button" onclick="backFromTask()" aria-label="ย้อนกลับ">←</button><div class="ttl">รายละเอียดแผน</div><button class="act" id="taskDel" type="button" onclick="tDelete()" aria-label="ลบแผน">🗑️</button></div>
+    <div class="body" id="taskBody"></div>
+  </div>
+  <div class="view" id="v-task-contact">
+    <div class="appbar"><button class="back" type="button" onclick="backFromTaskContact()" aria-label="กลับไปที่รายละเอียดแผน">←</button><div class="ttl">ข้อมูลติดต่อ</div></div>
+    <div class="body" id="taskContactBody"></div>
+  </div>
   <div class="view" id="v-profile"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">โปรไฟล์และทักษะ</div></div><div class="body" id="profileBody"></div></div>
   <div class="view" id="v-plan"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">แผนรายได้</div></div><div class="body" id="planBody"></div></div>
   <div class="view" id="v-sources"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">แหล่งข้อมูลที่เชื่อมต่อ</div></div><div class="body" id="sourcesBody"></div></div>
@@ -217,12 +308,12 @@
   <div class="dlgw" id="dlgw" onclick="if(event.target===this&&!dlgLock)closeDlg()"><div class="dlg" id="dlg"></div></div>
   <div class="snack" id="snack"><span id="snackT"></span><u id="snackU"></u></div>
 
-  <div class="tabs" id="tabs">
-    <div onclick="goTab('home')"><span>🏠</span>หน้าแรก</div>
-    <div onclick="goTab('opp')"><span>✨</span>โอกาส</div>
-    <div onclick="goTab('plans')"><span>📋</span>แผนของฉัน</div>
-    <div onclick="goTab('me')"><span>👤</span>ฉัน</div>
-  </div>
+  <nav class="tabs" id="tabs" aria-label="เมนูหลัก">
+    <button type="button" onclick="goTab('home')"><span aria-hidden="true">🏠</span>หน้าแรก</button>
+    <button type="button" onclick="goTab('opp')"><span aria-hidden="true">✨</span>โอกาส</button>
+    <button type="button" onclick="goTab('plans')"><span aria-hidden="true">📋</span>แผนของฉัน</button>
+    <button type="button" onclick="goTab('me')"><span aria-hidden="true">👤</span>ฉัน</button>
+  </nav>
 </div></div>
 
 <script>
@@ -312,7 +403,7 @@ const MONEY = [
     unknowns:['ยื่นได้ภายใน 2 ปีนับจากวันที่ควรได้รับ', 'นายจ้างที่จ่ายช้าอาจต้องจ่ายดอกเบี้ย 15% ต่อปี (ไม่รวมในยอดนี้)'], result:'likely',
     amount:f => f.unpaidDays > 0 && f.dailyWage ? { v:f.unpaidDays * f.dailyWage, unit:'บาท', note:f.unpaidDays + ' วัน × ' + f.dailyWage + ' บาท ตามที่คุณแจ้ง' } : { note:'ใส่ค่าจ้างต่อวันเพื่อคำนวณ' },
     docs:['บัตรประชาชน', 'หลักฐานการทำงาน (สัญญา ข้อความ รูปถ่าย บันทึกเวลา)', 'สลิปเงินเดือนหรือหลักฐานการโอนครั้งก่อน', 'ชื่อ ที่อยู่ และเบอร์ติดต่อนายจ้าง'],
-    channels:[{ icon:'💬', title:'ทวงกับนายจ้างก่อน', detail:'บอกวันที่ทำงาน จำนวนเงิน และขอให้โอนภายในวันที่กำหนด เก็บหลักฐานการทวงไว้' }, { icon:'🏢', title:'ยื่นคำร้อง คร.7 กับพนักงานตรวจแรงงาน', detail:'สำนักงานสวัสดิการและคุ้มครองแรงงานพื้นที่ ฟรี ไม่ต้องมีสัญญาจ้าง' }, { icon:'📞', title:'สายด่วน 1546 หรือ 1506 กด 3', detail:'กรมสวัสดิการและคุ้มครองแรงงาน' }],
+    channels:[{ icon:'💬', title:'ทวงกับนายจ้างก่อน', detail:'บอกวันที่ทำงาน จำนวนเงิน และขอให้โอนภายในวันที่กำหนด เก็บหลักฐานการทวงไว้' }, { icon:'🏢', title:'ยื่นคำร้อง คร.7 กับพนักงานตรวจแรงงาน', detail:'สำนักงานสวัสดิการและคุ้มครองแรงงานพื้นที่ ฟรี ไม่ต้องมีสัญญาจ้าง' }, { icon:'📞', title:'สายด่วน 1546 หรือ 1506 กด 3', phone:'1546', detail:'กรมสวัสดิการและคุ้มครองแรงงาน' }],
     after:'พนักงานตรวจแรงงานออกคำสั่งภายใน 60 วัน (ขยายได้ไม่เกิน 30 วัน) นายจ้างต้องจ่ายภายใน 15 วันหลังได้รับคำสั่ง', ifNo:'ถ้าไม่พอใจคำสั่ง ฟ้องศาลแรงงานได้ภายใน 30 วันนับจากวันที่ได้รับคำสั่ง (มาตรา 125)',
     contactGuide:'../product/sources/bangkok-benefits-2026-11-27.html#unpaid-wages',
     src:['Thairath: ขั้นตอน คร.7 เอกสาร ดอกเบี้ย อายุความ', 'กรมสวัสดิการและคุ้มครองแรงงาน'] }
@@ -462,7 +553,12 @@ function show(id) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
   if (RENDER[id]) RENDER[id]();
   $('tabs').classList.toggle('hidden', !(id in ROOT));
-  document.querySelectorAll('#tabs > div').forEach((t, i) => t.classList.toggle('on', ROOT[id] === i));
+  document.querySelectorAll('#tabs > button').forEach((tab, index) => {
+    const current = ROOT[id] === index;
+    tab.classList.toggle('on', current);
+    if (current) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  });
   document.querySelectorAll('.nav button').forEach(b => b.classList.toggle('on', b.dataset.id === id));
 }
 // Tab roots replace the stack; full-screen flows are pushed on top and hide the bar (ui-states.md §1).
@@ -728,43 +824,256 @@ function askApplied(title) {
 }
 
 /* ================= S7 plans tab, S8 plan detail (plans_tab.dart, task_screen.dart) ================= */
+function planListItem(task) {
+  const [, category, layout] = PLAN_CATEGORIES[planCategory(task)] || [];
+  const total = task.steps.length;
+  const next = task.status === 'finished' ? null : task.steps[task.doneCount];
+  const progress = `<span class="plan-item-progress">
+      <progress class="plan-progress" value="${task.doneCount}" max="${total || 1}" aria-hidden="true"></progress>
+      <span aria-label="ทำแล้ว ${task.doneCount} จาก ${total} ขั้น">${task.doneCount}/${total} ขั้น</span>
+    </span>`;
+  return `<li class="plan"><button class="plan-item" type="button" data-plan-id="${esc(task.id)}" data-layout="${esc(layout)}">
+    <span class="plan-item-meta">
+      <span class="plan-item-category">${esc(category)}</span>
+      <span class="plan-item-status" data-status="${esc(task.status)}">${esc(TASK_L[task.status])}</span>
+    </span>
+    <span class="plan-item-title-row"><span class="plan-item-title">${esc(task.title)}</span><span class="plan-item-arrow" aria-hidden="true">›</span></span>
+    ${next ? `<span class="plan-item-next"><b>ขั้นถัดไป</b> ${esc(next)}</span>` : ''}
+    ${total ? progress : ''}
+  </button></li>`;
+}
 RENDER.plans = () => {
   const order = { active:0, blocked:1, snoozed:2, finished:3 };
   const sorted = [...tasks].sort((a, b) => order[a.status] - order[b.status]);
-  let h = offline ? offlineCard() : '';
-  if (!tasks.length) h += '<div class="card"><b style="font-size:16px">ยังไม่มีแผน</b><div>เช็คเงินที่ควรได้ แล้วกด "บันทึกเป็นแผน" หรือบันทึกงานจากแท็บ โอกาส</div><button class="btn" onclick="goTab(\'home\')">ไปเช็คเงินที่หน้าแรก</button></div>';
-  h += sorted.map(x => `<div class="card tile plan">` + lt('', `<b>${esc(x.title)}</b>`, `<div class="lin"><i style="width:${x.steps.length ? x.doneCount / x.steps.length * 100 : 0}%"></i></div>${TASK_L[x.status]} · ทำแล้ว ${x.doneCount}/${x.steps.length} ขั้น · ผู้ใช้แจ้ง`, `openTask('${x.id}')`, true) + '</div>').join('');
-  h += '<p class="small">ยืนยันจากภายนอก: ยังไม่มี สถานะทั้งหมดคุณเป็นผู้แจ้ง</p>';
-  $('plansBody').innerHTML = h;
+  const groups = [
+    { label:'กำลังทำ', items:sorted.filter(t => t.status === 'active') },
+    { label:'รอดำเนินการ', items:sorted.filter(t => t.status === 'blocked' || t.status === 'snoozed') },
+    { label:'เสร็จแล้ว', items:sorted.filter(t => t.status === 'finished') },
+  ].filter(group => group.items.length);
+  const header = `<header class="plan-list-header"><h1 id="plansHeading">แผนของฉัน</h1>
+    ${sorted.length ? `<p>${sorted.length} แผนที่บันทึก</p>` : ''}</header>`;
+  const empty = `<section class="plan-list-empty"><h2>ยังไม่มีแผน</h2>
+    <p>บันทึกสิทธิ์หรืองานที่สนใจ แล้วกลับมาติดตามความคืบหน้าที่นี่</p>
+    <button class="btn" type="button" onclick="goTab('home')">ไปเช็คเงินที่หน้าแรก</button>
+    <button class="btn out" type="button" onclick="openPlanSamples()">โหลดตัวอย่างแผนทั้ง 10 หมวด</button>
+  </section>`;
+  const list = groups.map(group => `<section class="plan-list-section">
+    ${groups.length > 1 ? `<h2>${group.label}</h2>` : ''}
+    <ul class="plan-list" aria-label="${group.label}">${group.items.map(planListItem).join('')}</ul>
+  </section>`).join('');
+  const progressNote = sorted.length ? '<p class="plan-list-note">สถานะและความคืบหน้าอิงจากที่คุณแจ้ง</p>' : '';
+  const body = $('plansBody');
+  body.innerHTML = header + `<div class="plan-list-content">${offline ? offlineCard() : ''}${sorted.length ? list : empty}${progressNote}</div>`;
+  body.querySelectorAll('[data-plan-id]').forEach(button => {
+    button.onclick = () => openTask(button.dataset.planId);
+  });
 };
 let taskId = null;
-function openTask(id) { taskId = id; go('task'); }
 const curTask = () => tasks.find(x => x.id === taskId);
-RENDER.task = () => {
-  const t = curTask() || tasks[0];
-  $('taskDel').classList.toggle('dis', !t);
-  if (!t) { $('taskBody').innerHTML = '<p>ยังไม่มีแผน</p>'; return; }
-  taskId = t.id;
-  const d = t.doneCount, n = t.steps.length;
-  let h = `<h2 class="h" style="font-size:21px">${esc(t.title)}</h2><div class="chips">${staticChip(TASK_L[t.status])}${staticChip('ผู้ใช้แจ้ง')}${t.dueText ? staticChip(esc(t.dueText)) : ''}</div>`
-    + `<div class="lin t"><i style="width:${n ? d / n * 100 : 0}%"></i></div><div class="small">ทำแล้ว ${d} จาก ${n} ขั้น</div><div style="height:6px"></div>`;
-  if (t.moneyId || t.opportunityId) h += '<button class="btn out" onclick="taskContact()">ข้อมูลติดต่อ</button>';
-  h += t.steps.map((s, i) => lt(`<span style="font-size:20px;color:${i < d ? '#0e9f6e' : '#5b6b65'}">${i < d ? '✔' : i === d ? '◉' : '○'}</span>`,
-    `<span style="${i === d ? 'font-weight:700' : ''}">${esc(s)}</span>`, i === d && t.status !== 'finished' ? 'ขั้นนี้' : '')).join('');
-  if (t.status === 'blocked' && t.blockReason) h += `<p class="orange">ติดปัญหา: ${BLOCK[t.blockReason]}</p>`;
-  if (t.status === 'active') h += '<button class="btn" onclick="tStep()">✓ ทำขั้นนี้เสร็จแล้ว</button><div class="row"><button class="btn out grow" onclick="tBlock()">😟 ติดปัญหา</button><button class="btn out grow" onclick="snoozeTask(taskId)">⏰ ไว้ทีหลัง</button></div>';
-  if (t.status === 'blocked' || t.status === 'snoozed') h += '<button class="btn" onclick="tResume()">ทำต่อ</button>';
-  if (t.status === 'finished') h += (t.outcome ? `<p><b>ผลที่คุณแจ้ง: ${OUTCOME[t.outcome]}</b></p>` : '') + `<button class="btn out" onclick="tOutcome()">${t.outcome ? 'แก้ผลที่แจ้ง' : 'แจ้งผล: ได้เงินหรือยัง'}</button>`;
-  h += '<p class="small" style="margin-top:12px">สถานะในแผนนี้คุณเป็นผู้แจ้งเอง แอปไม่ได้ตรวจกับหน่วยงาน</p>';
-  $('taskBody').innerHTML = h;
-};
-function taskContact() {
-  const t = curTask();
-  if (t.moneyId) return openRoute(t.moneyId, false);
-  const o = OPPS.find(x => x.id === t.opportunityId);
-  if (o && (o.mapGroup !== 'job' || hasJobSource(o))) return openOpp(o.id);
-  openDemoApplication(t.title);
+function openTask(id) {
+  taskId = id;
+  go('task');
+  $('taskInfoHeading')?.focus();
 }
+function backFromTask() {
+  const id = taskId;
+  back();
+  if (cur() === 'plans') {
+    const button = [...$('plansBody').querySelectorAll('[data-plan-id]')].find(item => item.dataset.planId === id);
+    button?.focus();
+  }
+}
+RENDER.task = () => {
+  const task = curTask();
+  $('taskDel').disabled = !task;
+  if (!task) { $('taskBody').innerHTML = '<p>ไม่พบแผนนี้</p>'; return; }
+
+  const done = task.doneCount;
+  const total = task.steps.length;
+  const info = planInfo(task);
+  let progress = `<p><b>${esc(TASK_L[task.status])}</b> · ผู้ใช้แจ้ง</p>
+    <progress class="plan-progress" value="${done}" max="${total || 1}" aria-label="ความคืบหน้าของแผน"></progress>
+    <p class="small">ทำแล้ว ${done} จาก ${total} ขั้น${task.dueText ? ` · ${esc(task.dueText)}` : ''}</p>
+    <ol class="plan-steps">${task.steps.map((step, index) => {
+      const current = index === done && task.status !== 'finished';
+      return `<li${current ? ' aria-current="step"' : ''}>${esc(step)}
+        ${index < done ? '<span class="small"> · เสร็จแล้ว</span>' : current ? '<span class="small"> · ขั้นนี้</span>' : ''}</li>`;
+    }).join('')}</ol>`;
+  if (task.status === 'blocked' && task.blockReason) progress += `<p class="orange">ติดปัญหา: ${esc(BLOCK[task.blockReason])}</p>`;
+  if (task.status === 'active') progress += '<button class="btn" onclick="tStep()">✓ ทำขั้นนี้เสร็จแล้ว</button><div class="row"><button class="btn out grow" onclick="tBlock()">ติดปัญหา</button><button class="btn out grow" onclick="snoozeTask(taskId)">ไว้ทีหลัง</button></div>';
+  if (task.status === 'blocked' || task.status === 'snoozed') progress += '<button class="btn" onclick="tResume()">ทำต่อ</button>';
+  if (task.status === 'finished') progress += (task.outcome ? `<p><b>ผลที่คุณแจ้ง: ${esc(OUTCOME[task.outcome])}</b></p>` : '') + `<button class="btn out" onclick="tOutcome()">${task.outcome ? 'แก้ผลที่แจ้ง' : 'แจ้งผล: ได้เงินหรือยัง'}</button>`;
+
+  $('taskBody').innerHTML = planHeading(task, info, 'taskInfoHeading')
+    + planSection('ความคืบหน้าในแผน', progress) + planInfoSections(info);
+};
+/* S8 Info and contact share one record. The fields below supplement legacy demo records. */
+const PLAN_CATEGORIES = {
+  welfare:['สิทธิ์และเงิน', 'สวัสดิการรัฐ', 'rights'],
+  refund:['สิทธิ์และเงิน', 'เงินคืน', 'rights'],
+  owed:['สิทธิ์และเงิน', 'เงินค้างจ่าย', 'rights'],
+  job_full:['ข้อมูลงาน', 'งานประจำ', 'employment'],
+  job_part:['ข้อมูลงาน', 'พาร์ตไทม์', 'employment'],
+  freelance:['ข้อมูลงาน', 'ฟรีแลนซ์', 'employment'],
+  sell:['ช่องทางหารายได้', 'ขายสินค้า', 'income'],
+  assets:['ช่องทางหารายได้', 'ใช้ทรัพย์สิน', 'income'],
+  grant:['ข้อมูลรอบทุน', 'ทุนให้เปล่า', 'grant'],
+  skill:['ช่องทางหารายได้', 'ทักษะ', 'income'],
+};
+const PLAN_DETAILS = {
+  old_age:{category:'welfare', summary:'ตรวจเงื่อนไขและเตรียมลงทะเบียนกับสำนักงานเขตตามทะเบียนบ้าน', area:'สำนักงานเขตตามทะเบียนบ้าน'},
+  tax_refund:{category:'refund', summary:'ตรวจว่ามีภาษีชำระเกินหรือไม่ แล้วติดตามผลตามปีภาษีที่ยื่น'},
+  unpaid_wages:{category:'owed', summary:'รวบรวมช่วงเวลาทำงานและยอดที่ยังไม่ได้รับ เพื่อยื่นคำร้องหรือติดตามกับผู้จ่าย'},
+  j3:{category:'job_full', summary:'ดูแลความสะอาดพื้นที่ทำงานตามรอบที่กำหนด', fields:[['เวลาทำงาน','กะเช้า เวลาเริ่มงานให้สอบถามผู้ประกาศ']]},
+  j1:{category:'job_part', summary:'จัดและแพ็คสินค้าตามรายการสั่งซื้อ', fields:[['เวลาทำงาน','4–6 ชั่วโมงต่อวัน']]},
+  j5:{category:'freelance', summary:'พิมพ์ต้นฉบับและส่งไฟล์ตามรูปแบบของผู้ว่าจ้าง', fields:[['สิ่งที่ส่งมอบ','ไฟล์เอกสารที่พิมพ์ตามต้นฉบับ'], ['กำหนดส่ง','ภายใน 2 วัน'], ['เงื่อนไขจ่าย','สอบถามผู้ว่าจ้างก่อนรับงาน']]},
+  m1:{category:'sell', summary:'สอบถามรายการของที่รับซื้อและราคาก่อนนำสินค้าไปส่ง', fields:[['สินค้า','ของมือสอง ต้องสอบถามประเภทที่รับ'], ['ค่าใช้จ่าย','มีค่าเดินทางตามจริง'], ['เวลารับสินค้า','รอผู้ประกาศยืนยัน']]},
+  plan_assets:{category:'assets', summary:'ตัวอย่างการให้เช่าอุปกรณ์ที่มีอยู่ พร้อมเงื่อนไขก่อนส่งมอบ', fields:[['ทรัพย์สิน','โต๊ะพับและอุปกรณ์จัดงาน'], ['ต้นทุน','ค่าขนส่งและค่าดูแลอุปกรณ์'], ['ข้อควรตกลง','ระยะเวลาเช่า ค่ามัดจำ และผู้รับผิดชอบความเสียหาย']]},
+  w3:{category:'grant', summary:'ทุนตัวอย่างสำหรับอบรมและต่อยอดอาชีพ ใช้แสดงกรณีปิดรับสมัคร', closed:true, fields:[['รอบทุน','รอบตัวอย่าง พ.ย. 2569'], ['ปิดรับ','25 พ.ย. 2569, 16:30 น.'], ['ประกาศผล','สอบถามผู้ให้ทุน']]},
+  s1:{category:'skill', summary:'ฝึกเตรียมอาหารกล่องและคำนวณต้นทุนก่อนเริ่มขาย', fields:[['รูปแบบ','อบรมที่สถานที่จัด'], ['ทักษะที่ได้','วางเมนู คิดต้นทุน และตั้งราคา'], ['รอบอบรม','รอประกาศรอบใหม่']]},
+};
+const PLAN_ASSET_EXAMPLE = {
+  id:'plan_assets', title:'ให้เช่าโต๊ะพับและอุปกรณ์จัดงาน', organization:'ผู้จัดการพื้นที่ตัวอย่าง',
+  money:{basis:'none', knownText:'ค่าเช่าตามขนาดและจำนวนอุปกรณ์'}, dataStatus:'mock',
+  conditions:['ตรวจสภาพก่อนส่งมอบและบันทึกข้อตกลงการคืน'], attribution:'ข้อมูลสมมติสำหรับทดสอบ',
+  loc:{text:'เขตบางนา (พื้นที่ตัวอย่าง)'}
+};
+const PLAN_SAMPLES = [
+  ['moneyId','old_age'], ['moneyId','tax_refund'], ['moneyId','unpaid_wages'],
+  ['opportunityId','j3'], ['opportunityId','j1'], ['opportunityId','j5'],
+  ['opportunityId','m1'], ['opportunityId','plan_assets'], ['opportunityId','w3'], ['opportunityId','s1'],
+];
+function openPlanSamples() {
+  for (const [key, id] of PLAN_SAMPLES) {
+    if (tasks.some(t => t[key] === id)) continue;
+    const spec = key === 'moneyId' ? moneyTaskSpec(id) : id === PLAN_ASSET_EXAMPLE.id
+      ? { title:PLAN_ASSET_EXAMPLE.title, opportunityId:id, steps:['ตรวจสภาพอุปกรณ์', 'ตกลงเงื่อนไขการเช่า', 'นัดส่งมอบ', 'ตรวจของคืน'] }
+      : oppTaskSpec(id);
+    newTask(spec);
+  }
+  goTab('plans');
+  $('plansBody').focus();
+}
+const planOpportunity = id => id === PLAN_ASSET_EXAMPLE.id ? PLAN_ASSET_EXAMPLE : OPPS.find(o => o.id === id);
+function planCategory(task) {
+  const id = task.moneyId || task.opportunityId;
+  const o = planOpportunity(id);
+  return PLAN_DETAILS[id]?.category || o?.category
+    || ({ w2:'refund', w4:'owed', j2:'job_part', j4:'job_part', w5:'freelance' })[id]
+    || (task.moneyId && MONEY.some(m => m.id === id) ? 'welfare' : ({ job:'job_full', skill:'skill', sell:'sell' })[o?.mapGroup]);
+}
+function planInfo(task) {
+  if (!task) return null;
+  const category = planCategory(task);
+  const [section, label, layout] = PLAN_CATEGORIES[category] || ['ข้อมูลรายการ', '',''];
+  const detail = PLAN_DETAILS[task.moneyId || task.opportunityId] || {};
+  const m = MONEY.find(item => item.id === task.moneyId);
+  const o = planOpportunity(task.opportunityId);
+  const common = {section, label, layout, ...detail};
+  if (m) {
+    const result = moneyItems(facts, true).find(item => item.id === m.id);
+    const value = typeof result.amount.value === 'number' && ['likely','verified','check'].includes(result.status)
+      ? baht(result.amount.value) + ' ' + (result.amount.unit || '') : 'ยอดเงินขึ้นกับการตรวจสอบ';
+    return {
+      ...common, owner:m.payer, value, area:detail.area,
+      fields:[['ผลประเมิน', STATUS_L[result.status]], ['รอบการจ่าย', m.kind === 'monthly' ? 'รายเดือน' : 'ครั้งเดียว']],
+      conditions:[...m.conds.map(([, , text]) => text), ...m.unknowns],
+      docs:m.docs, sources:m.src, checkedAt:CHECKED, dataStatus:result.dataStatus, guide:m.contactGuide,
+      contacts:m.channels.map(channel => ({
+        kind:channel.url ? 'ออนไลน์' : ({ '🏢':'จุดติดต่อ', '📞':'โทรศัพท์' })[channel.icon] || 'สอบถาม',
+        label:channel.title, detail:channel.detail, url:channel.url, phone:channel.phone
+      })),
+    };
+  }
+  if (o) {
+    const source = o.dataStatus === 'mock' || o.linkStatus === 'broken' ? null : usablePlanWebUrl(o.url);
+    const closed = Boolean(detail.closed || ['expired', 'closed'].includes(o.status) || Date.parse(o.expiresAt) <= Date.now());
+    return {
+      ...common, closed, owner:o.organization, value:oppMoney(o), area:o.loc?.text,
+      conditions:o.conditions, sources:[o.attribution], dataStatus:o.dataStatus,
+      checkedAt:o.checkedAt, source,
+      contacts:!closed && source ? [{kind:'ออนไลน์', label:'เว็บไซต์ผู้ประกาศ', url:source}] : [],
+      sampleApplication:layout === 'employment' && o.dataStatus === 'mock' && !closed,
+    };
+  }
+  return null;
+}
+function usablePlanWebUrl(value) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+  } catch { return null; }
+}
+function planHeading(task, info, headingId, isContact = false) {
+  return `<header class="plan-hero" data-layout="${esc(info?.layout)}">
+    ${info?.label ? `<span class="plan-category">${esc(info.label)}</span>` : ''}
+    ${info?.dataStatus === 'mock' ? '<span class="pill">DEMO / MOCK</span>' : ''}
+    <h2 id="${headingId}" tabindex="-1">${esc(task.title)}</h2>
+    ${info?.owner ? `<p class="plan-owner">${esc(info.owner)}</p>` : ''}
+    ${info?.closed ? '<p class="plan-value">ปิดรับสมัครแล้ว</p>' : ''}
+    ${(!isContact && info?.value) ? `<p class="plan-value">${esc(info.value)}</p>` : ''}
+    ${!isContact && (task.moneyId || task.opportunityId) ? '<button class="btn out" id="taskContactButton" onclick="taskContact()">ข้อมูลติดต่อ</button>' : ''}
+  </header>`;
+}
+function planSection(title, content) {
+  return content ? `<section class="card plan-section"><h3>${title}</h3>${content}</section>` : '';
+}
+function planBullets(values) {
+  const items = (values || []).filter(Boolean);
+  return items.length ? `<ul class="plan-bullets">${items.map(value => `<li>${esc(value)}</li>`).join('')}</ul>` : '';
+}
+function planInfoSections(info) {
+  if (!info) return planSection('ข้อมูลรายการ', '<p>ยังโหลดรายละเอียดต้นทางไม่ได้ คุณยังทำตามขั้นตอนและดูความคืบหน้าได้</p>');
+  const rows = [...(info.fields || []), ['พื้นที่', info.area]].filter(([, value]) => value);
+  const factsHtml = rows.length ? `<dl class="plan-facts">${rows.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>` : '';
+  const sourceLink = info.source ? `<a class="btn out plan-link" href="${esc(info.source)}" target="_blank" rel="noopener noreferrer">ดูประกาศต้นทาง ↗</a>` : '';
+  const freshness = info.checkedAt ? `<p class="small">ตรวจล่าสุด ${esc(info.checkedAt)}</p>` : '';
+  return planSection(info.section, (info.summary ? `<p>${esc(info.summary)}</p>` : '') + factsHtml)
+    + planSection('เงื่อนไขและคุณสมบัติ', planBullets(info.conditions))
+    + planSection('เอกสารที่ต้องเตรียม', planBullets(info.docs))
+    + planSection('แหล่งข้อมูล', `<p>${esc(dataLabel(info.dataStatus))}</p>` + planBullets(info.sources) + freshness + sourceLink);
+}
+function taskContact() {
+  if (!curTask()) return;
+  go('task-contact');
+  $('taskContactHeading')?.focus();
+}
+function backFromTaskContact() {
+  back();
+  $('taskContactButton')?.focus();
+}
+function openPlanSampleApplication() {
+  const task = curTask();
+  if (planInfo(task)?.sampleApplication) openDemoApplication(task.title);
+}
+
+function openPlanMoneyRoute() {
+  const id = curTask()?.moneyId;
+  if (MONEY.some(item => item.id === id)) openRoute(id, false);
+}RENDER['task-contact'] = () => {
+  const task = curTask();
+  if (!task) { $('taskContactBody').innerHTML = '<p>ไม่พบแผนนี้</p>'; return; }
+  const info = planInfo(task);
+  const cards = (info?.contacts || []).map(channel => {
+    const url = usablePlanWebUrl(channel.url);
+    const phone = /^[+]?\d{3,15}$/.test(channel.phone) ? channel.phone : '';
+    const action = url ? `<a class="btn plan-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">เปิดเว็บไซต์ ↗</a>`
+      : phone ? `<a class="btn plan-link" href="tel:${esc(phone)}">โทร ${esc(phone)}</a>` : '';
+    return `<article class="plan-channel"><p class="small">${esc(channel.kind)}</p><h4>${esc(channel.label)}</h4>
+      ${channel.detail ? `<p>${esc(channel.detail)}</p>` : ''}${action}</article>`;
+  }).join('');
+  const empty = cards ? '' : '<p role="status">ยังไม่มีช่องทางติดต่อที่ตรวจสอบได้สำหรับรายการนี้</p>';
+  const guide = info?.guide ? `<a class="btn out plan-link" href="${esc(info.guide)}" target="_blank" rel="noopener noreferrer">อ่านคู่มือติดต่อหน่วยงาน ↗</a>` : '';
+  const route = task.moneyId && info
+    ? '<button class="btn out" onclick="openPlanMoneyRoute()">ดูวิธียื่นและติดตามผล</button>' : '';
+  const sample = info?.sampleApplication
+    ? '<button class="btn out" onclick="openPlanSampleApplication()">ดูรายละเอียดงานตัวอย่าง ↗</button>' : '';
+  $('taskContactBody').innerHTML = planHeading(task, info, 'taskContactHeading', true)
+    + planSection('ช่องทางติดต่อ', empty + cards + guide + route + sample)
+    + planSection('ก่อนติดต่อ', planBullets(info?.docs) || '<p>สอบถามเอกสารและเวลาติดต่อจากผู้ประกาศก่อนดำเนินการ</p>')
+    + planSection('พื้นที่ติดต่อ', info?.area ? `<p>${esc(info.area)}</p>` : '');
+};
 function tStep() {
   const t = curTask(); const last = t.doneCount + 1 >= t.steps.length;
   taskEvent(t, { type:'complete_step' }); bump();
@@ -1182,7 +1491,7 @@ function toggleOffline() { offline = !offline; sideLabels(); bump(); }
     const b = document.createElement('button'); b.textContent = label; b.dataset.id = id; b.onclick = () => navGo(id); nav.appendChild(b);
   });
   $('persona').innerHTML = '<option value="">ผู้ใช้ใหม่ (ล้างข้อมูล)</option>' + Object.keys(PERSONAS).map(id => `<option value="${id}">${id} · ${PERSONAS[id].label}</option>`).join('');
-  sideLabels(); go('home');
+  sideLabels(); if (location.hash === '#plan-demo') openPlanSamples(); else go('home');
 })();
 </script>
 </body>

@@ -81,10 +81,15 @@ copy .env.example .env      # แล้วใส่ AI_API_KEY (ขอจาก 
 | `AI_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` (Gemini แบบ OpenAI-compatible) |
 | `AI_MODEL` | `gemini-3.5-flash-lite` (ตอบ 1–3 วิ; `gemini-flash-latest` ตอบ 503 และช้า, `gemini-2.5-*` ได้ 404 กับ key ใหม่) |
 | `LIVE=1` | ดึงประกาศงานจริงจาก Agoda (Greenhouse) |
-| `GOV_CONNECTED=1` | เปิดปุ่มเชื่อม ThaID (ข้อมูลจำลอง) |
+| `APP_MODE=user` | แสดงสถานะการเชื่อมระบบจริงของ ThaID และทางรัฐในแท็บ ฉัน ค่าเริ่มต้นคือ `demo` |
+| `GOV_CONNECTED=1` | เปิดปุ่มเชื่อม ThaID ด้วยข้อมูลจำลองในโหมด `demo` |
 | `MOCK_CATALOGUE=1` | เปิดข้อมูลจำลองชุดใหญ่ 77 รายการ |
 
 ไม่มี key ก็รันได้: server ใช้กฎแทน AI (`aiStatus: fallback_rules`)
+
+โหมด `user` ปิดการเชื่อม ThaID จำลองและโปรไฟล์ตัวอย่าง แม้จะตั้ง `GOV_CONNECTED=1` หรือ `DEMO_MODE=1` ถ้ากำหนด `DATA_FILE` เอง ให้ใช้ไฟล์ใหม่สำหรับโหมด `user` แยกจากข้อมูล Demo หากไม่ได้กำหนดตัวแปรนี้ เซิร์ฟเวอร์ใช้ `contracts/.data/user/state.json` โดยอัตโนมัติ
+
+การเชื่อมระบบจริงของ ThaID ต้องได้รับอนุมัติและคู่มือสำหรับผู้ให้บริการจากกรมการปกครอง ส่วนทางรัฐต้องมีสิทธิ์และข้อกำหนด API สำหรับข้อมูลที่ตกลงกับ สพร. หรือหน่วยงานเจ้าของบริการ
 
 ## 5. มือถือที่ใช้ทดสอบ
 

@@ -68,6 +68,7 @@ const statusLabel = {
 /// Label for where the data came from (always shown, never hidden).
 String dataLabel(String? dataStatus) => switch (dataStatus) {
       'live' => 'ข้อมูลจริงจากแหล่งต้นทาง',
+      'open_data' => 'ข้อมูลเปิดจากแหล่งต้นทาง',
       'curated' => 'เกณฑ์จากแหล่งสาธารณะ ยังไม่ยืนยันสิทธิ์',
       _ => 'DEMO / MOCK',
     };

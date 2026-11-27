@@ -26,7 +26,7 @@ const run = (name, fn) => { try { fn(); } catch (e) { check(name + ' threw: ' + 
 setTimeout(() => {
   run('shell and new-person home (S1)', () => {
     check('starts on home, new-person layout', on('home') && inner('homeBody').includes('เงินฉันอยู่ไหน?') && !inner('homeBody').includes('เงินของฉัน'));
-    check('bottom bar has the app\'s 4 tabs', [...d.querySelectorAll('#tabs > div')].map(t => t.textContent.replace(/\W*[\u{1F300}-\u{1FAFF}\u2728]/u, '').trim()).join('|') === 'หน้าแรก|โอกาส|แผนของฉัน|ฉัน');
+    check('bottom bar has the app\'s 4 tabs', [...d.querySelectorAll('#tabs > button')].map(t => t.textContent.replace(/\W*[\u{1F300}-\u{1FAFF}\u2728]/u, '').trim()).join('|') === 'หน้าแรก|โอกาส|แผนของฉัน|ฉัน');
     check('DEMO / MOCK pill on home', inner('homeBody').includes('DEMO / MOCK'));
     const hero = d.getElementById('aiOneClick');
     check('big AI button comes before the manual check', !!hero && !!(hero.compareDocumentPosition(d.getElementById('manualCard')) & 4));
@@ -91,7 +91,13 @@ setTimeout(() => {
     ev('openTask(tasks[0].id)'); const tb = () => inner('taskBody');
     check('plan: progress, steps, user-reported', on('task') && tb().includes('ทำแล้ว 0 จาก 4 ขั้น') && tb().includes('ผู้ใช้แจ้ง') && tb().includes('ขั้นนี้'));
     d.querySelector('#taskBody [onclick="taskContact()"]').click();
-    check('benefit contact opens the correct money route', on('route') && ev('routeId') === 'old_age' && inner('routeBody').includes('ไปยื่นที่ไหน'));
+    check('benefit contact shows the matching office and documents in-app', on('task-contact') && text('taskContactHeading') === 'เบี้ยยังชีพผู้สูงอายุ' && text('taskContactBody').includes('สำนักงานเขต') && text('taskContactBody').includes('สำเนาทะเบียนบ้าน'));
+    check('contact focuses its heading', d.activeElement.id === 'taskContactHeading');
+    d.querySelector('#v-task-contact .back').click();
+    check('back returns focus to the plan contact button', on('task') && d.activeElement.id === 'taskContactButton');
+    ev('taskContact(); openPlanMoneyRoute()');
+    check('contact preserves access to the original claim route', on('route') && ev('routeId') === 'old_age' && inner('routeBody').includes('ไปยื่นที่ไหน'));
+    ev('back()');
     ev('back()');
     ev('tStep()'); check('completing a step offers undo', ev('tasks[0].doneCount') === 1 && d.getElementById('snack').classList.contains('on') && text('snackU') === 'เลิกทำ');
     d.getElementById('snackU').click(); check('undo reverts the step', ev('tasks[0].doneCount') === 0);
@@ -109,10 +115,16 @@ setTimeout(() => {
     ev("loadPersona('p2')"); const hb = inner('homeBody');
     check('persona loads into the returning home with the next step', on('home') && hb.includes('ขั้นต่อไปของคุณ') && hb.includes('งานแพ็คของ รายวัน'));
     check('dismissed worker: unemployment ฿7,200 in the summary', hb.includes('฿7,200 ต่อเดือน'));
-    ev("goTab('plans')"); check('plans tab: progress, status, user-reported', d.querySelectorAll('#plansBody .plan').length === 1 && inner('plansBody').includes('กำลังทำ · ทำแล้ว 0/4 ขั้น · ผู้ใช้แจ้ง'));
+    ev("goTab('plans')");
+    check('plans tab: count, progress, status, and next step', text('plansBody').includes('1 แผนที่บันทึก') &&
+      d.querySelectorAll('#plansBody .plan').length === 1 && d.querySelector('.plan-item-status').textContent === 'กำลังทำ' &&
+      text('plansBody').includes('0/4 ขั้น') && text('plansBody').includes('ขั้นถัดไป') && text('plansBody').includes('ที่คุณแจ้ง'));
     ev('openTask(tasks[0].id)');
     d.querySelector('#taskBody [onclick="taskContact()"]').click();
-    check('mock job contact opens the demo with the saved job title', openedUrl === 'job-application.html#title=' + encodeURIComponent('งานแพ็คของ รายวัน') && !dlgOn() && on('task'));
+    check('mock job contact stays in-app until the user chooses the example', on('task-contact') && text('taskContactHeading') === 'งานแพ็คของ รายวัน' && text('taskContactBody').includes('ยังไม่มีช่องทางติดต่อที่ตรวจสอบได้'));
+    d.querySelector('#taskContactBody [onclick="openPlanSampleApplication()"]').click();
+    check('mock job contact opens the demo with the saved job title', openedUrl === 'job-application.html#title=' + encodeURIComponent('งานแพ็คของ รายวัน') && !dlgOn() && on('task-contact'));
+    ev('back()');
     ev('back()');
     ev("openRoute('unemployment')"); check('route shows the 60% rule and an online channel', inner('routeBody').includes('฿7,200') && inner('routeBody').includes('60%') && inner('routeBody').includes('เปิด ↗'));
     d.querySelector('#routeBody [onclick="openContactGuide()"]').click();
@@ -232,6 +244,36 @@ setTimeout(() => {
     changeTitle('');
     check('opening the page without a job shows the standalone sample', title.textContent === 'เจ้าหน้าที่ธุรการ' && !sample.hidden);
     demo.window.close();
+  });
+
+  run('plan demo covers all ten categories with four layouts', () => {
+    ev("loadPersona(''); openPlanSamples(); openPlanSamples()");
+    const expected = ['สวัสดิการรัฐ','เงินคืน','เงินค้างจ่าย','งานประจำ','พาร์ตไทม์','ฟรีแลนซ์','ขายสินค้า','ใช้ทรัพย์สิน','ทุนให้เปล่า','ทักษะ'];
+    check('plan examples do not duplicate after reopening', d.querySelectorAll('#plansBody [data-plan-id]').length === expected.length);
+    const layouts = new Set();
+    for (const [index, category] of expected.entries()) {
+      const plan = d.querySelectorAll('#plansBody [data-plan-id]')[index];
+      plan.click();
+      layouts.add(d.querySelector('#taskBody .plan-hero').dataset.layout);
+      const title = text('taskInfoHeading');
+      check(category + ' exposes the saved title, category and progress', text('taskBody').includes(category) && text('taskBody').includes('ความคืบหน้าในแผน') && d.activeElement.id === 'taskInfoHeading');
+      d.getElementById('taskContactButton').click();
+      check(category + ' contact uses the same title and category', on('task-contact') && text('taskContactHeading') === title && text('taskContactBody').includes(category));
+      if (category === 'ทุนให้เปล่า') {
+        check('closed grant shows its status without an application action', text('taskContactBody').includes('ปิดรับสมัครแล้ว') && !d.querySelector('#taskContactBody a, #taskContactBody button'));
+      }
+      d.querySelector('#v-task-contact .back').click();
+      d.querySelector('#v-task .back').click();
+      check(category + ' restores focus to its plan', on('plans') && d.activeElement.dataset.planId === plan.dataset.planId);
+    }
+    check('ten categories use four visual layouts', layouts.size === 4);
+    ev("tasks[1].status = 'blocked'; tasks[2].status = 'finished'; tasks[2].doneCount = tasks[2].steps.length; goTab('plans')");
+    check('mixed statuses group by what the user can act on', [...d.querySelectorAll('.plan-list-section h2')].map(heading => heading.textContent).join('|') === 'กำลังทำ|รอดำเนินการ|เสร็จแล้ว');
+    check('completed plans suppress the next-step preview', !d.querySelector('.plan-list-section:last-of-type .plan-item-next'));
+    ev("openTask(newTask({title:'ประกาศเดิม', opportunityId:'removed-listing', steps:['ตรวจสอบประกาศ']}).id)");
+    check('missing catalogue item preserves the saved plan and its progress', text('taskBody').includes('ประกาศเดิม') && text('taskBody').includes('ยังโหลดรายละเอียดต้นทางไม่ได้') && text('taskBody').includes('ตรวจสอบประกาศ'));
+    ev('taskContact()');
+    check('missing catalogue item does not create a contact action', text('taskContactBody').includes('ยังไม่มีช่องทางติดต่อที่ตรวจสอบได้') && !d.querySelector('#taskContactBody a, #taskContactBody button'));
   });
 
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));

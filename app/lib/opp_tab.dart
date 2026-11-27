@@ -2,280 +2,818 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
-import 'job_application.dart';
 import 'money.dart';
 import 'opp_map.dart';
+import 'opp_screen.dart';
+import 'opportunity_assessment.dart';
+import 'opportunity_catalog.dart';
 import 'profile_screen.dart';
 
-const _fit = {'high': 'ตรงมาก', 'good': 'ตรง', 'fair': 'พอได้'};
+export 'opp_screen.dart' show OppScreen;
+export 'opportunity_catalog.dart' show oppMoney;
 
-const oppGroups = {'all': 'ทั้งหมด', 'job': 'งาน', 'skill': 'ทักษะ', 'sell': 'ขายของ', 'money': 'เงิน/สิทธิ์'};
+enum OpportunityLane {
+  all('all', 'ทั้งหมด', []),
+  benefits('money', 'สิทธิ์และสวัสดิการ', [
+    OpportunityCategory.welfare,
+    OpportunityCategory.refund,
+    OpportunityCategory.owed,
+  ]),
+  jobs('job', 'หางาน', [
+    OpportunityCategory.fullTime,
+    OpportunityCategory.partTime,
+    OpportunityCategory.freelance,
+  ]),
+  sales('sell', 'ขายสินค้า', [OpportunityCategory.sell]),
+  other('other', 'อื่นๆ', [
+    OpportunityCategory.assets,
+    OpportunityCategory.grant,
+    OpportunityCategory.skill,
+  ]);
 
-/// Money text for an opportunity: only numbers that came from the listing or an official source.
-String oppMoney(Map<String, dynamic> o) {
-  final m = o['money'] as Map<String, dynamic>;
-  if (m['basis'] == 'none') return '${m['knownText'] ?? 'ไม่ทราบจำนวนเงิน'}';
-  final min = m['min'], max = m['max'];
-  String n(num x) => baht(x).replaceFirst('฿', '');
-  final range = min is num && max is num && min != max ? '${n(min)}-${n(max)}' : n((min ?? max) as num);
-  return '$range ${m['unit'] ?? ''} (${m['basis'] == 'official' ? 'ตามประกาศทางการ' : 'ตามประกาศ'})';
+  const OpportunityLane(this.group, this.label, this.categories);
+  final String group, label;
+  final List<OpportunityCategory> categories;
+
+  static OpportunityLane forGroup(String group) => group == 'skill'
+      ? other
+      : values.firstWhere((lane) => lane.group == group, orElse: () => all);
 }
 
-/// Tab ✨ โอกาส (ui-states.md S6): search + group chips + list. Map view is not in this Demo build.
 class OppTab extends StatefulWidget {
-  const OppTab({super.key, required this.app});
+  const OppTab({
+    super.key,
+    required this.app,
+    this.assessment,
+    this.retryAssessment,
+  });
   final AppState app;
+  final OpportunityAssessment? assessment;
+  final VoidCallback? retryAssessment;
+
   @override
   State<OppTab> createState() => _OppTabState();
 }
 
 class _OppTabState extends State<OppTab> {
-  final TextEditingController q = TextEditingController();
-  Map<String, dynamic>? page;
+  final search = TextEditingController();
+  final listScroll = ScrollController();
+  final lanesScroll = ScrollController();
+  final jobTypes = <OpportunityCategory>{};
+  final items = <String, Map<String, dynamic>>{};
+  final cursors = <OpportunityCategory?, String?>{};
+  final completeMapCategories = <OpportunityCategory?>{};
+  final laneKeys = {
+    for (final lane in OpportunityLane.values) lane: GlobalKey(),
+  };
+  String submitted = '';
+  String? district;
   ApiException? error;
-  bool mapView = false, bySkill = false;
-
-  /// opportunityId -> {fit, reason} from POST /v1/ai/rankings (AI with consent, rules otherwise).
+  bool loading = false,
+      mapView = false,
+      noPins = false,
+      bySkill = false,
+      ranking = false;
+  int generation = 0;
   Map<String, Map<String, dynamic>> rank = {};
 
-  Future<void> _rankBySkill() async {
-    if (bySkill) {
-      setState(() { bySkill = false; rank = {}; });
-      return;
-    }
-    try {
-      final prof = await widget.app.api.get('/v1/me/profile');
-      if (((prof['skills'] as List?) ?? const []).isEmpty) throw ApiException(404, 'NO_SKILLS', '');
-    } on ApiException {
-      if (!mounted) return;
-      toast(context, 'บอกทักษะของคุณก่อน แล้วจะเรียงงานให้ตรงทักษะ');
-      await Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileScreen(app: widget.app)));
-      return;
-    }
-    final items = ((page?['items'] as List?) ?? const []).cast<Map<String, dynamic>>().where((o) => o['suspicious'] != true).take(50).toList();
-    if (items.isEmpty) return;
-    try {
-      final r = await widget.app.api.post('/v1/ai/rankings', {'opportunityIds': [for (final o in items) o['id']]});
-      final ranked = ((r['ranked'] as List?) ?? const []).cast<Map<String, dynamic>>();
-      setState(() { bySkill = true; rank = {for (final x in ranked) '${x['opportunityId']}': x}; });
-    } on ApiException catch (e) {
-      if (mounted) toast(context, e.message);
-    }
-  }
+  String get group => widget.app.oppGroup.value;
+  OpportunityLane get lane => OpportunityLane.forGroup(group);
 
   @override
   void initState() {
     super.initState();
-    widget.app.oppGroup.addListener(_load);
-    _load();
+    widget.app.oppGroup.addListener(_changeLane);
+    _reload();
   }
 
   @override
   void dispose() {
-    widget.app.oppGroup.removeListener(_load);
-    q.dispose();
+    widget.app.oppGroup.removeListener(_changeLane);
+    search.dispose();
+    listScroll.dispose();
+    lanesScroll.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final g = widget.app.oppGroup.value;
-    final query = <String, String>{'group': g, 'radiusKm': '50', 'limit': '100', if (q.text.trim().isNotEmpty) 'q': q.text.trim()};
+  void _changeLane() {
+    _reload();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final laneContext = laneKeys[lane]?.currentContext;
+      if (laneContext == null) return;
+      Scrollable.ensureVisible(
+        laneContext,
+        duration: const Duration(milliseconds: 180),
+        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+      );
+    });
+  }
+
+  Future<void> _reload() {
+    generation++;
+    if (listScroll.hasClients) listScroll.jumpTo(0);
+    final Iterable<OpportunityCategory?> categories = switch (lane) {
+      OpportunityLane.all => [null],
+      OpportunityLane.jobs when jobTypes.isNotEmpty =>
+        OpportunityLane.jobs.categories.where(jobTypes.contains),
+      OpportunityLane.other when group == 'skill' => [
+        OpportunityCategory.skill,
+      ],
+      _ => lane.categories,
+    };
+    setState(() {
+      items.clear();
+      completeMapCategories.clear();
+      cursors
+        ..clear()
+        ..addEntries(categories.map((category) => MapEntry(category, null)));
+      error = null;
+      loading = false;
+      noPins = false;
+      bySkill = false;
+      rank = {};
+    });
+    return _loadPages(allPages: mapView);
+  }
+
+  Future<void> _loadPages({bool allPages = false}) async {
+    if (loading) return;
+    final request = generation;
+    final q = submitted;
+    final code = district;
+    final scoped = bangkokDistricts[code];
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
-      final r = await widget.app.api.get('/v1/opportunities?${Uri(queryParameters: query).query}');
-      if (mounted) setState(() { page = r; error = null; });
-    } on ApiException catch (e) {
-      if (mounted) setState(() => error = e);
+      do {
+        final pages = await Future.wait(
+          cursors.entries
+              .where(
+                (entry) =>
+                    !allPages || !completeMapCategories.contains(entry.key),
+              )
+              .map((entry) async {
+                final query = Uri(
+                  queryParameters: {
+                    'area': 'bangkok',
+                    'limit': allPages ? '100' : '24',
+                    if (entry.key case final category?)
+                      'category': category.api,
+                    'cursor': ?entry.value,
+                    if (q.isNotEmpty) 'q': q,
+                    if (code != null && scoped != null) ...{
+                      'districtCode': code,
+                      'district': scoped,
+                    },
+                  },
+                );
+                return MapEntry(
+                  entry.key,
+                  await widget.app.api.get('/v1/opportunities?${query.query}'),
+                );
+              }),
+        );
+        if (!mounted || request != generation) return;
+        setState(() {
+          for (final entry in pages) {
+            if (entry.value['hasMoreMapLocations'] == false) {
+              completeMapCategories.add(entry.key);
+            }
+            final cursor = entry.value['nextCursor'];
+            if (cursor is String &&
+                cursor.isNotEmpty &&
+                cursor != cursors[entry.key]) {
+              cursors[entry.key] = cursor;
+            } else {
+              cursors.remove(entry.key);
+            }
+            for (final item in itemsOf(entry.value)) {
+              if (item['id'] case final String id
+                  when !opportunityExpired(item)) {
+                items.putIfAbsent(id, () => item);
+              }
+            }
+          }
+        });
+      } while (allPages &&
+          mapView &&
+          cursors.keys.any(
+            (category) => !completeMapCategories.contains(category),
+          ));
+      if (mapView && _pins().isEmpty) {
+        setState(() {
+          mapView = false;
+          noPins = true;
+        });
+      }
+    } on ApiException catch (failure) {
+      if (mounted && request == generation) {
+        setState(() {
+          error = failure;
+          if (mapView && _pins().isEmpty) {
+            mapView = false;
+            noPins = true;
+          }
+        });
+      }
+    } finally {
+      if (mounted && request == generation) setState(() => loading = false);
     }
+  }
+
+  Future<void> _rankBySkill() async {
+    if (bySkill) {
+      setState(() {
+        bySkill = false;
+        rank = {};
+      });
+      return;
+    }
+    final request = generation;
+    setState(() => ranking = true);
+    try {
+      final api = widget.app.api;
+      final profile = await api.get('/v1/me/profile');
+      if ((profile['skills'] as List? ?? const []).isEmpty) {
+        throw ApiException(404, 'NO_SKILLS', '');
+      }
+      if (!mounted || request != generation) return;
+      final ids = items.values
+          .where((item) => item['suspicious'] != true)
+          .map((item) => item['id'])
+          .take(50)
+          .toList();
+      if (ids.isEmpty) return;
+      final response = await api.post('/v1/ai/rankings', {
+        'opportunityIds': ids,
+      });
+      if (!mounted || request != generation) return;
+      final ranked = (response['ranked'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>();
+      setState(() {
+        bySkill = true;
+        rank = {for (final item in ranked) '${item['opportunityId']}': item};
+      });
+    } on ApiException catch (failure) {
+      if (!mounted || request != generation) return;
+      if (failure.status == 404) {
+        toast(context, 'บอกทักษะของคุณก่อน แล้วจะเรียงงานให้ตรงทักษะ');
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ProfileScreen(app: widget.app)),
+        );
+      } else {
+        toast(context, failure.message);
+      }
+    } finally {
+      if (mounted) setState(() => ranking = false);
+    }
+  }
+
+  List<OpportunityPin> _pins() {
+    final pins = <(String, String?), OpportunityPin>{};
+    for (final item in items.values) {
+      if ((item['provenance'] as Map?)?['dataStatus'] == 'mock' ||
+          item['dataStatus'] == 'mock') {
+        continue;
+      }
+      final id = item['id'] as String;
+      for (final location in OpportunityLocation.of(item)) {
+        final code = location.districtCode;
+        if (district != null && code != district) continue;
+        if (location.point case final point?) {
+          pins.putIfAbsent(
+            (id, code),
+            () => (
+              id: id,
+              districtCode: code,
+              title: '${item['title']}',
+              point: point,
+              category: OpportunityCategory.of(item),
+            ),
+          );
+        }
+      }
+    }
+    return pins.values.toList();
+  }
+
+  void _toggleMap() {
+    if (mapView) {
+      setState(() => mapView = false);
+      return;
+    }
+    setState(() {
+      mapView = true;
+      noPins = false;
+    });
+    _loadPages(allPages: true);
+  }
+
+  void _submit(String value) {
+    submitted = value.trim();
+    _reload();
+  }
+
+  void _open(String id, {String? code}) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => OppScreen(
+        app: widget.app,
+        opportunityId: id,
+        districtCode: code,
+        summary: items[id],
+      ),
+    ),
+  );
+
+  void _openBenefit(Map<String, dynamic> item) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(
+      builder: (_) => OppScreen.money(
+        app: widget.app,
+        moneyId: '${item['id']}',
+        summary: item,
+        mockAssessment: widget.assessment?.mock == true,
+      ),
+    ),
+  );
+
+  Future<void> _chooseDistrict() async {
+    final code = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _DistrictPicker(selected: district),
+    );
+    if (!mounted || code == null) return;
+    district = code.isEmpty ? null : code;
+    _reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    var items = ((page?['items'] as List?) ?? const []).cast<Map<String, dynamic>>();
-    if (bySkill && rank.isNotEmpty) {
-      // Ranked items first in the ranking's order, then the rest.
-      final order = rank.keys.toList();
-      items = [...items.where((o) => rank.containsKey(o['id'])).toList()..sort((a, b) => order.indexOf('${a['id']}').compareTo(order.indexOf('${b['id']}'))),
-        ...items.where((o) => !rank.containsKey(o['id']))];
-    }
-    final g = widget.app.oppGroup.value;
-    void open(Map<String, dynamic> o) => Navigator.push(context, MaterialPageRoute(builder: (_) => OppScreen(app: widget.app, opp: o)));
+    final pins = mapView ? _pins() : <OpportunityPin>[];
     return Scaffold(
-      appBar: AppBar(title: const Text('โอกาส')),
-      // One floating button switches list <-> map (navigation.md, ui-states.md S6).
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => setState(() => mapView = !mapView),
-        icon: Text(mapView ? '📋' : '🗺️', style: const TextStyle(fontSize: 18)),
-        label: Text(mapView ? 'ดูรายการ' : 'ดูแผนที่'),
+      appBar: AppBar(
+        title: const Text('โอกาส'),
+        actions: [
+          TextButton.icon(
+            onPressed: loading && !mapView ? null : _toggleMap,
+            icon: Icon(mapView ? Icons.view_list_outlined : Icons.map_outlined),
+            label: Text(mapView ? 'ดูรายการ' : 'ดูแผนที่'),
+          ),
+        ],
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: Column(children: [
-            TextField(
-              controller: q,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _load(),
-              decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'ค้นหา เช่น แม่บ้าน ขนม', border: OutlineInputBorder(), isDense: true),
-            ),
-            const SizedBox(height: 6),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: [
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(avatar: const Text('🎯'), label: const Text('ตรงทักษะของฉัน'), selected: bySkill, onSelected: (_) => _rankBySkill()),
-                ),
-                for (final e in oppGroups.entries)
+      body: Column(
+        children: [
+          SingleChildScrollView(
+            controller: lanesScroll,
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                for (final choice in OpportunityLane.values)
                   Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(label: Text(e.value), selected: g == e.key, onSelected: (_) => widget.app.oppGroup.value = e.key),
+                    key: laneKeys[choice],
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(choice.label),
+                      selected: lane == choice,
+                      onSelected: (_) =>
+                          widget.app.oppGroup.value = choice.group,
+                    ),
                   ),
-              ]),
+              ],
             ),
-          ]),
-        ),
-        Expanded(
-          child: mapView && page != null
-              ? OppMap(items: items, onOpen: open, onShowList: () => setState(() => mapView = false))
-              : _list(context, items, open),
-        ),
-      ]),
+          ),
+          Expanded(
+            child: mapView
+                ? Column(
+                    children: [
+                      _filters(),
+                      if (error != null) const Text('โหลดพิกัดได้บางส่วน'),
+                      Expanded(
+                        child: loading
+                            ? const Center(
+                                child: CircularProgressIndicator(
+                                  semanticsLabel: 'กำลังโหลดพิกัด',
+                                ),
+                              )
+                            : pins.isNotEmpty
+                            ? OppMap(
+                                key: ValueKey(generation),
+                                pins: pins,
+                                onOpen: (pin) =>
+                                    _open(pin.id, code: pin.districtCode),
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ],
+                  )
+                : _list(context),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _list(BuildContext context, List<Map<String, dynamic>> items, void Function(Map<String, dynamic>) open) {
-    final live = items.where((o) => (o['provenance'] as Map)['dataStatus'] == 'live').length;
-    return RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.fromLTRB(12, 8, 12, 80), children: [
-          if (page != null && items.isNotEmpty)
-            Text('${items.length} รายการ · ประกาศจริงจากแหล่งภายนอก $live รายการ · ที่เหลือเป็นตัวอย่าง (DEMO)', style: Theme.of(context).textTheme.bodySmall),
-          if (error != null && error!.isNetwork) OfflineCard(app: widget.app, onRetry: _load),
-          if (error != null && !error!.isNetwork) Text(error!.message),
-          if (page == null && error == null) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-          if (page != null && items.isEmpty) ...[
-            const Padding(padding: EdgeInsets.all(16), child: Text('ไม่พบรายการ', style: TextStyle(fontWeight: FontWeight.bold))),
-            for (final s in ((page!['suggestions'] as List?) ?? const []).cast<Map<String, dynamic>>())
-              OutlinedButton(onPressed: () { q.clear(); widget.app.oppGroup.value = 'all'; _load(); }, child: Text('${s['label']}')),
-          ],
-          for (final o in items)
-            Card(
-              child: ListTile(
-                title: Text('${o['title']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('${o['organization'] ?? ''}\n${oppMoney(o)}'
-                    '${(o['location'] as Map?)?['distanceKm'] is num ? ' · ${((o['location'] as Map)['distanceKm'] as num).toStringAsFixed(1)} กม.' : ''}'
-                    '\n${dataLabel((o['provenance'] as Map)['dataStatus'] as String?)}'
-                    '${rank[o['id']] != null ? '\n🎯 ${_fit[rank[o['id']]!['fit']] ?? ''} · ${rank[o['id']]!['reason']}' : ''}'),
-                isThreeLine: true,
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => open(o),
+  Widget _filters() => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: search,
+          textInputAction: TextInputAction.search,
+          onSubmitted: _submit,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.search),
+            labelText: 'ค้นหาโอกาส',
+            isDense: true,
+            border: const OutlineInputBorder(),
+            suffixIcon: IconButton(
+              tooltip: 'ล้างคำค้น',
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                search.clear();
+                _submit('');
+              },
+            ),
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _chooseDistrict,
+              icon: const Icon(Icons.place_outlined),
+              label: Text(
+                district == null
+                    ? 'ทุกเขตในกรุงเทพฯ'
+                    : 'เขต${bangkokDistricts[district]}',
               ),
             ),
-          if (page != null && (page!['hiddenSuspicious'] as num? ?? 0) > 0)
-            Padding(padding: const EdgeInsets.all(8), child: Text('ซ่อนประกาศที่น่าสงสัยไว้ ${page!['hiddenSuspicious']} รายการ', style: Theme.of(context).textTheme.bodySmall)),
-        ]),
-    );
-  }
-}
-
-/// Opportunity detail (ui-states.md S6b).
-class OppScreen extends StatefulWidget {
-  const OppScreen({super.key, required this.app, required this.opp});
-  final AppState app;
-  final Map<String, dynamic> opp;
-
-  @override
-  State<OppScreen> createState() => _OppScreenState();
-}
-
-class _OppScreenState extends State<OppScreen> {
-  bool openingApplication = false;
-
-  Future<void> _openJobApplication() async {
-    setState(() => openingApplication = true);
-    final app = widget.app;
-    final opp = widget.opp;
-    final title = '${opp['title']}';
-    try {
-      final url = await reachableJobApplicationUrl(opp['provenance'] as Map?);
-      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      if (url != null) {
-        final opened = await openExternal(context, app, url: url.toString(), title: title, opportunityId: '${opp['id']}', showError: false);
-        if (opened || !mounted || ModalRoute.of(context)?.isCurrent != true) return;
-      }
-      await openExternal(context, app, url: jobApplicationDemoUrl(app.api.baseUrl, title), title: title, askAfterReturn: false);
-    } finally {
-      if (mounted) setState(() => openingApplication = false);
-    }
-  }
-
-  Future<void> _report(BuildContext context) async {
-    const reasons = {'suspicious': 'น่าสงสัย / มิจฉาชีพ', 'wrong_info': 'ข้อมูลผิด', 'expired': 'ปิดรับแล้ว', 'other': 'อื่นๆ'};
-    final r = await showModalBottomSheet<String>(
-      context: context,
-      builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        const ListTile(title: Text('รายงานประกาศนี้', style: TextStyle(fontWeight: FontWeight.bold))),
-        for (final e in reasons.entries) ListTile(title: Text(e.value), onTap: () => Navigator.pop(context, e.key)),
-      ])),
-    );
-    if (r == null || !context.mounted) return;
-    try {
-      await widget.app.api.post('/v1/opportunities/${widget.opp['id']}/reports', {'reason': r});
-      if (context.mounted) toast(context, 'ขอบคุณ ส่งรายงานแล้ว');
-    } on ApiException catch (e) {
-      if (context.mounted) toast(context, e.message);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final app = widget.app;
-    final opp = widget.opp;
-    final t = Theme.of(context).textTheme;
-    final p = opp['provenance'] as Map<String, dynamic>;
-    final conditions = ((opp['conditions'] as List?) ?? const []).map((e) => '$e');
-    final url = '${p['sourceUrl'] ?? ''}';
-    return Scaffold(
-      appBar: AppBar(title: const Text('รายละเอียด')),
-      body: SafeArea(
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          Text('${opp['title']}', style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
-          if (opp['organization'] != null) Text('${opp['organization']}'),
-          const SizedBox(height: 6),
-          Wrap(spacing: 6, children: [Chip(label: Text(oppGroups[opp['mapGroup']] ?? '${opp['mapGroup']}')), Chip(label: Text(dataLabel(p['dataStatus'] as String?)))]),
-          Text(oppMoney(opp), style: t.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-          if ((opp['location'] as Map?)?['text'] != null) Text('📍 ${(opp['location'] as Map)['text']}'),
-          const Divider(height: 24),
-          if (conditions.isNotEmpty) ...[
-            Text('เงื่อนไข', style: t.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-            for (final c in conditions) Text('• $c'),
-            const SizedBox(height: 8),
+            if (lane == OpportunityLane.jobs) ...[
+              MenuAnchor(
+                menuChildren: [
+                  for (final category in OpportunityLane.jobs.categories)
+                    CheckboxMenuButton(
+                      closeOnActivate: false,
+                      value: jobTypes.contains(category),
+                      onChanged: (selected) {
+                        selected == true
+                            ? jobTypes.add(category)
+                            : jobTypes.remove(category);
+                        _reload();
+                      },
+                      child: Text(category.label),
+                    ),
+                ],
+                builder: (context, controller, _) => OutlinedButton.icon(
+                  onPressed: () => controller.isOpen
+                      ? controller.close()
+                      : controller.open(),
+                  icon: const Icon(Icons.arrow_drop_down),
+                  label: Text(
+                    jobTypes.isEmpty
+                        ? 'ประเภทงาน'
+                        : 'ประเภทงาน (${jobTypes.length})',
+                  ),
+                ),
+              ),
+              FilterChip(
+                label: const Text('ตรงทักษะของฉัน'),
+                selected: bySkill,
+                onSelected: ranking ? null : (_) => _rankBySkill(),
+              ),
+            ],
           ],
-          Text('แหล่งข้อมูล: ${p['attribution'] ?? p['provider']}${p['ageDays'] is num ? ' · อัปเดต ${p['ageDays']} วันก่อน' : ''}', style: t.bodySmall),
-          const SizedBox(height: 16),
-          if (opp['mapGroup'] == 'job')
-            OutlinedButton(
-              onPressed: openingApplication ? null : _openJobApplication,
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              child: Text(openingApplication ? 'กำลังเปิดหน้าสมัครงาน' : 'สมัครงาน ↗'),
-            )
-          else if (url.startsWith('http'))
-            OutlinedButton(
-              onPressed: () => openExternal(context, app, url: url, title: '${opp['title']}', opportunityId: '${opp['id']}'),
-              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              child: const Text('ดูประกาศต้นทาง ↗'),
+        ),
+      ],
+    ),
+  );
+
+  Widget _list(BuildContext context) {
+    final shown = [
+      for (final id in rank.keys) ?items[id],
+      ...items.values.where((item) => !rank.containsKey(item['id'])),
+    ];
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: CustomScrollView(
+        controller: listScroll,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _filters()),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+            sliver: SliverList.list(
+              children: [
+                if (noPins)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Text('ยังไม่มีพิกัดสำหรับตัวกรองนี้'),
+                  ),
+                if (lane == OpportunityLane.all ||
+                    lane == OpportunityLane.benefits)
+                  ..._assessment(context),
+                if (error case final failure?)
+                  if (failure.isNetwork)
+                    OfflineCard(app: widget.app, onRetry: () => _loadPages())
+                  else
+                    ListTile(
+                      title: Text(failure.message),
+                      trailing: TextButton(
+                        onPressed: _loadPages,
+                        child: const Text('ลองใหม่'),
+                      ),
+                    ),
+                if (shown.isEmpty && !loading && error == null)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Text('ไม่พบรายการตรงตัวกรอง'),
+                  ),
+              ],
             ),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: () => saveToPlan(context, app, opportunityId: '${opp['id']}'),
-            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-            child: const Text('＋ บันทึกไว้ในแผนของฉัน'),
           ),
-          TextButton(onPressed: () => _report(context), child: const Text('รายงานประกาศนี้')),
-          Text('แอปไม่รับประกันว่าจะได้งานหรือรายได้ ตรวจรายละเอียดกับผู้ประกาศก่อนสมัคร อย่าโอนเงินก่อนเริ่มงาน', style: t.bodySmall),
-        ]),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            sliver: SliverList.builder(
+              itemCount: shown.length,
+              itemBuilder: (context, index) => _card(context, shown[index]),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Center(
+                child: loading
+                    ? const CircularProgressIndicator(
+                        semanticsLabel: 'กำลังโหลดโอกาส',
+                      )
+                    : cursors.isNotEmpty && error == null
+                    ? OutlinedButton(
+                        onPressed: _loadPages,
+                        child: const Text('โหลดเพิ่ม'),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _card(BuildContext context, Map<String, dynamic> item) {
+    final id = item['id'] as String;
+    final category = OpportunityCategory.of(item);
+    final locations = OpportunityLocation.of(item);
+    final location = district == null
+        ? locations.firstOrNull
+        : locations.where((l) => l.districtCode == district).firstOrNull;
+    final province = location?.districtName;
+    final source =
+        item['dataStatus'] ?? (item['provenance'] as Map?)?['dataStatus'];
+    final fit = rank[id];
+    return Card(
+      child: ListTile(
+        title: Text(
+          '${item['title']}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (category != null)
+              Text(
+                category.label,
+                style: TextStyle(
+                  color: category.color,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            if (item['organization'] case final String name) Text(name),
+            Text(oppMoney(item)),
+            if (province != null)
+              Text(province.startsWith('เขต') ? province : 'เขต$province'),
+            if (source is String)
+              Text(
+                dataLabel(source),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            if (fit?['reason'] case final String reason) Text(reason),
+          ],
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _open(
+          id,
+          code:
+              district ??
+              (locations.length == 1 ? location?.districtCode : null),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _assessment(BuildContext context) {
+    final assessment = widget.assessment;
+    if (assessment == null) return [];
+    switch (assessment.status) {
+      case AssessmentStatus.loading:
+        return [const ListTile(title: Text('กำลังประเมินสิทธิ์และรายได้'))];
+      case AssessmentStatus.configUnavailable:
+      case AssessmentStatus.failed:
+        return [
+          Card(
+            child: ListTile(
+              title: Text(
+                assessment.status == AssessmentStatus.failed
+                    ? 'ยังประเมินไม่สำเร็จ'
+                    : 'ตรวจโหมดแอปไม่ได้',
+              ),
+              trailing: TextButton(
+                onPressed: widget.retryAssessment,
+                child: const Text('ลองใหม่'),
+              ),
+            ),
+          ),
+        ];
+      case AssessmentStatus.ready:
+        break;
+    }
+    final benefits = assessment.benefits
+        .where((item) => OpportunityCategory.forMoney('${item['id']}') != null)
+        .toList();
+    final shown = benefits.where(
+      (item) =>
+          submitted.isEmpty ||
+          '${item['title']} ${item['payer']}'.contains(submitted),
+    );
+    final counted = benefits.where(
+      (item) =>
+          {'likely', 'verified'}.contains(item['status']) &&
+          (item['amount'] as Map?)?['value'] is num,
+    );
+    final pending = benefits
+        .where(
+          (item) =>
+              {'need', 'check'}.contains(item['status']) ||
+              (item['status'] == 'likely' &&
+                  (item['amount'] as Map?)?['value'] is! num),
+        )
+        .length;
+    String total(String kind) {
+      final values = counted
+          .where((item) => item['kind'] == kind)
+          .map((item) => (item['amount'] as Map)['value'] as num);
+      return values.isEmpty
+          ? 'ยังไม่ทราบยอด'
+          : '${baht(values.fold<num>(0, (sum, value) => sum + value)).substring(1)} บาท';
+    }
+
+    final missing =
+        benefits.isEmpty || benefits.every((item) => item['status'] == 'need');
+    return [
+      Card(
+        child: ExpansionTile(
+          initiallyExpanded: lane == OpportunityLane.benefits,
+          title: const Text('ผลประเมินสิทธิ์และสวัสดิการ'),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (assessment.mock) const DemoPill(),
+              if (missing) const Text('ข้อมูลยังไม่พอประเมิน'),
+              Text('รายเดือน ${total('monthly')}'),
+              Text('ครั้งเดียว ${total('once')}'),
+              if (pending > 0) Text('ต้องตรวจต่อ $pending รายการ'),
+              if (counted.isNotEmpty)
+                const Text('ยอดประเมินตามเกณฑ์และข้อมูลที่มี'),
+            ],
+          ),
+          children: [
+            for (final item in shown)
+              ListTile(
+                title: Text('${item['title']}'),
+                subtitle: Text(
+                  '${OpportunityCategory.forMoney('${item['id']}')!.label} · ${benefitStatusLabel[item['status']] ?? ''}\n${benefitAmount(item)}',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _openBenefit(item),
+              ),
+          ],
+        ),
+      ),
+      if (lane == OpportunityLane.all) _incomeSummary(assessment),
+    ];
+  }
+
+  Widget _incomeSummary(OpportunityAssessment assessment) {
+    final wages = items.values.where(
+      (item) =>
+          OpportunityCategory.of(item)?.isBenefit == false &&
+          hasOpportunityIncome(item),
+    );
+    final estimates = assessment.income.where(
+      (item) =>
+          {'B', 'C'}.contains(item['track']) &&
+          item['netPerMonth'] is List &&
+          (widget.app.allowsDemo ||
+              {'live', 'curated', 'open_data'}.contains(item['dataStatus'])) &&
+          ((district == null && submitted.isEmpty) ||
+              items.containsKey(item['opportunityId'])),
+    );
+    return Card(
+      child: ExpansionTile(
+        title: const Text('รายได้จากงานและอาชีพ'),
+        subtitle: Text(
+          wages.isEmpty && estimates.isEmpty
+              ? 'ยังไม่มีข้อมูลรายได้'
+              : wages.isNotEmpty
+              ? 'ดูค่าตอบแทนตามประกาศ'
+              : 'ดูรายได้สุทธิโดยประมาณ',
+        ),
+        children: [
+          for (final item in wages.take(3))
+            ListTile(
+              title: Text('${item['title']}'),
+              subtitle: Text(
+                '${oppMoney(item)}\n${dataLabel((item['provenance'] as Map?)?['dataStatus'] as String?)}',
+              ),
+              onTap: () => _open('${item['id']}', code: district),
+            ),
+          for (final item in estimates)
+            if (item['netPerMonth'] case [final num low, final num high])
+              ListTile(
+                title: Text('${item['title']}'),
+                subtitle: Text(
+                  '${baht(low)} ถึง ${baht(high)} ต่อเดือน (ประมาณการ)\n'
+                  '${(item['assumptions'] as List? ?? const []).join(' · ')}\n${dataLabel(item['dataStatus'] as String?)}',
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DistrictPicker extends StatefulWidget {
+  const _DistrictPicker({required this.selected});
+  final String? selected;
+
+  @override
+  State<_DistrictPicker> createState() => _DistrictPickerState();
+}
+
+class _DistrictPickerState extends State<_DistrictPicker> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    heightFactor: .82,
+    child: Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: 'ค้นหาเขต',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (value) => setState(
+                () => query = value.trim().replaceFirst(RegExp(r'^เขต\s*'), ''),
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              children: [
+                ListTile(
+                  title: const Text('ทุกเขตในกรุงเทพฯ'),
+                  selected: widget.selected == null,
+                  onTap: () => Navigator.pop(context, ''),
+                ),
+                for (final entry in bangkokDistricts.entries.where(
+                  (entry) => entry.value.contains(query),
+                ))
+                  ListTile(
+                    title: Text('เขต${entry.value}'),
+                    selected: widget.selected == entry.key,
+                    onTap: () => Navigator.pop(context, entry.key),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }

@@ -27,7 +27,7 @@ const { createAi } = require('./adapters/ai');
 const { createAgent, rulesAgent: runRulesAgent, goalTarget, moneyGuide, moneySummaryQuery,
   unpaidPlansQuery, planStatusQuery, matchingMoneyPlans, planPaymentStatus } = require('./adapters/agent');
 const { taxDemoPersonas } = require('./adapters/demo-tax');
-const { govPrefillPersona } = require('./adapters/gov-prefill-demo');
+const { govPrefillPersona, govPrefillSourceIds } = require('./adapters/gov-prefill-demo');
 const sources = require('./adapters/sources');
 const { createGeocoder } = require('./adapters/geocoder');
 const { createNotifier } = require('./adapters/notifier');
@@ -61,15 +61,17 @@ function createServer(opts = {}) {
   const ref = readJson('fixtures/reference.json');
   const fx = readJson('fixtures/opportunities.json');
   const NOTICE = ref.privacyNotice;
-  const govOn = opts.govConnected !== undefined ? opts.govConnected : process.env.GOV_CONNECTED === '1';
-  const demoOn = opts.demo !== undefined ? opts.demo : process.env.DEMO_MODE !== '0';
+  const appMode = opts.appMode ?? process.env.APP_MODE ?? 'demo';
+  if (appMode !== 'demo' && appMode !== 'user') throw new Error('APP_MODE must be demo or user');
+  const govOn = appMode === 'demo' && (opts.govConnected ?? (process.env.GOV_CONNECTED === '1'));
+  const demoOn = appMode === 'demo' && (opts.demo ?? (process.env.DEMO_MODE !== '0'));
   const demoPersonas = demoOn ? { ...ref.demoPersonas, ...taxDemoPersonas, 'gov-prefill': govPrefillPersona(ref.thaid) } : {};
   const ai = opts.ai || createAi(opts.aiOptions || {});
   const agent = opts.agent || createAgent(opts.aiOptions || {});
   const geo = createGeocoder(ref.taxonomies.districts);
   const notifier = createNotifier({ debug: opts.debug });
   const money = createMoney(ref);
-  const govAdapter = createGovMock(ref.govMock, ref.thaid);
+  const govAdapter = govOn ? createGovMock(ref.govMock, ref.thaid) : null;
   const integrationKey = opts.integrationKey || process.env.INTEGRATION_KEY || 'dev-only-key';
   const store = opts.store || createStore({ file: opts.dataFile });
   const envNum = (v, dflt) => v !== undefined ? +v : dflt;
@@ -151,6 +153,7 @@ function createServer(opts = {}) {
     sourceUrl.searchParams.set('id', opportunity.id);
     return { ...opportunity, provenance: { ...opportunity.provenance, sourceUrl: sourceUrl.href } };
   }
+  const withoutCoordinateSource = ({ coordinateSource, ...location }) => location;
   const reports = [], hiddenByReports = new Set();
   // A10: the same listing from two sources is kept once (first source wins). Key = title + organisation, ignoring
   // spacing, punctuation and bracketed notes.
@@ -163,7 +166,12 @@ function createServer(opts = {}) {
     if (hiddenByReports.has(id)) reasons.push(REPORT_HIDE_REASON);
     opps.set(id, {
       id, title: input.title, organization: input.organization, category: input.category, mapGroup: input.mapGroup,
-      location: input.location || { precision: 'none' }, money: input.money, conditions: input.conditions || [],
+      location: input.location ? withoutCoordinateSource(input.location) : { precision: 'none' },
+      locations: input.locations?.map(withoutCoordinateSource),
+      description: input.description, contacts: input.contacts, status: input.status,
+      summary: input.summary, availability: input.availability, checkedAt: input.checkedAt, documents: input.documents,
+      claim: input.claim, job: input.job, income: input.income, grant: input.grant,
+      money: input.money, conditions: input.conditions || [],
       provenance: { provider, dataStatus, sourceUrl: input.sourceUrl, updatedAt: input.updatedAt, expiresAt: input.expiresAt, fetchedAt: nowIso(), ageDays: daysAgo(input.updatedAt), attribution },
       suspicious: reasons.length > 0, suspiciousReasons: reasons, checklistTemplateId: input.category,
       skills: Array.isArray(input.skills) && input.skills.length ? input.skills : undefined, forOlder: input.forOlder || undefined
@@ -191,7 +199,8 @@ function createServer(opts = {}) {
   // Official services with real links (job centre, job fairs, free training), checked by hand. Not mock.
   (fx.official || []).forEach(r => upsert('official', 'curated', 'เว็บไซต์หน่วยงานราชการ (ตรวจลิงก์ ' + r.checkedAt + ')', {
     externalId: r.id, title: r.title, organization: r.organization, category: r.category, mapGroup: r.mapGroup,
-    location: { precision: 'none', text: 'ออนไลน์ หรือสำนักงานใกล้บ้าน' }, money: r.money, conditions: r.conditions, sourceUrl: r.sourceUrl, updatedAt: new Date(r.checkedAt).toISOString()
+    location: { precision: 'none', text: 'ออนไลน์ หรือสำนักงานใกล้บ้าน' }, money: r.money, conditions: r.conditions,
+    sourceUrl: r.sourceUrl, checkedAt: r.checkedAt, updatedAt: new Date(r.checkedAt).toISOString()
   }));
   const srcState = ref.sources.map(s => ({ provider: s.provider, name: s.name, kind: s.kind, attribution: s.attribution,
     direction: s.url ? 'pull' : s.provider === 'curated' ? 'push' : 'static', state: s.url ? 'idle' : 'static',
@@ -231,11 +240,12 @@ function createServer(opts = {}) {
 
   // ---- persistence (B1): load once, save after every successful write ----
   // Layout v2: each device is split into collections (identity / profile / activity / runtime), see adapters/store.js.
-  const snapshot = () => ({ version: LAYOUT, savedAt: nowIso(), devices: [...devices].map(([id, d]) => packDevice(id, d)), ingested: [...opps.values()].filter(o => !['mock', 'live'].includes(o.provenance.dataStatus)),
+  const snapshot = () => ({ version: LAYOUT, appMode, savedAt: nowIso(), devices: [...devices].map(([id, d]) => packDevice(id, d)), ingested: [...opps.values()].filter(o => !['mock', 'live'].includes(o.provenance.dataStatus)),
     reports, hiddenByReports: [...hiddenByReports], reminders: notifier.all() });
   const persist = () => { try { store.save(snapshot()); } catch (e) { console.error('store: save failed: ' + e.message); } };
   const saved = store.load();
   if (saved) {
+    if ((saved.appMode ?? 'demo') !== appMode) throw new Error('DATA_FILE belongs to a different APP_MODE');
     readDevices(saved).forEach(([id, d]) => devices.set(id, d));
     (saved.ingested || []).forEach(o => opps.set(o.id, o));
     reports.push(...(saved.reports || [])); (saved.hiddenByReports || []).forEach(x => hiddenByReports.add(x));
@@ -286,9 +296,15 @@ function createServer(opts = {}) {
     d.gov = { status: 'not_connected' };
   }
   const govOut = d => ({ status: d.gov.status, provider: govAdapter.provider, mock: true, connectedAt: d.gov.connectedAt, ...(govIdentity(d) ? { identity: { ...d.gov.identity, applied: Object.keys(d.gov.applied || {}) } } : {}) });
-  const taskOut = t => ({ id: t.id, opportunityId: t.opportunityId, moneyId: t.moneyId, title: t.title, steps: t.steps, doneCount: t.doneCount, status: t.status, reportedBy: 'user', dueText: t.dueText, blockReason: t.blockReason, outcome: t.outcome });
+  const taskOut = t => ({ id: t.id, opportunityId: t.opportunityId, moneyId: t.moneyId, districtCode: t.districtCode,
+    title: t.title, steps: t.steps, doneCount: t.doneCount, status: t.status, reportedBy: 'user', dueText: t.dueText, blockReason: t.blockReason, outcome: t.outcome });
   const searchPoint = (d, q) => q.has('lat') && q.has('lng') ? { lat: +q.get('lat'), lng: +q.get('lng') }
     : d && d.profile && typeof d.profile.lat === 'number' ? { lat: d.profile.lat, lng: d.profile.lng } : { lat: fx.center.lat, lng: fx.center.lng };
+  const opportunityLocations = o => o.locations?.length ? o.locations : [o.location];
+  const hasMapLocation = o => o.provenance.dataStatus !== 'mock'
+    && opportunityLocations(o).some(l => l.coordinateSource === 'database');
+  const districtName = value => normalizeJobText(value).replace(/^เขต/, '');
+  const bangkokProvinces = new Set(['กรุงเทพมหานคร', 'กรุงเทพฯ', 'กรุงเทพ', 'กทม', 'bangkok'].map(normalizeJobText));
 
   // ---- shared services (used by HTTP routes and by the AI agent) ----
   function search(d, q) {
@@ -297,18 +313,24 @@ function createServer(opts = {}) {
     const key = { near: o => o.location.distanceKm ?? 1e9, money: o => -(o.money.max ?? -1), fresh: o => o.provenance.ageDays ?? 1e9 }[sort];
     if (!key) return null;
     const dataStatuses = OPPORTUNITY_DATA_MODES.get(q.get('dataMode'));
-    const province = normalizeJobText(q.get('province')), district = normalizeJobText(q.get('district'));
+    const bangkok = q.get('area') === 'bangkok';
+    const province = normalizeJobText(q.get('province')), district = districtName(q.get('district')), districtCode = q.get('districtCode');
     const skill = normalizeJobText(q.get('skill')), workMode = q.get('workMode');
     let xs = opportunityValues().filter(o => !dataStatuses || dataStatuses.has(o.provenance.dataStatus)).map(fresh).map(o => o.location.precision === 'exact' ? { ...o, location: { ...o.location, distanceKm: +km(c, o.location).toFixed(2) } } : o)
       .filter(o => group === 'all' || o.mapGroup === group).filter(o => !cat || o.category === cat)
       .filter(o => !text || (o.title + ' ' + (o.organization || '')).includes(text))
       .filter(o => !onlyMoney || o.money.basis !== 'none')
       .filter(o => !province || normalizeJobText(o.location.province) === province)
-      .filter(o => !district || normalizeJobText(o.location.district) === district)
+      .filter(o => !bangkok || opportunityLocations(o).some(l => !l.province || bangkokProvinces.has(normalizeJobText(l.province))))
+      .filter(o => !(district || districtCode) || opportunityLocations(o).some(l => {
+        if (bangkok && l.province && !bangkokProvinces.has(normalizeJobText(l.province))) return false;
+        if (districtCode && l.districtCode != null) return String(l.districtCode) === districtCode;
+        return district && districtName(l.districtName ?? l.district) === district;
+      }))
       .filter(o => !workMode || (o.location.workMode ?? (o.location.isRemote ? 'remote' : undefined)) === workMode)
       .filter(o => !skill || o.skills?.some(value => normalizeJobText(value) === skill))
-      .filter(o => o.location.precision !== 'exact' || o.location.distanceKm <= r)
-      .filter(o => o.provenance.linkStatus !== 'broken')
+      .filter(o => bangkok || o.location.precision !== 'exact' || o.location.distanceKm <= r)
+      .filter(o => o.provenance.linkStatus !== 'broken' && !['closed', 'expired'].includes(o.status) && !['closed', 'expired'].includes(o.availability))
       .filter(o => !o.provenance.expiresAt || new Date(o.provenance.expiresAt) > new Date());
     const hidden = showSus ? 0 : xs.filter(o => o.suspicious).length;
     if (!showSus) xs = xs.filter(o => !o.suspicious);
@@ -325,17 +347,20 @@ function createServer(opts = {}) {
   const svc = {
     createTask(d, body) {
       const gate = need(d, 'core'); if (gate) return gate;
+      const districtCode = body?.districtCode;
+      if (districtCode !== undefined && (typeof districtCode !== 'string' || !/^\d{4}$/.test(districtCode)))
+        return E(422, 'VALIDATION', 'districtCode ต้องเป็นรหัสเขต 4 หลัก');
       if (body && body.moneyId) {
         const steps = money.claimSteps(body.moneyId); if (!steps) return E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้');
         const ex = d.tasks.find(t => t.moneyId === body.moneyId); if (ex) return [201, taskOut(ex)];
         const p = money.programs.find(x => x.id === body.moneyId), ready = d.docsReady[body.moneyId] || [];
-        const t = { id: 't' + d.seq++, moneyId: body.moneyId, title: p.title, steps, doneCount: ready.length === p.docs.length ? 1 : 0, status: 'active' };
+        const t = { id: 't' + d.seq++, moneyId: body.moneyId, districtCode, title: p.title, steps, doneCount: ready.length === p.docs.length ? 1 : 0, status: 'active' };
         d.tasks.push(t); return [201, taskOut(t)];
       }
       const o = body && findOpportunity(body.opportunityId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบโอกาสที่จะบันทึก');
       const ex = d.tasks.find(t => t.opportunityId === o.id); if (ex) return [201, taskOut(ex)];
       const steps = ref.checklists[o.checklistTemplateId] || ['ติดต่อผู้ประกาศ', 'ดำเนินการตามขั้นตอนที่ต้นทาง'];
-      const t = { id: 't' + d.seq++, opportunityId: o.id, title: o.title, steps, doneCount: 0, status: 'active' };
+      const t = { id: 't' + d.seq++, opportunityId: o.id, districtCode, title: o.title, steps, doneCount: 0, status: 'active' };
       d.tasks.push(t); return [201, taskOut(t)];
     },
     taskEvent(d, device, id, body, key) {
@@ -417,8 +442,10 @@ function createServer(opts = {}) {
     store: store.kind, storeLayout: LAYOUT, retention: { days: retentionDays, mode: retentionMode }, notifier: notifier.kind, aiDailyLimit, jobs: jobs.state }], { public: true });
   on('GET', '/v1/app-config', ({ req }) => {
     const cfg = readJson('app-config.sample.json');
+    cfg.mode = appMode;
+    if (appMode === 'user') cfg.governmentConnections = { thaid: 'approval_required', tangRat: 'access_required' };
     cfg.featureFlags = { ...cfg.featureFlags, govConnected: govOn, demo: demoOn }; cfg.noticeVersion = NOTICE.version;
-    const tag = '"' + cfg.configVersion + '-' + NOTICE.version + (govOn ? '-gov' : '') + (demoOn ? '-demo' : '') + '"';
+    const tag = '"' + cfg.configVersion + '-' + NOTICE.version + '-' + appMode + (govOn ? '-gov' : '') + (demoOn ? '-demo' : '') + '"';
     return req.headers['if-none-match'] === tag ? [304] : [200, cfg, { ETag: tag, 'Cache-Control': 'no-cache' }];
   }, { public: true });
   on('GET', '/v1/taxonomies', () => [200, { ...ref.taxonomies, facts: ref.facts }], { public: true });
@@ -509,11 +536,14 @@ function createServer(opts = {}) {
     const limit = Math.min(100, Math.max(1, +(q.get('limit') || 30)));
     const start = q.get('cursor') ? +Buffer.from(q.get('cursor'), 'base64url').toString() || 0 : 0;
     const warn = allSourceStates().filter(s => s.state === 'failed').map(s => s.provider);
-    return [200, { items: res.xs.slice(start, start + limit).map(item => opportunityResponse(item, req)), totalCount: res.xs.length, nextCursor: start + limit < res.xs.length ? Buffer.from(String(start + limit)).toString('base64url') : undefined,
+    const end = start + limit;
+    return [200, { items: res.xs.slice(start, end).map(item => opportunityResponse(item, req)), totalCount: res.xs.length,
+      nextCursor: end < res.xs.length ? Buffer.from(String(end)).toString('base64url') : undefined,
+      hasMoreMapLocations: res.xs.slice(end).some(hasMapLocation),
       hiddenSuspicious: res.hidden, suggestions: res.suggestions.length ? res.suggestions : undefined, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
   });
-  on('GET', '/v1/opportunities/{id}', ({ p, req }) => {
-    const o = findOpportunity(p.id);
+  on('GET', '/v1/opportunities/{id}', ({ p, q, req }) => {
+    const o = findOpportunity(p.id) ?? (q.get('includeClosed') === 'true' ? jobCatalogue?.getClosed(p.id) : undefined);
     return o ? [200, opportunityResponse(fresh(o), req)] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
   }, { public: true });
   on('POST', '/v1/opportunities/{id}/reports', ({ device, p, body }) => {
@@ -808,7 +838,15 @@ function createServer(opts = {}) {
 
   // Tasks
   const findTask = (d, id) => d.tasks.find(t => t.id === id);
-  on('GET', '/v1/tasks', ({ d, q }) => [200, { items: d.tasks.filter(t => !q.get('status') || t.status === q.get('status')).map(taskOut) }]);
+  on('GET', '/v1/tasks', ({ d, q }) => {
+    const status = q.get('status');
+    const items = d.tasks.filter(t => !status || t.status === status).map(t => {
+      const id = t.opportunityId;
+      const opportunity = id ? (findOpportunity(id) ?? jobCatalogue?.getClosed(id)) : undefined;
+      return { ...taskOut(t), category: opportunity?.category };
+    });
+    return [200, { items }];
+  });
   on('POST', '/v1/tasks', ({ d, body }) => svc.createTask(d, body));
   on('GET', '/v1/tasks/{id}', ({ d, p }) => { const t = findTask(d, p.id); return t ? [200, taskOut(t)] : E(404, 'NOT_FOUND', 'ไม่พบงานนี้'); });
   on('DELETE', '/v1/tasks/{id}', ({ d, device, p }) => { const i = d.tasks.findIndex(t => t.id === p.id); if (i < 0) return E(404, 'NOT_FOUND', 'ไม่พบงานนี้'); d.tasks.splice(i, 1); notifier.cancel(device, p.id); return [204]; });
@@ -832,8 +870,20 @@ function createServer(opts = {}) {
   }, { public: true });
 
   // Integrations (inbound)
+  const validLocation = l => l && typeof l === 'object' && ['exact', 'city', 'none'].includes(l.precision)
+    && (l.precision !== 'exact' || (Number.isFinite(l.lat) && Math.abs(l.lat) <= 90 && Number.isFinite(l.lng) && Math.abs(l.lng) <= 180));
   const validInput = i => i && i.externalId && i.title && i.category && i.mapGroup && i.money && ['official', 'listing', 'none'].includes(i.money.basis) && /^https?:\/\//.test(i.sourceUrl || '')
-    && (!i.location || i.location.precision !== 'exact' || (typeof i.location.lat === 'number' && typeof i.location.lng === 'number'));
+    && (!i.location || validLocation(i.location)) && (i.locations === undefined || (Array.isArray(i.locations) && i.locations.every(validLocation)))
+    && (i.description === undefined || typeof i.description === 'string')
+    && (i.summary === undefined || typeof i.summary === 'string')
+    && (i.availability === undefined || ['open', 'upcoming', 'paused', 'closed', 'expired'].includes(i.availability))
+    && (i.checkedAt === undefined || typeof i.checkedAt === 'string')
+    && (i.documents === undefined || (Array.isArray(i.documents) && i.documents.every(d => typeof d === 'string')))
+    && (i.contacts === undefined || (Array.isArray(i.contacts) && i.contacts.every(c => typeof c === 'string'
+      || (c && typeof c.label === 'string' && ['purpose', 'type', 'destination', 'hoursText', 'instructions', 'districtCode', 'sourceUrl', 'checkedAt']
+        .every(k => c[k] === undefined || typeof c[k] === 'string')))))
+    && ['claim', 'job', 'income', 'grant'].every(k => i[k] === undefined || (i[k] && typeof i[k] === 'object' && !Array.isArray(i[k])))
+    && (i.status === undefined || ['active', 'closed'].includes(i.status));
   on('POST', '/v1/integrations/opportunities/batch', ({ body }) => {
     if (typeof body?.provider !== 'string' || !body.provider || !Array.isArray(body.items)) return E(422, 'VALIDATION', 'ต้องมี provider และ items');
     if (body.items.length > 500) return E(422, 'VALIDATION', 'ส่งได้ครั้งละไม่เกิน 500 รายการ');
@@ -886,15 +936,27 @@ function createServer(opts = {}) {
   }, { integration: true });
 
   // Demo
-  on('GET', '/v1/demo/personas/{id}', ({ p }) => {
-    const per = Object.hasOwn(demoPersonas, p.id) && demoPersonas[p.id];
+  function selectDemoPersona(id, sources) {
+    if (!Object.hasOwn(demoPersonas, id)) return {};
+    if (sources === null) return { per: demoPersonas[id] };
+    const selection = sources ? sources.split(',') : [];
+    if (id !== 'gov-prefill' || selection.some(source => !govPrefillSourceIds.includes(source))) {
+      return { error: E(400, 'VALIDATION', 'เลือกแหล่งข้อมูลตัวอย่างได้เฉพาะ ThaID ทางรัฐ ประกันสังคม และ D-MyTax ในโปรไฟล์ gov-prefill') };
+    }
+    return { per: govPrefillPersona(ref.thaid, selection) };
+  }
+  on('GET', '/v1/demo/personas/{id}', ({ p, q }) => {
+    const { per, error } = selectDemoPersona(p.id, q.get('sources'));
+    if (error) return error;
     if (!per?.sources) return E(404, 'NOT_FOUND', 'ไม่มีโปรไฟล์ตัวอย่างให้แสดง');
     return [200, { profile: per.profile, identity: per.identity, sources: per.sources, dataStatus: 'mock' }];
   }, { public: true });
   on('POST', '/v1/demo/personas/{id}', ({ device, p, q }) => {
-    const per = Object.hasOwn(demoPersonas, p.id) && demoPersonas[p.id];
+    const { per, error } = selectDemoPersona(p.id, q.get('sources'));
+    if (error) return error;
     if (!demoOn || !per) return E(404, 'NOT_FOUND', demoOn ? 'ไม่พบผู้ใช้ตัวอย่างนี้' : 'ปิดโหมดสาธิตอยู่');
-    const previous = q.get('keepPlans') === 'true' && Object.hasOwn(taxDemoPersonas, p.id) ? devices.get(device) : undefined;
+    const supportsKeepPlans = p.id === 'gov-prefill' || Object.hasOwn(taxDemoPersonas, p.id);
+    const previous = q.get('keepPlans') === 'true' && supportsKeepPlans ? devices.get(device) : undefined;
     devices.delete(device); const d = dev(device);
     if (previous) {
       const { tasks, events, docsReady, seq } = previous;
@@ -1010,7 +1072,7 @@ module.exports = { createServer };
 if (require.main === module) {
   const port = +(process.env.PORT || 8080);
   // `npm run mock` keeps data in contracts/.data/ (git-ignored) so a restart does not wipe the demo.
-  const dataDir = path.join(DIR, '.data');
+  const dataDir = process.env.APP_MODE === 'user' ? path.join(DIR, '.data', 'user') : path.join(DIR, '.data');
   const s = createServer({ live: process.env.LIVE === '1', debug: true, jobDbFile: process.env.JOB_DB_FILE,
     mockJobFeedFile: process.env.MOCK_JOB_FEED_FILE, jobicySync: process.env.JOBICY_SYNC === '1', jobFeedsFile: process.env.JOB_FEEDS_FILE,
     dataFile: process.env.DATA_FILE !== undefined ? process.env.DATA_FILE : path.join(dataDir, 'state.json'),

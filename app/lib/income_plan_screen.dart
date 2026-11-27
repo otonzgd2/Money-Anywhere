@@ -85,14 +85,7 @@ class _IncomePlanScreenState extends State<IncomePlanScreen> {
     final a = part['action'] as Map?;
     if (a == null) return;
     if (a['type'] == 'money_route') return _open(RouteScreen(app: widget.app, moneyId: '${a['id']}'));
-    if (a['type'] == 'opportunity') {
-      try {
-        final o = await api.get('/v1/opportunities/${a['id']}');
-        if (mounted) await _open(OppScreen(app: widget.app, opp: o));
-      } on ApiException catch (e) {
-        if (mounted) toast(context, e.message);
-      }
-    }
+    if (a['type'] == 'opportunity') return _open(OppScreen(app: widget.app, opportunityId: '${a['id']}'));
   }
 
   void _missing(String id) {

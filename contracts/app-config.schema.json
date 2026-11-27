@@ -10,6 +10,16 @@
     "configVersion": { "type": "string" },
     "minAppVersion": { "type": "string" },
     "noticeVersion": { "type": "string", "description": "Set by the server from the current privacy notice" },
+    "mode": { "type": "string", "enum": ["demo", "user"], "description": "Set by the server" },
+    "governmentConnections": {
+      "type": "object",
+      "description": "Live provider availability in user mode",
+      "required": ["thaid", "tangRat"],
+      "properties": {
+        "thaid": { "type": "string", "enum": ["approval_required"] },
+        "tangRat": { "type": "string", "enum": ["access_required"] }
+      }
+    },
     "featureFlags": { "type": "object", "additionalProperties": { "type": "boolean" } },
     "tabs": {
       "type": "array", "minItems": 2, "maxItems": 5,

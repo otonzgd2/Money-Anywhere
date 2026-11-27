@@ -8,8 +8,7 @@
     "wage": 12000,
     "hasUnpaid": false,
     "kidUnder6": false,
-    "welfareCard": false,
-    "taxWithheld": false
+    "welfareCard": false
   },
   "sourceRecords": {
     "thaid": {
