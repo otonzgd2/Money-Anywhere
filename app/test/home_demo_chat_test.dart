@@ -15,6 +15,8 @@ class _ChatApi extends Api {
     'status': 'active',
   };
   final _ChatApi? demoClient, taxClient;
+  final demoFacts = <String, Object?>{'ageBand': '60-69', 'ss33': true, 'disabilityCard': true, 'taxWithheld': true};
+  final previewFacts = <Map<String, Object?>>[];
   bool seeded = false;
   bool saved = false;
   int starts = 0;
@@ -30,7 +32,7 @@ class _ChatApi extends Api {
   Future<Map<String, dynamic>> get(String path) async {
     switch (path) {
       case '/v1/me/facts':
-        return {};
+        return seeded ? demoFacts : {};
       case '/v1/me/consents':
         return {'current': null};
       case '/v1/me/memory':
@@ -75,6 +77,21 @@ class _ChatApi extends Api {
       expect(seeded, isFalse);
       seeded = true;
       return {'dataStatus': 'mock'};
+    }
+    if (path == '/v1/money/preview') {
+      final facts = Map<String, Object?>.from((body as Map)['facts'] as Map);
+      previewFacts.add(facts);
+      final missing = !facts.containsKey('ageBand')
+          ? (field: 'ageBand', question: 'คุณอายุเท่าไหร่')
+          : !facts.containsKey('taxWithheld')
+          ? (field: 'taxWithheld', question: 'ปีนี้ถูกหักภาษี ณ ที่จ่ายไหม')
+          : null;
+      return {'items': [
+        if (missing != null)
+          {'id': 'old_age', 'status': 'need', 'nextQuestion': {'fact': missing.field, 'question': missing.question}}
+        else
+          {'id': 'old_age', 'title': 'เบี้ยยังชีพผู้สูงอายุ', 'status': 'likely', 'amount': {'value': 600, 'unit': 'บาท/เดือน'}},
+      ]};
     }
     if (path == '/v1/ai/conversations/conv-test/messages') {
       if ((body as Map)['text'] == 'เงินฉันอยู่ไหน') {
@@ -141,6 +158,46 @@ void main() {
       expect(personal.seeded, isFalse);
     },
   );
+
+  testWidgets('manual check reuses saved demo facts, then asks only missing facts in the selected profile', (tester) async {
+    final demo = _ChatApi();
+    final personal = _ChatApi(demoClient: demo);
+    addTearDown(personal.close);
+    addTearDown(demo.close);
+    await tester.pumpWidget(MaterialApp(home: HomeTab(app: AppState(personal))));
+    await tester.pumpAndSettle();
+
+    Future<void> openCheck(String label) async {
+      final action = find.text(label);
+      await tester.scrollUntilVisible(action.hitTestable(), 120, scrollable: find.byType(Scrollable).first);
+      await tester.pumpAndSettle();
+      await tester.tap(action.hitTestable());
+      await tester.pumpAndSettle();
+    }
+
+    await openCheck('เช็คเงินที่ควรได้ เอง');
+    expect(find.text('เช็คเงินที่ควรได้ · DEMO'), findsOneWidget);
+    expect(find.textContaining('เบี้ยยังชีพผู้สูงอายุ'), findsOneWidget);
+    expect(demo.previewFacts.single, demo.demoFacts);
+    expect(personal.previewFacts, isEmpty);
+    expect(demo.starts, 0);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    demo.demoFacts.remove('taxWithheld');
+    await openCheck('เช็คเงินที่ควรได้ เอง');
+    expect(find.text('ปีนี้ถูกหักภาษี ณ ที่จ่ายไหม'), findsOneWidget);
+    expect(find.text('คุณอายุเท่าไหร่'), findsNothing);
+    expect(demo.previewFacts.last, demo.demoFacts);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await openCheck('เช็คด้วยข้อมูลของฉัน');
+    expect(find.text('เช็คเงินที่ควรได้'), findsOneWidget);
+    expect(find.text('คุณอายุเท่าไหร่'), findsOneWidget);
+    expect(personal.previewFacts.single, isEmpty);
+    expect(personal.seeded, isFalse);
+  });
 
   for (final confirm in [true, false]) {
     testWidgets(

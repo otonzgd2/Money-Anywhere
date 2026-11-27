@@ -95,12 +95,29 @@ class _HomeTabState extends State<HomeTab> {
 
   Future<void> _openChat({bool personal = false}) async {
     if (openingDemo) return;
-    if (personal || !usesDemoChat) {
-      if (personal) setState(() => personalChat = true);
-      await _open(ChatScreen(app: app, session: app.chat));
+    if (!personal && usesDemoChat) {
+      await _openDemo((demoApp) async => ChatScreen(app: demoApp, session: demoChat, title: 'ให้ AI หาเงินให้ฉัน · DEMO'));
+      return;
+    }
+    if (personal) setState(() => personalChat = true);
+    await _open(ChatScreen(app: app, session: app.chat));
+  }
+
+  Future<void> _openQuickCheck({bool personal = false}) async {
+    if (openingDemo) return;
+    if (personal || !hasDemoProfile) {
+      await _open(QuickCheckScreen(app: app, knownFacts: facts, consented: consented));
       return;
     }
 
+    await _openDemo((demoApp) async {
+      final known = await demoApp.api.get('/v1/me/facts');
+      final purposes = await demoApp.api.currentPurposes();
+      return QuickCheckScreen(app: demoApp, knownFacts: known, consented: purposes?['core'] == true);
+    });
+  }
+
+  Future<void> _openDemo(Future<Widget> Function(AppState) buildScreen) async {
     setState(() => openingDemo = true);
     final demoApp = app.forDemoChat(DemoChatProfile.connected);
     final demoApi = demoApp.api;
@@ -120,7 +137,8 @@ class _HomeTabState extends State<HomeTab> {
         demoChat.reset();
       }
       if (!mounted) return;
-      await _open(ChatScreen(app: demoApp, session: demoChat, title: 'ให้ AI หาเงินให้ฉัน · DEMO'));
+      final screen = await buildScreen(demoApp);
+      if (mounted) await _open(screen);
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
     } finally {
@@ -232,13 +250,17 @@ class _HomeTabState extends State<HomeTab> {
                     leading: const Text('💰', style: TextStyle(fontSize: 30)),
                     title: Text(facts.isNotEmpty ? 'ตอบเพิ่มอีก $openQuestions เรื่อง อาจเจอเงินก้อนอื่น' : 'เช็คเงินที่ควรได้ เอง',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text(facts.isNotEmpty
+                    subtitle: Text(hasDemoProfile
+                        ? 'ไม่ใช้ AI · ใช้ข้อมูลจากโปรไฟล์ DEMO'
+                        : facts.isNotEmpty
                         ? 'ไม่ใช้ AI · ถามเฉพาะข้อที่ยังไม่ได้ตอบ'
                         : 'ไม่ใช้ AI · เบี้ยผู้สูงอายุ เงินว่างงาน เงินเลี้ยงดูเด็ก เบี้ยความพิการ คืนภาษี ค่าจ้างค้าง'),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => _open(QuickCheckScreen(app: app, knownFacts: facts, consented: consented)),
+                    onTap: _openQuickCheck,
                   ),
                 ),
+                if (hasDemoProfile)
+                  TextButton(onPressed: openingDemo ? null : () => _openQuickCheck(personal: true), child: const Text('เช็คด้วยข้อมูลของฉัน')),
               ],
               if (loaded && !started) ...[
                 const SizedBox(height: 8),

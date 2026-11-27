@@ -78,6 +78,9 @@ setTimeout(() => {
     ev("saveToPlan({moneyId:'old_age'})"); check('saving a plan: button shows progress', ev('tasks.length') === 1 && rb().includes('อยู่ในแผนของฉันแล้ว · ทำแล้ว 0/4 ขั้น'));
     ev("goTab('home')"); const hb = inner('homeBody');
     check('home turns into the returning layout: summary, next step, answer more', hb.includes('เงินของฉัน') && hb.includes('฿600 ต่อเดือน') && hb.includes('ขั้นต่อไปของคุณ') && hb.includes('ตอบเพิ่มอีก'));
+    ev('startQuick(false)');
+    check('manual check skips the saved age on return', on('quick') && !inner('quickBody').includes('คุณอายุเท่าไหร่') && ev('qc.facts.ageBand') === '60-69');
+    ev("goTab('home')");
   });
 
   run('plan screen (S8) and popups P3 P4 P5 P8', () => {

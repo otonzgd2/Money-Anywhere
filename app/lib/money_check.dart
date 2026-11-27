@@ -53,9 +53,9 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
     setState(() => loading = true);
     try {
       final r = await widget.api.post('/v1/money/preview', {'facts': facts});
-      setState(() { preview = r; error = null; loading = false; });
+      if (mounted) setState(() { preview = r; error = null; loading = false; });
     } on ApiException catch (e) {
-      setState(() { error = e.message; loading = false; });
+      if (mounted) setState(() { error = e.message; loading = false; });
     }
   }
 
@@ -74,7 +74,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('เช็คเงินที่ควรได้')),
+      appBar: AppBar(title: Text(widget.app.demo ? 'เช็คเงินที่ควรได้ · DEMO' : 'เช็คเงินที่ควรได้')),
       body: SafeArea(child: _body(context)),
     );
   }
@@ -133,7 +133,9 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
           ),
       TextButton(onPressed: () => setState(() => skipped.add(q['fact'] as String)), child: const Text('ไม่แน่ใจ ข้ามข้อนี้')),
       const SizedBox(height: 8),
-      Text('🔒 ยังไม่บันทึกอะไร คำตอบส่งไปคำนวณแล้วทิ้ง จนกว่าคุณจะกด "ดูวิธีไปรับเงิน" ไม่ถามชื่อ เลขบัตร หรือเลขบัญชี', style: t.bodySmall),
+      Text(widget.consented
+          ? '🔒 คำตอบใหม่จะบันทึกไว้ในโปรไฟล์นี้ ไม่ถามชื่อ เลขบัตร หรือเลขบัญชี'
+          : '🔒 ยังไม่บันทึกอะไร คำตอบส่งไปคำนวณแล้วทิ้ง จนกว่าคุณจะกด "ดูวิธีไปรับเงิน" ไม่ถามชื่อ เลขบัตร หรือเลขบัญชี', style: t.bodySmall),
     ]);
   }
 

@@ -83,7 +83,7 @@ class _RouteScreenState extends State<RouteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('เส้นทางรับเงิน')),
+      appBar: AppBar(title: Text(widget.app.demo ? 'เส้นทางรับเงิน · DEMO' : 'เส้นทางรับเงิน')),
       body: SafeArea(
         child: error != null
             ? Padding(
