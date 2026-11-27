@@ -2,6 +2,8 @@
 // Tool modes: read = run immediately; confirm = becomes a pending action the user must approve;
 // memory = the agent may save a short note the user can see and delete. Anything else is refused.
 // Money figures in replies must come from tool results; others are removed.
+const { createResponsesClient } = require('./responses');
+
 const MONEY_RE = /(฿\s?\d[\d,]*|\d[\d,]*\s?(บาท|baht|THB))/gi;
 
 function guardMoney(reply, toolJson) {
@@ -107,6 +109,9 @@ function createAgent(opts = {}) {
   const model = opts.model || process.env.AI_MODEL || 'default';
   const fetchImpl = opts.fetch || fetch, timeoutMs = opts.timeoutMs || 10000, maxSteps = 4;
   const configured = !!(baseUrl && apiKey);
+  const responses = configured && (opts.apiStyle ?? process.env.AI_API_STYLE) === 'responses'
+    ? createResponsesClient({ baseUrl, apiKey, model, fetchImpl, timeoutMs: opts.timeoutMs || 15000 })
+    : null;
 
   async function llm(messages, toolSpecs) {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
@@ -125,6 +130,7 @@ function createAgent(opts = {}) {
       if (!configured) return rulesAgent({ text, tools });
       const calls = [], pending = [], mem = []; let toolJson = '';
       const specs = Object.entries(tools).map(([name, t]) => ({ type: 'function', function: { name, description: t.description, parameters: t.parameters } }));
+      const responseTools = responses && specs.map(({ type, function: spec }) => ({ type, ...spec, strict: false }));
       // systemPrompt comes from fixtures/assistant-policy.json (scope + checklist + current step).
       const messages = [
         { role: 'system', content: systemPrompt || 'คุณคือผู้ช่วยของแอป Money Anywhere ตอบภาษาไทยสั้นๆ ใช้เฉพาะข้อมูลจากเครื่องมือ ห้ามแต่งตัวเลขเงิน สิทธิ์ หรือหน่วยงาน ห้ามรับประกันว่าจะได้เงินหรือได้งาน แอปไม่ยื่นแทนผู้ใช้ งานที่เปลี่ยนข้อมูลต้องรอผู้ใช้ยืนยัน' },
@@ -132,11 +138,23 @@ function createAgent(opts = {}) {
         ...history.slice(-8), { role: 'user', content: String(text) }];
       try {
         for (let step = 0; step < maxSteps; step++) {
-          const msg = await llm(messages, specs);
+          const response = responses && await responses(messages, { tools: responseTools });
+          const msg = response ? {
+            content: response.text,
+            tool_calls: response.output
+              .filter(item => item.type === 'function_call')
+              .map(item => ({ id: item.call_id, function: { name: item.name, arguments: item.arguments } }))
+          } : await llm(messages, specs);
           if (!msg.tool_calls || !msg.tool_calls.length) {
+            if (response && !msg.content) throw new Error('Empty Responses reply');
             return { aiStatus: 'ok', reply: guardMoney(msg.content, toolJson), toolCalls: calls, pending, memory: mem, quickReplies: [] };
           }
-          messages.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
+          if (response) {
+            // Replay reasoning items alongside function calls in stateless requests.
+            messages.push(...response.output);
+          } else {
+            messages.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
+          }
           for (const tc of msg.tool_calls) {
             const name = tc.function.name, tool = tools[name]; let args = {};
             try { args = JSON.parse(tc.function.arguments || '{}'); } catch { args = {}; }
@@ -146,7 +164,9 @@ function createAgent(opts = {}) {
             else if (tool.mode === 'memory') { const note = String(args.text || '').slice(0, 200); if (note) mem.push(note); out = { saved: !!note }; calls.push({ tool: name, args }); }
             else { pending.push({ tool: name, args, label: tool.label(args) }); out = { status: 'waiting_for_user_confirmation' }; }
             const s = JSON.stringify(out); toolJson += s;
-            messages.push({ role: 'tool', tool_call_id: tc.id, content: s });
+            messages.push(response
+              ? { type: 'function_call_output', call_id: tc.id, output: s }
+              : { role: 'tool', tool_call_id: tc.id, content: s });
           }
         }
         throw new Error('too many steps');

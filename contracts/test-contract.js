@@ -558,6 +558,52 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('AI call log keeps status and a hashed device id, no prompt text', logLines.length === 2 && logLines[0].aiStatus === 'ok' && !JSON.stringify(logLines).includes('device-budg') && !('messages' in logLines[0]));
   s3.close(); fake.close(); fs.unlinkSync(aiLogFile);
 
+  // Exercise the Responses API through the same routes the app calls.
+  const responsesRequests = [];
+  const reasoning = { type: 'reasoning', id: 'rs_1', summary: [], encrypted_content: 'test' };
+  const functionCall = { type: 'function_call', call_id: 'call_money', name: 'get_money_overview', arguments: '{}' };
+  const responseMessage = text => ({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] });
+  let responsesDown = false;
+  const responsesFetch = async (url, options) => {
+    const request = JSON.parse(options.body);
+    responsesRequests.push({ url, request });
+    if (responsesDown) return new Response(null, { status: 500 });
+    let output;
+    if (!request.tools) output = [responseMessage('{"text":"Check the listed conditions."}')];
+    else if (request.input.at(-1).type === 'function_call_output') output = [responseMessage('Money overview from the tool.')];
+    else output = [reasoning, functionCall];
+    return Response.json({ status: 'completed', output });
+  };
+  const responsesServer = createServer({ jobs: false, aiOptions: {
+    baseUrl: 'https://api.example.test/v1', apiKey: 'fake', apiStyle: 'responses',
+    model: 'gpt-6.2-sol', fetch: responsesFetch
+  } });
+  const rs = client(await listen(responsesServer), { 'X-Device-Id': 'device-responses-0001' });
+  await rs('createConsent', { body: consentBody(), expect: 201 });
+  const explanation = await rs('createExplanation', { body: { subjectType: 'opportunity', subjectId: 'mock_j1' }, expect: 200 });
+  check('Responses API: explanation uses JSON mode and returns model text',
+    explanation.data.aiStatus === 'ok' && explanation.data.text === 'Check the listed conditions.'
+    && responsesRequests[0]?.request.text.format.type === 'json_object');
+  const conversation = await rs('createConversation', { expect: 201 });
+  const params = { id: conversation.data.conversationId };
+  const chat = await rs('postConversationMessage', { params, body: { text: 'ช่วยดูเงินของฉันหน่อย' }, expect: 200 });
+  check('Responses API: chat tool result is used in the final reply',
+    chat.data.aiStatus === 'ok' && chat.data.reply.includes('Money overview from the tool.')
+    && chat.data.toolCalls.some(call => call.tool === 'get_money_overview'));
+  const next = responsesRequests[2]?.request;
+  check('Responses API: stateless replay sends reasoning, function call and its matching output',
+    responsesRequests.length === 3 && responsesRequests.every(({ url, request }) =>
+      url === 'https://api.example.test/v1/responses' && request.store === false && request.model === 'gpt-6.2-sol')
+    && next?.tools.some(tool => tool.name === 'get_money_overview' && tool.strict === false)
+    && next?.input.at(-3)?.encrypted_content === reasoning.encrypted_content
+    && next?.input.at(-2)?.call_id === functionCall.call_id
+    && next?.input.at(-1)?.type === 'function_call_output'
+    && next?.input.at(-1)?.call_id === functionCall.call_id);
+  responsesDown = true;
+  const fallback = await rs('postConversationMessage', { params, body: { text: 'ช่วยดูเงินของฉันหน่อย' }, expect: 200 });
+  check('Responses API: provider error falls back to the rules agent', fallback.data.aiStatus === 'fallback_rules');
+  responsesServer.close();
+
   const missing = Object.keys(ops).filter(x => !called.has(x));
   check('every OpenAPI operation exercised (' + called.size + '/' + Object.keys(ops).length + ')', !missing.length, missing.join(','));
   const fails = results.filter(r => r.startsWith('FAIL'));

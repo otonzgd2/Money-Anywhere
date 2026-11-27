@@ -1,5 +1,7 @@
 // AI port. One interface, two adapters: rules (always available) and an OpenAI-compatible chat API.
 // Guardrails live here, so every caller gets them: candidates only, no money figures, timeout, fallback.
+const { createResponsesClient } = require('./responses');
+
 const MONEY_RE = /(฿\s?\d[\d,]*|\d[\d,]*\s?(บาท|baht|THB))/gi;
 
 function stripMoney(s) { return String(s || '').replace(MONEY_RE, '').replace(/\s{2,}/g, ' ').trim(); }
@@ -33,15 +35,24 @@ function createAi(opts = {}) {
   const timeoutMs = opts.timeoutMs || 8000;
   const fetchImpl = opts.fetch || fetch;
   const configured = !!(baseUrl && apiKey);
+  const responses = configured && (opts.apiStyle ?? process.env.AI_API_STYLE) === 'responses'
+    ? createResponsesClient({ baseUrl, apiKey, model, fetchImpl, timeoutMs: opts.timeoutMs || 15000 })
+    : null;
   let calls = 0;
 
-  async function chat(system, user) {
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
+  async function chat(system, user, timeout = timeoutMs) {
+    const messages = [{ role: 'system', content: system }, { role: 'user', content: user }];
+    if (responses) {
+      const result = await responses(messages, { text: { format: { type: 'json_object' } } });
+      return JSON.parse(result.text);
+    }
+    const ctl = new AbortController();
+    const t = timeout === null ? undefined : setTimeout(() => ctl.abort(), timeout);
     try {
       const res = await fetchImpl(baseUrl.replace(/\/$/, '') + '/chat/completions', {
         method: 'POST', signal: ctl.signal,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-        body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] })
+        body: JSON.stringify({ model, temperature: 0, response_format: { type: 'json_object' }, messages })
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const j = await res.json();
@@ -76,6 +87,20 @@ function createAi(opts = {}) {
         if (!text) throw new Error('empty text');
         return { aiStatus: 'ok', aiInvocationId: id, text };
       } catch (e) { return { aiStatus: 'fallback_rules', aiInvocationId: id, text: rulesExplain(subject), error: e.message }; }
+    },
+    async extract(field, text) {
+      if (!configured) return { aiStatus: 'fallback_rules', value: rulesExtract(field, text) };
+      try {
+        const result = await chat(
+          'แปลงคำตอบเป็นค่าเดียว ตอบ JSON {"value":...}' + (field.options ? ' เลือกจาก: ' + field.options.join(', ') : ''),
+          field.question + ' | คำตอบ: ' + text,
+          null
+        );
+        if (field.options && !field.options.includes(result.value)) throw new Error('value not in options');
+        return { aiStatus: 'ok', value: result.value };
+      } catch {
+        return { aiStatus: 'fallback_rules', value: rulesExtract(field, text) };
+      }
     }
   };
 }
@@ -99,25 +124,4 @@ function rulesExtract(field, text) {
   if (field.number) { const n = +t.replace(/[^\d]/g, ''); return n || undefined; }
   return t;
 }
-const _createAi = createAi;
-function createAiWithExtract(opts = {}) {
-  const base = _createAi(opts);
-  const baseUrl = opts.baseUrl !== undefined ? opts.baseUrl : process.env.AI_BASE_URL;
-  const apiKey = opts.apiKey !== undefined ? opts.apiKey : process.env.AI_API_KEY;
-  const fetchImpl = opts.fetch || fetch;
-  base.extract = async (field, text) => {
-    if (!(baseUrl && apiKey)) return { aiStatus: 'fallback_rules', value: rulesExtract(field, text) };
-    try {
-      const res = await fetchImpl(baseUrl.replace(/\/$/, '') + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-        body: JSON.stringify({ model: opts.model || process.env.AI_MODEL || 'default', temperature: 0, response_format: { type: 'json_object' },
-          messages: [{ role: 'system', content: 'แปลงคำตอบเป็นค่าเดียว ตอบ JSON {"value":...}' + (field.options ? ' เลือกจาก: ' + field.options.join(', ') : '') }, { role: 'user', content: field.question + ' | คำตอบ: ' + text }] }) });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const v = JSON.parse((await res.json()).choices[0].message.content).value;
-      if (field.options && !field.options.includes(v)) throw new Error('value not in options');
-      return { aiStatus: 'ok', value: v };
-    } catch (e) { return { aiStatus: 'fallback_rules', value: rulesExtract(field, text) }; }
-  };
-  return base;
-}
-
-module.exports = { createAi: createAiWithExtract, stripMoney, rulesRank, rulesExtract };
+module.exports = { createAi, stripMoney, rulesRank, rulesExtract };
