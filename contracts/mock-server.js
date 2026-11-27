@@ -36,7 +36,8 @@ const { createGovMock } = require('./adapters/gov');
 const { createStore, packDevice, readDevices, archiveRecord, LAYOUT } = require('./adapters/store');
 const { createJobs } = require('./adapters/jobs');
 const { createGuard, toFact } = require('./adapters/guard');
-const { openJobCatalogue, collapseJobListings, normalizeJobText, jobDedupKey, reviewScamSignals, REPORT_HIDE_REASON } = require('./adapters/job-catalogue');
+const { openJobCatalogue, collapseJobListings, normalizeJobText, jobDedupKey, reviewScamSignals, REPORT_HIDE_REASON,
+  BANGKOK_DEMO_PROVIDER, BANGKOK_INFO_PATH } = require('./adapters/job-catalogue');
 const { createJobSync, createDemoJobSync, createJobPush, JobFeedError, DEMO_JOB_PROVIDER, JOB_REFRESH_MINUTES, WORK_MODES } = require('./adapters/job-sync');
 const { readJobFileFeeds } = require('./adapters/job-file-feed');
 const { JOBICY_SOURCE, createJobicyFeed } = require('./adapters/jobicy');
@@ -90,7 +91,7 @@ function createServer(opts = {}) {
   const fileFeeds = readJobFileFeeds(opts.jobFeedsFile, opts.fetch);
   if (opts.jobicySync && !opts.jobDbFile) throw new Error('JOBICY_SYNC requires JOB_DB_FILE');
   if (fileFeeds.length && !opts.jobDbFile) throw new Error('JOB_FEEDS_FILE requires JOB_DB_FILE');
-  const jobCatalogue = opts.jobDbFile ? openJobCatalogue(opts.jobDbFile) : null;
+  const jobCatalogue = opts.jobDbFile ? openJobCatalogue(opts.jobDbFile, { includeBangkokDemo: demoOn }) : null;
   const syncOptions = {
     jobDbFile: opts.jobDbFile,
     categories: new Set(ref.taxonomies.categories.filter(category => category.mapGroup === 'job').map(category => category.id)),
@@ -141,6 +142,15 @@ function createServer(opts = {}) {
     return jobCatalogue?.get(id);
   };
   const fresh = o => ({ ...o, provenance: { ...o.provenance, ageDays: daysAgo(o.provenance.updatedAt) } });
+  function opportunityResponse(opportunity, req) {
+    if (opportunity.provenance.provider !== BANGKOK_DEMO_PROVIDER || opportunity.provenance.dataStatus !== 'mock') return opportunity;
+    const protocol = req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https' ? 'https:' : 'http:';
+    const base = URL.parse(protocol + '//' + req.headers.host);
+    if (!base || !req.headers.host) return opportunity;
+    const sourceUrl = new URL(BANGKOK_INFO_PATH, base.origin);
+    sourceUrl.searchParams.set('id', opportunity.id);
+    return { ...opportunity, provenance: { ...opportunity.provenance, sourceUrl: sourceUrl.href } };
+  }
   const reports = [], hiddenByReports = new Set();
   // A10: the same listing from two sources is kept once (first source wins). Key = title + organisation, ignoring
   // spacing, punctuation and bracketed notes.
@@ -491,7 +501,7 @@ function createServer(opts = {}) {
   });
 
   // Opportunities
-  on('GET', '/v1/opportunities', ({ d, q }) => {
+  on('GET', '/v1/opportunities', ({ d, q, req }) => {
     const dataMode = q.get('dataMode') ?? 'all';
     if (dataMode !== 'all' && !OPPORTUNITY_DATA_MODES.has(dataMode)) return E(400, 'VALIDATION', 'dataMode ไม่ถูกต้อง');
     if (q.has('workMode') && !WORK_MODES.has(q.get('workMode'))) return E(400, 'VALIDATION', 'workMode ไม่ถูกต้อง');
@@ -499,12 +509,12 @@ function createServer(opts = {}) {
     const limit = Math.min(100, Math.max(1, +(q.get('limit') || 30)));
     const start = q.get('cursor') ? +Buffer.from(q.get('cursor'), 'base64url').toString() || 0 : 0;
     const warn = allSourceStates().filter(s => s.state === 'failed').map(s => s.provider);
-    return [200, { items: res.xs.slice(start, start + limit), totalCount: res.xs.length, nextCursor: start + limit < res.xs.length ? Buffer.from(String(start + limit)).toString('base64url') : undefined,
+    return [200, { items: res.xs.slice(start, start + limit).map(item => opportunityResponse(item, req)), totalCount: res.xs.length, nextCursor: start + limit < res.xs.length ? Buffer.from(String(start + limit)).toString('base64url') : undefined,
       hiddenSuspicious: res.hidden, suggestions: res.suggestions.length ? res.suggestions : undefined, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
   });
-  on('GET', '/v1/opportunities/{id}', ({ p }) => {
+  on('GET', '/v1/opportunities/{id}', ({ p, req }) => {
     const o = findOpportunity(p.id);
-    return o ? [200, fresh(o)] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
+    return o ? [200, opportunityResponse(fresh(o), req)] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
   }, { public: true });
   on('POST', '/v1/opportunities/{id}/reports', ({ device, p, body }) => {
     const o = findOpportunity(p.id);
@@ -952,8 +962,9 @@ function createServer(opts = {}) {
     }
     const sourceReport = /^\/docs\/sources\/((?:thai-senior-benefits|bangkok-benefits)-2026-11-27\.(html|md))$/.exec(u.pathname);
     const jobApplication = u.pathname === '/docs/mockups/job-application.html';
-    if (req.method === 'GET' && (sourceReport || jobApplication)) {
-      const file = jobApplication ? path.join(DIR, '..', 'docs', 'mockups', 'job-application.html')
+    const opportunityInfo = demoOn && u.pathname === BANGKOK_INFO_PATH;
+    if (req.method === 'GET' && (sourceReport || jobApplication || opportunityInfo)) {
+      const file = jobApplication || opportunityInfo ? path.join(DIR, '..', 'docs', 'mockups', path.basename(u.pathname))
         : path.join(DIR, '..', 'docs', 'product', 'sources', sourceReport[1]);
       let content;
       try {

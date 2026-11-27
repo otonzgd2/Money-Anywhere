@@ -890,6 +890,36 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
       storedPush.provenance.sourceUrl === firstListing.sourceUrl && storedPush.money.min === 500
       && storedBranch.provenance.sourceUrl === sameTitle.sourceUrl && storedBranch.location.district === 'หางดง');
     await restarted('getOpportunity', { params: { id: 'fixture_b_b1' }, expect: 404 });
+
+    await new Promise(resolve => jobServer.close(resolve));
+    const { seedBangkokOpportunities } = require('./fixtures/seed-bangkok-opportunities');
+    const { BANGKOK_DEMO_PROVIDER, BANGKOK_INFO_PATH } = require('./adapters/job-catalogue');
+    const bangkokSeed = seedBangkokOpportunities(jobDbFile);
+    check('Bangkok seed adds 5,100 entries over 50 districts and 10 categories without duplicating on repeat',
+      bangkokSeed.inserted === 5100 && bangkokSeed.districts === 50 && bangkokSeed.categories === 10
+      && seedBangkokOpportunities(jobDbFile).inserted === 0);
+    jobServer = createServer({ jobDbFile, jobs: false, demo: true });
+    const mockBase = await listen(jobServer);
+    const bangkokClient = client(mockBase, { 'X-Device-Id': 'device-bangkok-mock' });
+    const bangNa = (await bangkokClient('searchOpportunities', {
+      query: { district: 'บางนา', category: 'grant', dataMode: 'mock', limit: 100 }, expect: 200
+    })).data.items;
+    const khlongSan = (await bangkokClient('searchOpportunities', {
+      query: { district: 'คลองสาน', category: 'grant', dataMode: 'mock', limit: 100 }, expect: 200
+    })).data.items;
+    check('Bangkok mock grants are visible from SQLite with the required 20 and 10 district quotas',
+      bangNa.length === 20 && khlongSan.length === 10 && [...bangNa, ...khlongSan].every(item =>
+        item.provenance.provider === BANGKOK_DEMO_PROVIDER && item.provenance.dataStatus === 'mock'));
+    const sample = bangNa[0];
+    const link = new URL(sample.provenance.sourceUrl);
+    const info = await fetch(link);
+    check('Bangkok Info link uses the current origin and serves the demo page for the selected ID',
+      link.origin === mockBase && link.pathname === BANGKOK_INFO_PATH && link.searchParams.get('id') === sample.id
+      && info.ok && info.headers.get('content-type').startsWith('text/html') && (await info.text()).includes('DEMO / MOCK'));
+    const realData = (await bangkokClient('searchOpportunities', {
+      query: { district: 'บางนา', category: 'grant', dataMode: 'real' }, expect: 200
+    })).data.items;
+    check('Bangkok demo records are excluded from real data searches', realData.every(item => item.provenance.provider !== BANGKOK_DEMO_PROVIDER));
   } finally {
     if (jobServer?.listening) await new Promise(resolve => jobServer.close(resolve));
     if (fs.existsSync(jobDbFile)) fs.unlinkSync(jobDbFile);

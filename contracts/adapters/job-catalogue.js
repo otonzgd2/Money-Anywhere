@@ -2,6 +2,8 @@ const { readFileSync, statSync } = require('node:fs');
 const { join } = require('node:path');
 
 const REPORT_HIDE_REASON = 'ผู้ใช้หลายคนแจ้งว่าน่าสงสัย ซ่อนไว้รอทีมตรวจ';
+const BANGKOK_DEMO_PROVIDER = 'mock_bangkok_catalogue';
+const BANGKOK_INFO_PATH = '/docs/mockups/opportunity-info.html';
 const normalizeJobText = value => String(value || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
 const jobDedupKey = ({ title, organization }) => normalizeJobText(title) + '|' + normalizeJobText(organization);
 const reviewScamSignals = (rules, text) => rules.filter(rule => new RegExp(rule.pattern).test(text)).map(rule => rule.reason);
@@ -113,24 +115,27 @@ function toOpportunity(row) {
   };
 }
 
-function openJobCatalogue(file) {
+function openJobCatalogue(file, { includeBangkokDemo = true } = {}) {
   const db = openJobDatabase(file);
   try {
-    const visibleSources = enabledSource;
-    const visibleJobs = "FROM job_posting p JOIN job_source s ON s.provider = p.provider"
-      + " WHERE " + visibleSources + " AND p.map_group = 'job' AND p.status = 'active'";
-    const selectJobs = 'SELECT p.*, s.data_status, s.attribution ' + visibleJobs;
+    const isBangkokDemo = "(s.provider = '" + BANGKOK_DEMO_PROVIDER + "' AND s.data_status = 'mock')";
+    const visibleSources = enabledSource + (includeBangkokDemo ? '' : ' AND NOT ' + isBangkokDemo);
+    const visibleGroup = "(p.map_group = 'job'" + (includeBangkokDemo ? ' OR ' + isBangkokDemo : '') + ')';
+    const visibleListings = "FROM job_posting p JOIN job_source s ON s.provider = p.provider"
+      + " WHERE " + visibleSources + " AND " + visibleGroup + " AND p.status = 'active'";
+    const selectJobs = 'SELECT p.*, s.data_status, s.attribution ' + visibleListings;
     const list = db.prepare(selectJobs + ' ORDER BY p.rowid');
     const get = db.prepare(selectJobs + ' AND p.id = ?');
-    const duplicate = db.prepare('SELECT p.id ' + visibleJobs + ' AND p.dedup_key = ? AND p.provider <> ? ORDER BY p.rowid LIMIT 1');
+    const duplicate = db.prepare('SELECT p.id ' + visibleListings
+      + " AND NOT " + isBangkokDemo + " AND p.dedup_key = ? AND p.provider <> ? ORDER BY p.rowid LIMIT 1");
     const sources = db.prepare(
       "SELECT s.provider, s.name, s.kind, s.direction, s.attribution, s.state,"
       + " s.last_fetched_at, s.error, COUNT(p.id) AS item_count"
-      + " FROM job_source s LEFT JOIN job_posting p ON p.provider = s.provider AND p.map_group = 'job'"
+      + " FROM job_source s LEFT JOIN job_posting p ON p.provider = s.provider AND " + visibleGroup
       + " WHERE " + visibleSources + " GROUP BY s.provider ORDER BY s.rowid"
     );
     const insertReport = db.prepare('INSERT INTO job_report (job_id, device_hash, reason, note, at)'
-      + ' SELECT p.id, ?, ?, ?, ? ' + visibleJobs + ' AND p.id = ?');
+      + ' SELECT p.id, ?, ?, ?, ? ' + visibleListings + ' AND p.id = ?');
     const hideReportedJob = db.prepare(
       "UPDATE job_posting SET hidden_by_reports = 1, suspicious = 1,"
       + " suspicious_reasons = json_insert(suspicious_reasons, '$[#]', ?)"
@@ -176,5 +181,5 @@ function readJobSource(db, provider) {
   return db.prepare('SELECT s.*, ' + enabledSource + ' AS enabled FROM job_source s WHERE s.provider = ?').get(provider);
 }
 
-module.exports = { openJobDatabase, openJobCatalogue, readJobSource, enabledSource, collapseJobListings, listingKey,
+module.exports = { BANGKOK_DEMO_PROVIDER, BANGKOK_INFO_PATH, openJobDatabase, openJobCatalogue, readJobSource, enabledSource, collapseJobListings, listingKey,
   normalizeJobText, jobDedupKey, reviewScamSignals, REPORT_HIDE_REASON };

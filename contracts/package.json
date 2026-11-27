@@ -7,6 +7,7 @@
     "validate": "node validate-config.js && node validate-contracts.js",
     "docs": "node build-docs.js",
     "mock": "node --env-file-if-exists=../.env mock-server.js",
+    "mock:bangkok": "node run-bangkok-demo.js",
     "test": "node validate-config.js && node validate-contracts.js && node test-contract.js",
     "check": "npm run test && npm run docs"
   },

@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ข้อมูลโอกาสกรุงเทพฯ | Money Anywhere</title>
+  <style>
+    :root { --accent: #315c4a; --tint: #e9f2ec; --ink: #172825; --muted: #50615c; --line: #d7e2dc; }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; background: #f5f7f2; color: var(--ink); font: 16px/1.65 "Leelawadee UI", Tahoma, system-ui, sans-serif; }
+    .wrap { width: min(980px, calc(100% - 36px)); margin-inline: auto; }
+    h1, h2, p, ul, dl { margin: 0; }
+    h1 { font-size: clamp(1.7rem, 5vw, 3rem); line-height: 1.25; }
+    h2 { font-size: 1.22rem; line-height: 1.35; }
+    a { color: var(--accent); text-underline-offset: .18em; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px; padding-block: 17px; }
+    .brand { color: var(--ink); text-decoration: none; font-weight: 750; }
+    .hero { border-radius: 21px; background: var(--accent); color: #fff; padding: clamp(19px, 5vw, 43px); }
+    .hero h1 { margin: 7px 0; }
+    .badge { display: inline-block; border: 1px solid #dce6df; border-radius: 999px; padding: 2px 8px; font-size: .8rem; font-weight: 750; }
+    .category { font-weight: 700; margin-left: 7px; }
+    .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 16px 22px; margin-top: 12px; background: var(--tint); border-radius: 14px; }
+    .facts dt { color: var(--muted); font-size: .9rem; }
+    .facts dd { margin: 2px 0 0; font-weight: 650; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; margin-top: 14px; }
+    .panel { background: white; border: 1px solid var(--line); border-radius: 14px; padding: 19px 22px; }
+    .panel h2 { margin-bottom: 7px; }
+    .panel p + p { margin-top: 8px; }
+    .conditions { padding-left: 1.3rem; }
+    .conditions li + li { margin-top: 4px; }
+    .muted { color: var(--muted); }
+    form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 14px 0; }
+    form label { display: grid; gap: 4px; flex: 1 1 180px; font-weight: 650; }
+    input, select, button { min-width: 0; min-height: 44px; border-radius: 8px; border: 1px solid #9bad9f; padding: 6px 10px; font: inherit; }
+    button { background: var(--accent); color: white; border-color: var(--accent); cursor: pointer; }
+    .results { list-style: none; padding: 0; margin-top: 10px; }
+    .results li { padding: 9px 0; border-top: 1px solid var(--line); }
+    footer { margin-top: 24px; padding: 13px 0; border-top: 1px solid var(--line); color: var(--muted); }
+    @media (max-width: 600px) {
+      .grid, .facts { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="wrap top">
+    <a class="brand" href="opportunity-info.html">Money Anywhere</a>
+    <a id="back" href="opportunity-info.html" hidden>กลับไปรายการจำลอง</a>
+  </header>
+  <main class="wrap">
+    <section id="catalogue" hidden>
+      <header class="hero">
+        <span class="badge">DEMO / MOCK</span>
+        <h1>ข้อมูลโอกาสกรุงเทพฯ</h1>
+        <p>เลือกเขตและหมวดเพื่อเปิดหน้า Info ของรายการจำลองจากฐานข้อมูล</p>
+      </header>
+      <form>
+        <label>เขตในกรุงเทพฯ <input id="district" name="district" value="บางนา" autocomplete="off" required></label>
+        <label>หมวด <select id="category" name="category"></select></label>
+        <button>ค้นหา</button>
+      </form>
+      <div class="panel">
+        <p id="results-status" role="status"></p>
+        <ul id="results" class="results"></ul>
+      </div>
+    </section>
+    <article id="record" hidden>
+      <header class="hero">
+        <span class="badge">DEMO / MOCK</span><span class="category" id="record-category"></span>
+        <h1 id="record-title"></h1>
+        <p id="record-organization"></p>
+      </header>
+      <dl class="facts">
+        <div><dt>พื้นที่ในเดโม</dt><dd id="record-area"></dd></div>
+        <div><dt>ข้อมูลค่าตอบแทนหรือสิทธิ</dt><dd id="record-amount"></dd></div>
+      </dl>
+      <div class="grid">
+        <section class="panel">
+          <h2>รายละเอียดและเงื่อนไขตัวอย่าง</h2>
+          <ul class="conditions" id="record-conditions"></ul>
+        </section>
+        <section class="panel">
+          <h2>ที่ตั้งและการติดต่อ</h2>
+          <p id="record-location"></p>
+          <p class="muted">จุดติดต่อจำลองอยู่ในเขตที่ระบุ ข้อมูลสำหรับทดลองดูรายละเอียดและค้นหารายการ</p>
+        </section>
+      </div>
+    </article>
+    <p id="status" role="status" class="muted"></p>
+    <noscript><p>เปิด JavaScript เพื่อดูรายละเอียดจากฐานข้อมูลเดโม</p></noscript>
+  </main>
+  <footer class="wrap">Money Anywhere · ข้อมูลสมมติสำหรับเดโม</footer>
+  <script>
+    const categories = {
+      welfare: ['สวัสดิการและสิทธิจากรัฐ', '#315c4a', '#e9f2ec'],
+      refund: ['เงินคืน', '#225d89', '#e9f2fa'],
+      owed: ['เงินค้างจ่ายและค่าชดเชย', '#8a4039', '#faeeee'],
+      job_full: ['งานประจำ', '#534493', '#f2ecfa'],
+      job_part: ['งานพาร์ตไทม์ รายวัน และชั่วคราว', '#8c4c19', '#fbf1e6'],
+      freelance: ['ฟรีแลนซ์และงานตามสัญญา', '#14686f', '#e7f3f3'],
+      sell: ['ขายสินค้าและของมือสอง', '#884469', '#f7edf4'],
+      assets: ['รายได้จากทรัพย์สิน', '#566419', '#f2f4e3'],
+      grant: ['ทุนและเงินช่วยเหลือแบบให้เปล่า', '#795038', '#f7efe8'],
+      skill: ['สร้างรายได้จากทักษะ', '#415580', '#edf1fa']
+    };
+    const provider = 'mock_bangkok_catalogue';
+    const byId = id => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    const statusText = byId('status');
+
+    function detailUrl(id) {
+      return '?' + new URLSearchParams({ id });
+    }
+
+    async function showCatalogue() {
+      byId('catalogue').hidden = false;
+      const district = (params.get('district') || 'บางนา').trim().replace(/^เขต\s*/, '');
+      const choice = params.get('category');
+      const category = Object.hasOwn(categories, choice) ? choice : 'job_full';
+      byId('district').value = district;
+      for (const [id, [name]] of Object.entries(categories)) {
+        byId('category').add(new Option(name, id, false, id === category));
+      }
+      const resultsStatus = byId('results-status');
+      if (!district) {
+        resultsStatus.textContent = 'ระบุชื่อเขตเพื่อค้นหารายการ';
+        return;
+      }
+      resultsStatus.textContent = 'กำลังโหลดรายการ';
+      try {
+        const query = new URLSearchParams({ district, category, dataMode: 'mock', limit: '100' });
+        const response = await fetch('/v1/opportunities?' + query, { headers: { 'X-Device-Id': 'bangkok-catalogue-preview' } });
+        if (!response.ok) throw new Error('Unable to load catalogue');
+        const { items } = await response.json();
+        const matches = items.filter(item => item.provenance.provider === provider);
+        resultsStatus.textContent = matches.length ? 'เขต' + district + ' · ' + matches.length + ' รายการ' : 'ไม่พบรายการสำหรับเขตและหมวดนี้';
+        for (const item of matches) {
+          const row = document.createElement('li');
+          const link = document.createElement('a');
+          link.href = detailUrl(item.id);
+          link.textContent = item.title;
+          row.append(link);
+          byId('results').append(row);
+        }
+      } catch {
+        resultsStatus.textContent = 'เปิดข้อมูลไม่ได้ กรุณาเปิดหน้านี้ผ่าน Backend ของเดโม';
+      }
+    }
+
+    async function showRecord(id) {
+      byId('back').hidden = false;
+      statusText.textContent = 'กำลังโหลดรายละเอียด';
+      try {
+        const response = await fetch('/v1/opportunities/' + encodeURIComponent(id));
+        if (!response.ok) throw new Error('Record unavailable');
+        const record = await response.json();
+        if (record.provenance.provider !== provider || record.provenance.dataStatus !== 'mock' ||
+            !Object.hasOwn(categories, record.category)) throw new Error('Record is outside the Bangkok demo');
+        const [label, accent, tint] = categories[record.category];
+        document.documentElement.style.setProperty('--accent', accent);
+        document.documentElement.style.setProperty('--tint', tint);
+        document.title = record.title + ' | Money Anywhere';
+        byId('back').href = '?' + new URLSearchParams({ district: record.location.district, category: record.category });
+        byId('record-category').textContent = label;
+        byId('record-title').textContent = record.title;
+        byId('record-organization').textContent = record.organization;
+        byId('record-area').textContent = 'เขต' + record.location.district + ' ' + record.location.province;
+        byId('record-location').textContent = record.location.text;
+        const { min, max, unit, knownText } = record.money;
+        const number = new Intl.NumberFormat('th-TH');
+        byId('record-amount').textContent = unit
+          ? number.format(min) + '–' + number.format(max) + ' ' + unit
+          : knownText;
+        for (const condition of record.conditions) {
+          const row = document.createElement('li');
+          row.textContent = condition;
+          byId('record-conditions').append(row);
+        }
+        byId('record').hidden = false;
+        statusText.textContent = '';
+      } catch {
+        statusText.textContent = 'ไม่พบรายการนี้ในฐานข้อมูลเดโม';
+      }
+    }
+    if (params.has('id')) void showRecord(params.get('id'));
+    else void showCatalogue();
+  </script>
+</body>
+</html>
