@@ -124,7 +124,7 @@ class _RouteScreenState extends State<RouteScreen> {
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.description_outlined),
-          title: const Text('รายงานสิทธิและสวัสดิการผู้สูงอายุ'),
+          title: const Text('คู่มือติดต่อและยื่นเรื่อง'),
           subtitle: const Text('ดูจุดติดต่อและแหล่งอ้างอิงของรายการนี้'),
           trailing: OutlinedButton(
             onPressed: () => openExternal(context, widget.app, url: '${api.baseUrl}$guide', title: '${r['title']}', askAfterReturn: false),

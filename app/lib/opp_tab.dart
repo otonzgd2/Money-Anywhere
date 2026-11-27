@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'job_application.dart';
 import 'money.dart';
 import 'opp_map.dart';
 import 'profile_screen.dart';
@@ -179,10 +180,35 @@ class _OppTabState extends State<OppTab> {
 }
 
 /// Opportunity detail (ui-states.md S6b).
-class OppScreen extends StatelessWidget {
+class OppScreen extends StatefulWidget {
   const OppScreen({super.key, required this.app, required this.opp});
   final AppState app;
   final Map<String, dynamic> opp;
+
+  @override
+  State<OppScreen> createState() => _OppScreenState();
+}
+
+class _OppScreenState extends State<OppScreen> {
+  bool openingApplication = false;
+
+  Future<void> _openJobApplication() async {
+    setState(() => openingApplication = true);
+    final app = widget.app;
+    final opp = widget.opp;
+    final title = '${opp['title']}';
+    try {
+      final url = await reachableJobApplicationUrl(opp['provenance'] as Map?);
+      if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      if (url != null) {
+        final opened = await openExternal(context, app, url: url.toString(), title: title, opportunityId: '${opp['id']}', showError: false);
+        if (opened || !mounted || ModalRoute.of(context)?.isCurrent != true) return;
+      }
+      await openExternal(context, app, url: jobApplicationDemoUrl(app.api.baseUrl, title), title: title, askAfterReturn: false);
+    } finally {
+      if (mounted) setState(() => openingApplication = false);
+    }
+  }
 
   Future<void> _report(BuildContext context) async {
     const reasons = {'suspicious': 'น่าสงสัย / มิจฉาชีพ', 'wrong_info': 'ข้อมูลผิด', 'expired': 'ปิดรับแล้ว', 'other': 'อื่นๆ'};
@@ -195,7 +221,7 @@ class OppScreen extends StatelessWidget {
     );
     if (r == null || !context.mounted) return;
     try {
-      await app.api.post('/v1/opportunities/${opp['id']}/reports', {'reason': r});
+      await widget.app.api.post('/v1/opportunities/${widget.opp['id']}/reports', {'reason': r});
       if (context.mounted) toast(context, 'ขอบคุณ ส่งรายงานแล้ว');
     } on ApiException catch (e) {
       if (context.mounted) toast(context, e.message);
@@ -204,6 +230,8 @@ class OppScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final app = widget.app;
+    final opp = widget.opp;
     final t = Theme.of(context).textTheme;
     final p = opp['provenance'] as Map<String, dynamic>;
     final conditions = ((opp['conditions'] as List?) ?? const []).map((e) => '$e');
@@ -226,7 +254,13 @@ class OppScreen extends StatelessWidget {
           ],
           Text('แหล่งข้อมูล: ${p['attribution'] ?? p['provider']}${p['ageDays'] is num ? ' · อัปเดต ${p['ageDays']} วันก่อน' : ''}', style: t.bodySmall),
           const SizedBox(height: 16),
-          if (url.startsWith('http'))
+          if (opp['mapGroup'] == 'job')
+            OutlinedButton(
+              onPressed: openingApplication ? null : _openJobApplication,
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+              child: Text(openingApplication ? 'กำลังเปิดหน้าสมัครงาน' : 'สมัครงาน ↗'),
+            )
+          else if (url.startsWith('http'))
             OutlinedButton(
               onPressed: () => openExternal(context, app, url: url, title: '${opp['title']}', opportunityId: '${opp['id']}'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),

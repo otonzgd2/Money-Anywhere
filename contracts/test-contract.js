@@ -147,6 +147,11 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     && /text\/html/.test(bangkokHtml.headers.get('content-type')) && /text\/plain/.test(bangkokMarkdown.headers.get('content-type'))
     && bangkokHtmlBytes.equals(fs.readFileSync(path.join(reportDir, 'bangkok-benefits-2026-11-27.html')))
     && bangkokMdBytes.equals(fs.readFileSync(path.join(reportDir, 'bangkok-benefits-2026-11-27.md'))));
+  const application = await fetch(base + '/docs/mockups/job-application.html');
+  const applicationBytes = Buffer.from(await application.arrayBuffer());
+  check('job contact fallback serves the original application demo HTML without a device ID', application.ok
+    && application.headers.get('content-type') === 'text/html; charset=utf-8'
+    && applicationBytes.equals(fs.readFileSync(path.join(__dirname, '..', 'docs', 'mockups', 'job-application.html'))));
   const reportRow = reportBytes.toString('utf8').match(/<tr id="item-1"[^>]*>([\s\S]*?)<\/tr>/)?.[1] || '';
   for (const [id, guideId] of [['old_age', '8386002e-d892-4975-ad48-7f06332310a8'], ['disability', '31d48bd3-6f27-4ffb-9063-03b2e2093083']]) {
     const url = 'https://gov.bangkok.go.th/ServiceDetail?id=' + guideId;
@@ -154,6 +159,11 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     check(id + ' opens the contact report row that links to the official guide',
       route.contactGuide === reportPath + '.html#item-1' && reportRow.includes(url) && route.sources.some(s => s.url === url)
       && route.channels[0].title.includes('ตามทะเบียนบ้าน'));
+  }
+  for (const [id, anchor] of [['unemployment', 'unemployment'], ['unpaid_wages', 'unpaid-wages']]) {
+    const route = (await call('getMoneyRoute', { params: { id }, expect: 200 })).data;
+    check(id + ' contact opens the matching Bangkok report row', route.contactGuide === `${bangkokReport}.html#${anchor}`
+      && bangkokHtmlBytes.toString('utf8').includes(`<tr id="${anchor}"`));
   }
   const claim = await call('createTask', { body: { moneyId: 'unemployment' }, expect: 201 });
   check('starting a claim creates steps and skips the ready documents step', claim.data.moneyId === 'unemployment' && claim.data.doneCount === 1 && claim.data.steps.length === 4);

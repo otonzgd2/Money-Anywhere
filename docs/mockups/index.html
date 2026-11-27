@@ -280,6 +280,7 @@ const MONEY = [
     docs:['บัตรประชาชน', 'หนังสือรับรองการออกจากงาน (สปส. 6-09) หรือหนังสือเลิกจ้าง (ถ้ามี)', 'สำเนาสมุดบัญชีธนาคารหน้าแรก (แนบกับแบบ สปส. 2-01/7)'],
     channels:[{ icon:'💻', title:'ขึ้นทะเบียนว่างงานออนไลน์ (กรมการจัดหางาน)', detail:'ภายใน 30 วันหลังออกจากงาน กรอกแบบ สปส. 2-01/7 แล้วรายงานตัวออนไลน์ทุกเดือน', url:'https://empui.doe.go.th/' }, { icon:'🏢', title:'ไปสำนักงานประกันสังคมหรือสำนักงานจัดหางานใกล้บ้าน', detail:'เตรียมรูปถ่าย 1 นิ้ว ไปด้วยถ้ายื่นที่สำนักงาน' }, { icon:'📞', title:'สายด่วนประกันสังคม 1506 กด 1', detail:'หรือแอป SSO Connect' }],
     after:'รายงานตัวทุกเดือนตามนัด หลังอนุมัติ เงินโอนเข้าบัญชีประมาณ 7-14 วันทำการ', ifNo:'ถามเหตุผลที่สำนักงานประกันสังคม (1506) และยื่นอุทธรณ์ตามกำหนดที่เขียนในหนังสือแจ้งผล',
+    contactGuide:'../product/sources/bangkok-benefits-2026-11-27.html#unemployment',
     src:['Legal 500: 60% 180 วัน กรณีถูกเลิกจ้าง มีผล 28 มิ.ย. 2568', 'Thairath English (พ.ย. 2569): กรณีลาออกยังเป็น 30% เพดานค่าจ้าง 15,000 สูงสุด 90 วัน'] },
   { id:'child_support', ic:'👶', t:'เงินอุดหนุนเพื่อการเลี้ยงดูเด็ก', kind:'monthly', payer:'กระทรวงการพัฒนาสังคมและความมั่นคงของมนุษย์',
     conds:[['kidUnder6', v => v === true, 'เลี้ยงดูเด็กอายุไม่เกิน 6 ปี'], ['lowIncome', v => v === true, 'รายได้ครอบครัวเฉลี่ยไม่เกิน 100,000 บาทต่อคนต่อปี']],
@@ -313,6 +314,7 @@ const MONEY = [
     docs:['บัตรประชาชน', 'หลักฐานการทำงาน (สัญญา ข้อความ รูปถ่าย บันทึกเวลา)', 'สลิปเงินเดือนหรือหลักฐานการโอนครั้งก่อน', 'ชื่อ ที่อยู่ และเบอร์ติดต่อนายจ้าง'],
     channels:[{ icon:'💬', title:'ทวงกับนายจ้างก่อน', detail:'บอกวันที่ทำงาน จำนวนเงิน และขอให้โอนภายในวันที่กำหนด เก็บหลักฐานการทวงไว้' }, { icon:'🏢', title:'ยื่นคำร้อง คร.7 กับพนักงานตรวจแรงงาน', detail:'สำนักงานสวัสดิการและคุ้มครองแรงงานพื้นที่ ฟรี ไม่ต้องมีสัญญาจ้าง' }, { icon:'📞', title:'สายด่วน 1546 หรือ 1506 กด 3', detail:'กรมสวัสดิการและคุ้มครองแรงงาน' }],
     after:'พนักงานตรวจแรงงานออกคำสั่งภายใน 60 วัน (ขยายได้ไม่เกิน 30 วัน) นายจ้างต้องจ่ายภายใน 15 วันหลังได้รับคำสั่ง', ifNo:'ถ้าไม่พอใจคำสั่ง ฟ้องศาลแรงงานได้ภายใน 30 วันนับจากวันที่ได้รับคำสั่ง (มาตรา 125)',
+    contactGuide:'../product/sources/bangkok-benefits-2026-11-27.html#unpaid-wages',
     src:['Thairath: ขั้นตอน คร.7 เอกสาร ดอกเบี้ย อายุความ', 'กรมสวัสดิการและคุ้มครองแรงงาน'] }
 ];
 // Same evaluation as contracts/adapters/money.js: first missing condition -> need, failed -> unlikely, haveIf -> already receiving.
@@ -695,7 +697,7 @@ RENDER.route = () => {
     + (a.note ? `<div class="small">${esc(a.note)}</div>` : '') + `<div class="small">จ่ายโดย ${esc(m.payer)}</div><div class="hr"></div>`;
   h += '<b style="font-size:16px">📄 เอาอะไรไป (ติ๊กเมื่อเตรียมแล้ว)</b>' + m.docs.map((d, i) => `<label class="chk"><span style="flex:1">${esc(d)}</span><input type="checkbox" ${ready.has(i) ? 'checked' : ''} onchange="toggleDoc(${i})"></label>`).join('');
   h += '<div style="height:12px"></div><b style="font-size:16px">📍 ไปยื่นที่ไหน</b>';
-  if (m.contactGuide) h += lt('📄', 'รายงานสิทธิและสวัสดิการผู้สูงอายุ', 'ดูจุดติดต่อและแหล่งอ้างอิงของรายการนี้', '', false, '<button class="btn out inl" onclick="openContactGuide()">ติดต่อ ↗</button>');
+  if (m.contactGuide) h += lt('📄', 'คู่มือติดต่อและยื่นเรื่อง', 'ดูจุดติดต่อและแหล่งอ้างอิงของรายการนี้', '', false, '<button class="btn out inl" onclick="openContactGuide()">ติดต่อ ↗</button>');
   h += m.channels.map((c, i) => lt(c.icon, esc(c.title), esc(c.detail || ''), '', false, c.url ? `<button class="btn out inl" onclick="openExtMoney(${i})">เปิด ↗</button>` : '')).join('');
   h += `<p>⏱️ หลังยื่น: ${esc(m.after)}</p><p style="margin-top:0">↩️ ถ้าไม่ผ่าน: ${esc(m.ifNo)}</p>`;
   h += t ? `<button class="btn ton" onclick="openTask('${t.id}')">อยู่ในแผนของฉันแล้ว · ทำแล้ว ${t.doneCount}/${t.steps.length} ขั้น ›</button>` : '<button class="btn" onclick="saveToPlan({moneyId:routeId})">เริ่มเลย: บันทึกเป็นแผนทีละขั้น</button>';
@@ -760,10 +762,8 @@ function taskContact() {
   const t = curTask();
   if (t.moneyId) return openRoute(t.moneyId, false);
   const o = OPPS.find(x => x.id === t.opportunityId);
-  if (o && (o.mapGroup !== 'job' || (o.url && o.dataStatus !== 'mock'))) return openOpp(o.id);
-  dialog('ข้อมูลสมัครงาน', `<b>${esc(t.title)}</b><p class="small">DEMO / MOCK · ข้อมูลตัวอย่างสำหรับดูขั้นตอนการสมัคร</p>
-    <p>ผู้ติดต่อ (ตัวอย่าง) ฝ่ายบุคคล · apply@example.org</p><p>สิ่งที่ควรเตรียม ประวัติย่อและข้อมูลสำหรับติดต่อกลับ</p>
-    <p>กรอกใบสมัครกับผู้ประกาศ แนบประวัติย่อ แล้วติดตามผลการนัดสัมภาษณ์</p>`, [['ปิด', 'txt', 'closeDlg()']]);
+  if (o && (o.mapGroup !== 'job' || hasJobSource(o))) return openOpp(o.id);
+  openDemoApplication(t.title);
 }
 function tStep() {
   const t = curTask(); const last = t.doneCount + 1 >= t.steps.length;
@@ -830,6 +830,20 @@ function drawMap(xs) {
   el.innerHTML = h;
 }
 function openOpp(id) { oppId = id; go('oppd'); }
+function hasJobSource(o) {
+  if (!o.url || o.dataStatus === 'mock' || o.linkStatus === 'broken') return false;
+  try {
+    const url = new URL(o.url);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+      && !/(?:^|\.)example\.(?:org|com|net)$|\.example$/.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
+function openDemoApplication(title = OPPS.find(o => o.id === oppId)?.title) {
+  const fragment = title ? '#title=' + encodeURIComponent(title) : '';
+  openExternal('job-application.html' + fragment, '', null);
+}
 function openExtOpp() { const o = OPPS.find(x => x.id === oppId); openExternal(o.url, o.title, { opportunityId:o.id }); }
 function reportOpp() { listSheet('รายงานประกาศนี้', { suspicious:'น่าสงสัย / มิจฉาชีพ', wrong_info:'ข้อมูลผิด', expired:'ปิดรับแล้ว', other:'อื่นๆ' }, () => toast('ขอบคุณ ส่งรายงานแล้ว')); }
 RENDER.oppd = () => {
@@ -839,7 +853,10 @@ RENDER.oppd = () => {
     + (o.loc ? `<div>📍 ${esc(o.loc.text)}</div>` : '') + '<div class="hr"></div>';
   if (o.conditions.length) h += '<b>เงื่อนไข</b>' + o.conditions.map(c => `<div>• ${esc(c)}</div>`).join('') + '<div style="height:8px"></div>';
   h += `<div class="small">แหล่งข้อมูล: ${esc(o.attribution)}${o.ageDays != null ? ` · อัปเดต ${o.ageDays} วันก่อน` : ''}</div><div style="height:10px"></div>`;
-  if (o.url) h += '<button class="btn out" onclick="openExtOpp()">ดูประกาศต้นทาง ↗</button>';
+  if (o.mapGroup === 'job') {
+    if (hasJobSource(o)) h += '<button class="btn out" onclick="openExtOpp()">ดูประกาศต้นทาง ↗</button>';
+    h += '<button class="btn out" onclick="openDemoApplication()">สมัครงานจำลอง ↗</button>';
+  } else if (o.url) h += '<button class="btn out" onclick="openExtOpp()">ดูประกาศต้นทาง ↗</button>';
   h += '<button class="btn" onclick="saveToPlan({opportunityId:oppId})">＋ บันทึกไว้ในแผนของฉัน</button><button class="btn txt" onclick="reportOpp()">รายงานประกาศนี้</button>'
     + '<p class="small">แอปไม่รับประกันว่าจะได้งานหรือรายได้ ตรวจรายละเอียดกับผู้ประกาศก่อนสมัคร อย่าโอนเงินก่อนเริ่มงาน</p>';
   $('oppdBody').innerHTML = h;

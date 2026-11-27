@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+  <title>ส่งเอกสารสมัครงาน · Money Anywhere Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f2f5ee;
+      --ink: #132921;
+      --muted: #4b6156;
+      --line: #d6e0d7;
+      --green: #116449;
+      --wash: #edf6ef;
+      --error: #a32b24;
+      font: 16px/1.6 "Leelawadee UI", "Noto Sans Thai", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; color: var(--ink); background: var(--bg); }
+    h1, h2, h3, p, ol, dl, dd { margin: 0; }
+    h1, h2, h3 { line-height: 1.35; }
+    h1 { font-size: clamp(1.9rem, 4vw, 2.8rem); }
+    h2 { font-size: 1.4rem; }
+    h3 { font-size: 1.05rem; }
+    .wrap { width: min(calc(100% - 40px), 1040px); margin-inline: auto; }
+    .top { background: #fff; border-bottom: 1px solid var(--line); }
+    .top .wrap { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand { color: var(--green); font-weight: 750; }
+    .demo { padding: 3px 10px; border-radius: 6px; background: #faedc2; color: #614516; font-size: .78rem; font-weight: 750; }
+    main { padding-block: clamp(24px, 5vw, 52px); }
+    .intro { margin-bottom: clamp(18px, 3vw, 28px); }
+    .intro p { margin-top: 8px; color: var(--muted); }
+    .layout { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 24px; align-items: start; }
+    .job { padding: 24px; border-radius: 18px; background: #123d31; color: #fff; }
+    .job p { color: #dcebe0; }
+    .job h2 { margin-block: 6px; overflow-wrap: anywhere; }
+    .job-detail { margin-top: 17px; padding-top: 13px; border-top: 1px solid #5c7f70; }
+    .panel { padding: clamp(16px, 4vw, 36px); border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+    .steps { list-style: none; padding: 0 0 16px; margin-bottom: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; border-bottom: 1px solid var(--line); }
+    .steps li { color: var(--muted); display: flex; align-items: center; gap: 7px; font-size: .9rem; }
+    .steps span { display: grid; place-items: center; flex: 0 0 26px; height: 26px; background: var(--wash); border-radius: 50%; font-weight: 700; }
+    .steps [aria-current="step"] { color: var(--green); font-weight: 750; }
+    .steps [aria-current="step"] span { background: var(--green); color: #fff; }
+    .section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 12px; }
+    .optional, .hint { color: var(--muted); font-size: .88rem; font-weight: 400; }
+    form > section + section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+    .wide { grid-column: 1 / -1; }
+    .field label { display: block; margin-bottom: 4px; font-weight: 650; }
+    .field input, .field textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #9eb4a5; border-radius: 8px; color: var(--ink); background: #fff; font: inherit; }
+    .field textarea { display: block; resize: vertical; }
+    button, .picker { min-height: 44px; padding: 7px 14px; border: 1px solid #a6beb0; border-radius: 9px; background: #fff; color: var(--green); font: inherit; font-weight: 700; cursor: pointer; }
+    button:hover, .picker:hover { background: var(--wash); }
+    .primary { border-color: var(--green); background: var(--green); color: #fff; }
+    .primary:hover { border-color: #0b4f39; background: #0b4f39; }
+    :focus-visible, .picker:focus-within { outline: 3px solid #197858; outline-offset: 3px; }
+    .attachment { margin-top: 12px; padding: 12px; border: 1px dashed #9eb4a5; border-radius: 10px; }
+    .file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; margin-top: 8px; }
+    .picker { position: relative; display: inline-flex; align-items: center; }
+    .picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+    .file-name { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+    .error { color: var(--error); margin-top: 5px; font-size: .92rem; }
+    .error:empty { margin: 0; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    .summary { margin-top: 14px; }
+    .summary div { display: grid; grid-template-columns: minmax(0, 155px) minmax(0, 1fr); gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .summary dt { color: var(--muted); }
+    .summary dd { overflow-wrap: anywhere; white-space: pre-wrap; }
+    .receipt { margin-top: 16px; padding: 14px 16px; border-radius: 10px; background: var(--wash); }
+    .receipt dd { font-size: 1.15rem; font-weight: 750; letter-spacing: .03em; }
+    #confirmation > p { margin-top: 8px; color: var(--muted); }
+    @media (max-width: 720px) {
+      .layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+      .job { padding: 16px; }
+      .job-detail { margin-top: 12px; padding-top: 9px; }
+    }
+    @media (max-width: 480px) {
+      .wrap { width: calc(100% - 24px); }
+      .fields { grid-template-columns: minmax(0, 1fr); }
+      .steps li { flex-direction: column; text-align: center; }
+      .steps span { flex: none; width: 26px; }
+      .summary div { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+      .actions > button { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <span class="brand">Money Anywhere</span>
+      <span class="demo">DEMO / MOCK</span>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="intro">
+      <h1>ส่งเอกสารสมัครงาน</h1>
+      <p>ใช้ข้อมูลตัวอย่างเพื่อทดลองสมัคร เอกสารจะอยู่ในหน้านี้เท่านั้น</p>
+    </div>
+    <div class="layout">
+      <aside class="job" aria-labelledby="job-title">
+        <p id="job-label">ตำแหน่งตัวอย่าง</p>
+        <h2 id="job-title">เจ้าหน้าที่ธุรการ</h2>
+        <div id="sample-job-details">
+          <p>บริษัทตัวอย่าง มันนี่เวิร์ก</p>
+          <p class="job-detail">เขตบางรัก กรุงเทพฯ · งานประจำ</p>
+        </div>
+      </aside>
+      <div class="panel">
+        <ol class="steps" aria-label="ขั้นตอนการสมัคร">
+          <li aria-current="step"><span aria-hidden="true">1</span> กรอกข้อมูล</li>
+          <li><span aria-hidden="true">2</span> ตรวจใบสมัคร</li>
+          <li><span aria-hidden="true">3</span> ผลการส่ง</li>
+        </ol>
+        <noscript><p>เปิด JavaScript เพื่อทดลองส่งใบสมัคร</p></noscript>
+        <form id="application" autocomplete="off">
+          <section aria-labelledby="form-title">
+            <div class="section-head">
+              <h2 id="form-title" tabindex="-1">ข้อมูลผู้สมัคร</h2>
+              <button type="button" id="fill-sample">ใช้ข้อมูลตัวอย่าง</button>
+            </div>
+            <div class="fields">
+              <div class="field wide">
+                <label for="applicant">ชื่อและนามสกุล</label>
+                <input id="applicant" required pattern=".*\S.*" maxlength="120">
+              </div>
+              <div class="field">
+                <label for="email">อีเมล</label>
+                <input id="email" type="email" required maxlength="254">
+              </div>
+              <div class="field">
+                <label for="phone">โทรศัพท์ <span class="optional">(ไม่บังคับ)</span></label>
+                <input id="phone" type="tel" maxlength="30">
+              </div>
+              <div class="field wide">
+                <label for="note">ข้อความถึงฝ่ายบุคคล <span class="optional">(ไม่บังคับ)</span></label>
+                <textarea id="note" rows="2" maxlength="500"></textarea>
+              </div>
+            </div>
+          </section>
+          <section aria-labelledby="files-title">
+            <h2 id="files-title">เอกสารแนบ</h2>
+            <div class="attachment" id="resume">
+              <h3 id="resume-title">เรซูเม่ <span class="optional">(ต้องแนบ)</span></h3>
+              <p class="hint" id="resume-hint">PDF, DOC, DOCX หรือ TXT ขนาดไม่เกิน 10 MB</p>
+              <div class="file-actions">
+                <label class="picker">
+                  <span>เลือกเรซูเม่</span>
+                  <input type="file" accept=".pdf,.doc,.docx,.txt" aria-label="เลือกเรซูเม่" aria-describedby="resume-hint resume-error">
+                </label>
+                <span class="file-name" role="status">ยังไม่ได้เลือกไฟล์</span>
+                <button type="button" aria-label="นำเรซูเม่ออก" hidden>นำออก</button>
+              </div>
+              <p class="error" id="resume-error" role="alert"></p>
+            </div>
+            <div class="attachment" id="extra">
+              <h3 id="extra-title">เอกสารเพิ่มเติม <span class="optional">(ไม่บังคับ)</span></h3>
+              <p class="hint" id="extra-hint">เช่น แฟ้มผลงาน รูปแบบ PDF, JPG หรือ PNG ขนาดไม่เกิน 10 MB</p>
+              <div class="file-actions">
+                <label class="picker">
+                  <span>เลือกเอกสารเพิ่ม</span>
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" aria-label="เลือกเอกสารเพิ่มเติม" aria-describedby="extra-hint extra-error">
+                </label>
+                <span class="file-name" role="status">ยังไม่ได้เลือกไฟล์</span>
+                <button type="button" aria-label="นำเอกสารเพิ่มเติมออก" hidden>นำออก</button>
+              </div>
+              <p class="error" id="extra-error" role="alert"></p>
+            </div>
+          </section>
+          <div class="actions">
+            <button type="submit" class="primary">ตรวจใบสมัคร</button>
+          </div>
+        </form>
+        <section id="review" aria-labelledby="review-title" hidden>
+          <h2 id="review-title" tabindex="-1">ตรวจใบสมัคร</h2>
+          <dl class="summary">
+            <div><dt>ชื่อผู้สมัคร</dt><dd id="check-applicant"></dd></div>
+            <div><dt>อีเมล</dt><dd id="check-email"></dd></div>
+            <div><dt>โทรศัพท์</dt><dd id="check-phone"></dd></div>
+            <div><dt>ข้อความถึงฝ่ายบุคคล</dt><dd id="check-note"></dd></div>
+            <div><dt>เรซูเม่</dt><dd id="check-resume"></dd></div>
+            <div><dt>เอกสารเพิ่มเติม</dt><dd id="check-extra"></dd></div>
+          </dl>
+          <div class="actions">
+            <button type="button" id="edit">กลับไปแก้ไข</button>
+            <button type="button" class="primary" id="send">ส่งใบสมัครจำลอง</button>
+          </div>
+        </section>
+        <section id="confirmation" aria-labelledby="confirmation-title" hidden>
+          <h2 id="confirmation-title" tabindex="-1">ส่งใบสมัครจำลองสำเร็จ</h2>
+          <p>การทดลองจบแล้ว ระบบไม่ได้ส่งใบสมัครหรือเอกสารไปยังบริษัท</p>
+          <dl class="receipt"><dt>เลขอ้างอิงสำหรับ Demo</dt><dd id="reference"></dd></dl>
+          <div class="actions">
+            <button type="button" class="primary" id="restart">เริ่มใบสมัครใหม่</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <script>
+    const jobTitle = document.getElementById('job-title');
+    const jobLabel = document.getElementById('job-label');
+    const sampleJobTitle = jobTitle.textContent;
+    const sampleJobLabel = jobLabel.textContent;
+
+    function showSelectedJob() {
+      const title = new URLSearchParams(location.hash.slice(1)).get('title')?.trim();
+      jobTitle.textContent = title || sampleJobTitle;
+      jobLabel.textContent = title ? 'ตำแหน่งที่เลือก' : sampleJobLabel;
+      document.getElementById('sample-job-details').hidden = Boolean(title);
+    }
+
+    showSelectedJob();
+    window.addEventListener('hashchange', showSelectedJob);
+
+    const form = document.getElementById('application');
+    const applicant = document.getElementById('applicant');
+    const email = document.getElementById('email');
+    const phone = document.getElementById('phone');
+    const note = document.getElementById('note');
+    const steps = document.querySelectorAll('.steps li');
+    const panels = [form, document.getElementById('review'), document.getElementById('confirmation')];
+    const maxFileSize = 10_000_000;
+
+    function setFile(attachment, file) {
+      attachment.file = file;
+      attachment.name.textContent = file?.name ?? 'ยังไม่ได้เลือกไฟล์';
+      attachment.remove.hidden = !file;
+      attachment.error.textContent = '';
+      attachment.input.removeAttribute('aria-invalid');
+    }
+
+    function filePicker(id) {
+      const container = document.getElementById(id);
+      const input = container.querySelector('input');
+      const attachment = {
+        input, file: null,
+        name: container.querySelector('.file-name'),
+        remove: container.querySelector('button'),
+        error: container.querySelector('.error'),
+      };
+      const extensions = input.accept.split(',');
+      input.addEventListener('change', () => {
+        const file = input.files[0];
+        if (!file) return;
+        input.value = '';
+        const extension = file.name.match(/\.[^.]+$/)?.[0].toLowerCase();
+        let error = '';
+        if (!extensions.includes(extension)) error = 'กรุณาเลือกไฟล์ตามรูปแบบที่ระบุ';
+        else if (!file.size) error = 'ไฟล์ว่าง กรุณาเลือกไฟล์ใหม่';
+        else if (file.size > maxFileSize) error = 'ไฟล์เกิน 10 MB กรุณาเลือกไฟล์ขนาดเล็กลง';
+        if (error) {
+          attachment.error.textContent = error + (attachment.file ? ' ระบบยังใช้ไฟล์ที่เลือกไว้ก่อนหน้า' : '');
+          input.setAttribute('aria-invalid', 'true');
+          return;
+        }
+        setFile(attachment, file);
+      });
+      attachment.remove.addEventListener('click', () => {
+        setFile(attachment, null);
+        input.focus();
+      });
+      return attachment;
+    }
+
+    const resume = filePicker('resume');
+    const extra = filePicker('extra');
+
+    function showStep(step) {
+      panels.forEach((panel, index) => {
+        panel.hidden = index !== step;
+        if (index === step) steps[index].setAttribute('aria-current', 'step');
+        else steps[index].removeAttribute('aria-current');
+      });
+      panels[step].querySelector('h2').focus();
+    }
+
+    document.getElementById('fill-sample').addEventListener('click', () => {
+      applicant.value = 'สมใจ คนตัวอย่าง';
+      email.value = 'somjai@example.com';
+      phone.value = '000-000-0000';
+      note.value = 'สนใจงานธุรการ มีประสบการณ์จัดเอกสารและประสานงาน';
+      const sample = `${applicant.value}\nประสบการณ์ตัวอย่าง\nจัดเอกสารและประสานงาน\n`;
+      setFile(resume, new File([sample], 'resume-demo.txt', { type: 'text/plain' }));
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!resume.file) {
+        if (!resume.error.textContent) resume.error.textContent = 'กรุณาแนบเรซูเม่ก่อนตรวจใบสมัคร';
+        resume.input.setAttribute('aria-invalid', 'true');
+        resume.input.focus();
+        return;
+      }
+      const summary = {
+        applicant: applicant.value.trim(),
+        email: email.value.trim(),
+        phone: phone.value.trim() || 'ไม่ได้ระบุ',
+        note: note.value.trim() || 'ไม่ได้ระบุ',
+        resume: resume.file.name,
+        extra: extra.file?.name ?? 'ไม่ได้แนบ',
+      };
+      for (const [field, value] of Object.entries(summary)) {
+        document.getElementById(`check-${field}`).textContent = value;
+      }
+      showStep(1);
+    });
+
+    document.getElementById('edit').addEventListener('click', () => showStep(0));
+
+    document.getElementById('send').addEventListener('click', () => {
+      const id = crypto.getRandomValues(new Uint32Array(1))[0].toString(16).padStart(8, '0').toUpperCase();
+      document.getElementById('reference').textContent = `MOCK-${id}`;
+      form.reset();
+      setFile(resume, null);
+      setFile(extra, null);
+      document.querySelectorAll('.summary dd').forEach((entry) => { entry.textContent = ''; });
+      showStep(2);
+    });
+
+    document.getElementById('restart').addEventListener('click', () => {
+      document.getElementById('reference').textContent = '';
+      showStep(0);
+    });
+  </script>
+</body>
+</html>
