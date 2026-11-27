@@ -112,11 +112,16 @@ setTimeout(() => {
     ev("goTab('plans')"); check('plans tab: progress, status, user-reported', d.querySelectorAll('#plansBody .plan').length === 1 && inner('plansBody').includes('กำลังทำ · ทำแล้ว 0/4 ขั้น · ผู้ใช้แจ้ง'));
     ev('openTask(tasks[0].id)');
     d.querySelector('#taskBody [onclick="taskContact()"]').click();
-    check('mock job contact shows a labelled application example', dlgOn() && inner('dlg').includes('ข้อมูลสมัครงาน') && inner('dlg').includes('DEMO / MOCK'));
-    ev('closeDlg(); back()');
+    check('mock job contact opens the demo with the saved job title', openedUrl === 'job-application.html#title=' + encodeURIComponent('งานแพ็คของ รายวัน') && !dlgOn() && on('task'));
+    ev('back()');
     ev("openRoute('unemployment')"); check('route shows the 60% rule and an online channel', inner('routeBody').includes('฿7,200') && inner('routeBody').includes('60%') && inner('routeBody').includes('เปิด ↗'));
+    d.querySelector('#routeBody [onclick="openContactGuide()"]').click();
+    check('unemployment contact opens its row in the Bangkok report', openedUrl === '../product/sources/bangkok-benefits-2026-11-27.html#unemployment' && !dlgOn());
     ev('openExtMoney(0)'); check('official link asks "applied?" (P6)', dlgOn() && inner('dlg').includes('กลับมาแล้ว') && inner('dlg').includes('✓ ยื่น/สมัครแล้ว'));
     ev('closeDlg(); saveToPlan(extRef,true)'); check('"applied" marks the steps up to filing as done', ev("tasks.find(t => t.moneyId === 'unemployment').doneCount") === 2);
+    ev("openRoute('unpaid_wages')");
+    d.querySelector('#routeBody [onclick="openContactGuide()"]').click();
+    check('unpaid wages contact opens its row in the Bangkok report', openedUrl === '../product/sources/bangkok-benefits-2026-11-27.html#unpaid-wages' && !dlgOn());
   });
 
   run('opportunities (S6, S6m, S6b)', () => {
@@ -137,6 +142,8 @@ setTimeout(() => {
     ev('reportOpp()'); check('report sheet (P10)', inner('msheet').includes('รายงานประกาศนี้') && inner('msheet').includes('ปิดรับแล้ว'));
     ev("closeModal(); sheetPick('expired')"); check('report confirmed', text('snackT').includes('ขอบคุณ ส่งรายงานแล้ว'));
     ev("openOpp('j3')"); check('mock listing labelled, no fake source link', od().includes('DEMO / MOCK') && !od().includes('ดูประกาศต้นทาง'));
+    d.querySelector('#oppdBody [onclick="openDemoApplication()"]').click();
+    check('mock job details open the demo with the listing title', openedUrl === 'job-application.html#title=' + encodeURIComponent('พนักงานทำความสะอาดสำนักงาน') && !dlgOn());
     ev("profile=null; goTab('opp'); rankBySkill()"); check('🎯 without skills opens the profile', on('profile'));
     ev("pSkill(0); pd.hours='10-20'; bump(); pSave()"); check('profile saved and back', !on('profile') && ev("profile.skills.includes('ทำอาหาร')"));
     ev('rankBySkill()'); check('🎯 sorts by skill with a reason', inner('oppBody').includes('🎯 ตรงมาก · ตรงทักษะ: ทำอาหาร'));
@@ -206,6 +213,25 @@ setTimeout(() => {
     ev('toggleOffline()'); check('server down: red card with USB and Wi-Fi fixes', inner('homeBody').includes('📡 ต่อ server ไม่ได้') && inner('homeBody').includes('adb reverse tcp:8080 tcp:8080'));
     ev('editServer()'); check('change server address dialog', inner('dlg').includes('USB 127.0.0.1') && inner('dlg').includes('Wi-Fi 192.168.1.46'));
     ev('closeDlg(); toggleOffline()');
+  });
+
+  run('job application title', () => {
+    const demoHtml = fs.readFileSync(path.join(__dirname, 'job-application.html'), 'utf8');
+    const selected = 'งานแพ็คของ รายวัน';
+    const demo = new JSDOM(demoHtml, { runScripts: 'dangerously', url: 'https://demo.example/job-application.html#title=' + encodeURIComponent(selected) });
+    const title = demo.window.document.getElementById('job-title');
+    const sample = demo.window.document.getElementById('sample-job-details');
+    const changeTitle = hash => {
+      demo.window.location.hash = hash;
+      demo.window.dispatchEvent(new demo.window.HashChangeEvent('hashchange'));
+    };
+    check('the application shows the selected job without sample employer details', title.textContent === selected && sample.hidden);
+    const next = 'งานพิมพ์ (A&B #2 + C%) <ตัวอย่าง>';
+    changeTitle('title=' + encodeURIComponent(next));
+    check('reused browser page displays the new job title as literal text', title.textContent === next && title.children.length === 0);
+    changeTitle('');
+    check('opening the page without a job shows the standalone sample', title.textContent === 'เจ้าหน้าที่ธุรการ' && !sample.hidden);
+    demo.window.close();
   });
 
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));

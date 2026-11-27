@@ -1,10 +1,8 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'job_application.dart';
 import 'opp_tab.dart';
 
 class OpportunityContactScreen extends StatefulWidget {
@@ -20,7 +18,7 @@ class OpportunityContactScreen extends StatefulWidget {
 class _OpportunityContactScreenState extends State<OpportunityContactScreen> {
   Map<String, dynamic>? opportunity;
   Uri? applicationUrl;
-  String? fallbackReason;
+  String? loadError;
   bool loading = true;
   bool opening = false;
 
@@ -31,57 +29,75 @@ class _OpportunityContactScreenState extends State<OpportunityContactScreen> {
   }
 
   Future<void> _load() async {
+    setState(() {
+      loading = true;
+      loadError = null;
+    });
     try {
       final item = await widget.app.api.get('/v1/opportunities/${Uri.encodeComponent(widget.opportunityId)}');
       if (!mounted) return;
-      final provenance = item['provenance'] as Map?;
-      final uri = _realApplicationUrl(provenance);
-      final isJob = item['mapGroup'] == 'job';
-      final reachable = isJob && uri != null && await _canOpen(uri);
+      if (item['mapGroup'] != 'job') {
+        setState(() {
+          opportunity = item;
+          loading = false;
+        });
+        return;
+      }
+      final uri = await reachableJobApplicationUrl(item['provenance'] as Map?);
       if (!mounted) return;
+      if (uri == null) {
+        await _openDemo();
+        return;
+      }
       setState(() {
         opportunity = item;
         loading = false;
-        applicationUrl = reachable ? uri : null;
-        fallbackReason = uri == null ? 'รายการนี้ยังไม่มีลิงก์สมัครงานจริง' : 'เปิดลิงก์สมัครงานต้นทางไม่ได้';
+        applicationUrl = uri;
       });
     } on ApiException catch (error) {
       if (!mounted) return;
+      if (error.status == 404) {
+        await _openDemo();
+        return;
+      }
       setState(() {
         loading = false;
-        fallbackReason = error.status == 404 ? 'ไม่พบประกาศต้นทางแล้ว' : 'โหลดประกาศต้นทางไม่ได้ในขณะนี้';
+        loadError = 'โหลดประกาศต้นทางไม่ได้ในขณะนี้';
       });
-    }
-  }
-
-  Uri? _realApplicationUrl(Map? provenance) {
-    if (provenance == null || provenance['dataStatus'] == 'mock') return null;
-    final uri = Uri.tryParse(provenance['sourceUrl']?.toString().trim() ?? '');
-    if (uri == null || !{'https', 'http'}.contains(uri.scheme) || uri.host.isEmpty || uri.userInfo.isNotEmpty) return null;
-    if ({'example.org', 'example.com', 'example.net'}.contains(uri.host) || uri.host.endsWith('.example')) return null;
-    return uri;
-  }
-
-  Future<bool> _canOpen(Uri uri) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 3);
-    try {
-      final response = await client.getUrl(uri).then((request) => request.close()).timeout(const Duration(seconds: 5));
-      return response.statusCode >= 200 && response.statusCode < 300;
-    } on Exception {
-      return false;
-    } finally {
-      client.close(force: true);
     }
   }
 
   Future<void> _openApplication(Uri uri) async {
     setState(() => opening = true);
-    await openExternal(context, widget.app, url: uri.toString(), title: widget.title, opportunityId: widget.opportunityId,
-      onUnavailable: () => setState(() {
-        applicationUrl = null;
-        fallbackReason = 'เปิดลิงก์สมัครงานต้นทางไม่ได้';
-      }));
-    if (mounted) setState(() => opening = false);
+    final opened = await openExternal(context, widget.app, url: uri.toString(), title: widget.title, opportunityId: widget.opportunityId,
+      showError: false);
+    if (!mounted) return;
+    if (!opened) {
+      await _openDemo();
+      return;
+    }
+    setState(() => opening = false);
+  }
+
+  Future<void> _openDemo() async {
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    setState(() {
+      applicationUrl = null;
+      loading = true;
+      opening = false;
+    });
+    final opened = await openExternal(context, widget.app,
+      url: jobApplicationDemoUrl(widget.app.api.baseUrl, widget.title),
+      title: widget.title,
+      askAfterReturn: false,
+      showError: false,
+    );
+    if (!mounted) return;
+    if (opened && ModalRoute.of(context)?.isCurrent == true) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() => loading = false);
   }
 
   @override
@@ -106,14 +122,12 @@ class _OpportunityContactScreenState extends State<OpportunityContactScreen> {
                 onPressed: opening ? null : () => _openApplication(url),
                 icon: const Icon(Icons.open_in_new), label: const Text('เปิดหน้าสมัครงาน'),
               ),
+            ] else if (loadError case final String message) ...[
+              Text(message),
+              FilledButton(onPressed: _load, child: const Text('ลองโหลดประกาศอีกครั้ง')),
             ] else ...[
-              Align(alignment: Alignment.centerLeft, child: Chip(label: const Text('DEMO / MOCK'), backgroundColor: Theme.of(context).colorScheme.secondaryContainer)),
-              Text(fallbackReason ?? 'ยังไม่มีลิงก์สมัครงานที่เปิดได้'),
-              const Text('ข้อมูลตัวอย่างสำหรับดูขั้นตอนการสมัคร'),
-              const SizedBox(height: 12),
-              const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.person_outline), title: Text('ผู้ติดต่อ (ตัวอย่าง)'), subtitle: Text('ฝ่ายบุคคล · apply@example.org')),
-              const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.description_outlined), title: Text('สิ่งที่ควรเตรียม'), subtitle: Text('ประวัติย่อและข้อมูลสำหรับติดต่อกลับ')),
-              const ListTile(contentPadding: EdgeInsets.zero, leading: Icon(Icons.checklist), title: Text('ขั้นตอนตัวอย่าง'), subtitle: Text('กรอกใบสมัครกับผู้ประกาศ แนบประวัติย่อ แล้วติดตามผลการนัดสัมภาษณ์')),
+              const Text('เปิดหน้าสมัครงานจำลองไม่ได้'),
+              FilledButton.icon(onPressed: _openDemo, icon: const Icon(Icons.open_in_new), label: const Text('ลองเปิดหน้าสมัครงานจำลองอีกครั้ง')),
             ],
           ],
         ),

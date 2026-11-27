@@ -154,12 +154,9 @@ Future<void> showNotice(BuildContext context, AppState app) async {
 
 /// Open an official link outside the app. For an application link, ask on return whether the person
 /// applied (ui-states.md popup P6). Guide and contact links can skip the prompt.
-Future<void> openExternal(BuildContext context, AppState app, {required String url, required String title, String? moneyId, String? opportunityId, VoidCallback? onUnavailable, bool askAfterReturn = true}) async {
+Future<bool> openExternal(BuildContext context, AppState app, {required String url, required String title, String? moneyId, String? opportunityId, bool showError = true, bool askAfterReturn = true}) async {
   final uri = Uri.tryParse(url);
-  if (uri == null) {
-    onUnavailable?.call();
-    return;
-  }
+  if (uri == null) return false;
   AppLifecycleListener? listener;
   if (askAfterReturn) {
     var left = false;
@@ -180,13 +177,9 @@ Future<void> openExternal(BuildContext context, AppState app, {required String u
   }
   if (!ok) {
     listener?.dispose();
-    if (!context.mounted) return;
-    if (onUnavailable case final fallback?) {
-      fallback();
-    } else {
-      toast(context, 'เปิดลิงก์ไม่ได้: $url');
-    }
+    if (showError && context.mounted) toast(context, 'เปิดลิงก์ไม่ได้: $url');
   }
+  return ok;
 }
 
 Future<void> _askApplied(BuildContext context, AppState app, {required String title, String? moneyId, String? opportunityId}) async {
