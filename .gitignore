@@ -44,5 +44,8 @@ build/
 .dart_tool/
 # Demo server data (device state, AI call log)
 contracts/.data/
+# Local job catalogue and SQLite sidecar files
+/docs/entities/database-script/catalogue.db
+/docs/entities/database-script/catalogue.db-*
 *.apk
 *.aab

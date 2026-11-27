@@ -60,7 +60,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const miss = await noDevice('getProfile', { expect: 400 });
   check('missing X-Device-Id is rejected with MISSING_DEVICE', miss.data && miss.data.code === 'MISSING_DEVICE');
   const health = await call('getHealth', { expect: 200 });
-  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === '0.11.0');
+  check('health reports commit and version (AC-05)', health.data.commit && health.data.version === api.info.version);
   const cfg = await call('getAppConfig', { query: { appVersion: '0.1.0' }, expect: 200 });
   check('config carries noticeVersion and gov flag off', cfg.data.noticeVersion === NOTICE && cfg.data.featureFlags.govConnected === false);
   await call('getAppConfig', { query: { appVersion: '0.1.0' }, headers: { 'If-None-Match': cfg.headers.get('etag') }, expect: 304 });
@@ -569,6 +569,15 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   await mc_m3('loadDemoPersona', { params: { id: 'p4' }, expect: 200 });
   const mc_laid = (await mc_m3('getIncomeGoalPlan', { expect: 200 })).data;
   check('goal plan (laid off, full time): unemployment benefit plus jobs that match driving / repair skills', mc_laid.parts.some(p => p.id === 'unemployment') && mc_laid.parts.some(p => p.kind === 'job' && p.matched.length));
+  const catalogueSorts = ['near', 'money', 'fresh'];
+  async function demoPages(request, sort) {
+    const query = { radiusKm: 50, limit: 25, sort };
+    const first = (await request('searchOpportunities', { query, expect: 200 })).data;
+    const second = (await request('searchOpportunities', { query: { ...query, cursor: first.nextCursor }, expect: 200 })).data;
+    return [first, second].map(page => [page.items.map(item => item.id), page.nextCursor]);
+  }
+  const legacyCatalogue = client(mc_base3, { 'X-Device-Id': 'device-legacy-order' });
+  const legacyPages = await Promise.all(catalogueSorts.map(sort => demoPages(legacyCatalogue, sort)));
   mc_s3.close();
 
   await g('putProfile', { body: { district: 'ปทุมวัน', skills: ['ทำอาหาร'], goals: ['หางาน'] } });
@@ -723,6 +732,607 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const fallback = await rs('postConversationMessage', { params, body: { text: 'ช่วยดูเงินของฉันหน่อย' }, expect: 200 });
   check('Responses API: provider error falls back to the rules agent', fallback.data.aiStatus === 'fallback_rules');
   responsesServer.close();
+
+  // SQLite demo jobs use the same mobile contract as the legacy catalogue.
+  const { DatabaseSync } = require('node:sqlite');
+  const { seedDemoJobs } = require('./fixtures/seed-job-catalogue');
+  const jobDbFile = path.join(os.tmpdir(), 'ma-job-catalogue-' + require('node:crypto').randomUUID() + '.db');
+  const jobFetch = async () => { throw new Error('SQLite catalogue tests do not call external sources'); };
+  let jobServer;
+  try {
+    const db = new DatabaseSync(jobDbFile);
+    try {
+      db.exec(fs.readFileSync(path.join(__dirname, '../docs/entities/database-script/001_create_job_tables.sql'), 'utf-8'));
+    } finally {
+      db.close();
+    }
+
+    const firstSeed = seedDemoJobs(jobDbFile), secondSeed = seedDemoJobs(jobDbFile);
+    check('SQLite job seed: 3 demo sources, 56 demo jobs, repeat inserts nothing', firstSeed.providers === 3 && firstSeed.inserted === 56 && secondSeed.inserted === 0);
+
+    jobServer = createServer({ jobDbFile, moreMock: true, jobs: false, fetch: jobFetch, integrationKey: 'test-key' });
+    const jobBase = await listen(jobServer);
+    const jobClient = client(jobBase, { 'X-Device-Id': 'device-sqlite-first' });
+    const sqlitePages = await Promise.all(catalogueSorts.map(sort => demoPages(jobClient, sort)));
+    check('SQLite catalogue preserves fixture order and cursors for near, money and fresh',
+      JSON.stringify(sqlitePages) === JSON.stringify(legacyPages));
+
+    // This title appears only in SQLite, even when the legacy mock catalogue is also enabled.
+    const sqlFixture = new DatabaseSync(jobDbFile);
+    try {
+      sqlFixture.prepare('UPDATE job_posting SET title = ? WHERE id = ?').run('SQLite ประกาศแม่บ้านสำหรับทดสอบ', 'mock_doe_j1');
+      sqlFixture.prepare("UPDATE job_posting SET status = 'closed' WHERE id = ?").run('mock_doe_j2');
+    } finally {
+      sqlFixture.close();
+    }
+    const jobParams = { id: 'mock_doe_j1' };
+    const jobQuery = { q: 'SQLite ประกาศแม่บ้าน', group: 'job', radiusKm: 50 };
+    const detail = await jobClient('getOpportunity', { params: jobParams, expect: 200 });
+    const listings = await jobClient('searchOpportunities', { query: jobQuery, expect: 200 });
+    check('SQLite search and detail use the row from disk and keep the mock label', listings.data.items.length === 1
+      && listings.data.items[0].id === detail.data.id && detail.data.title === 'SQLite ประกาศแม่บ้านสำหรับทดสอบ'
+      && detail.data.provenance.dataStatus === 'mock' && detail.data.provenance.attribution.includes('DEMO / MOCK'));
+    const page1 = await jobClient('searchOpportunities', { query: { group: 'job', radiusKm: 50, sort: 'money', limit: 1 }, expect: 200 });
+    const page2 = await jobClient('searchOpportunities', { query: { group: 'job', radiusKm: 50, sort: 'money', limit: 1, cursor: page1.data.nextCursor }, expect: 200 });
+    check('SQLite search keeps mobile pagination', Boolean(page1.data.nextCursor) && page1.data.items[0]?.id !== page2.data.items[0]?.id);
+    await jobClient('getOpportunity', { params: { id: 'mock_doe_j2' }, expect: 404 });
+    const mixed = await jobClient('searchOpportunities', { query: { radiusKm: 50, limit: 100 }, expect: 200 });
+    check('SQLite jobs do not fall back to closed legacy copies and other sources remain visible',
+      !mixed.data.items.some(o => o.id === 'mock_doe_j2') && mixed.data.items.some(o => o.provenance.provider === 'mock_dsd'));
+    const jobSources = await jobClient('listSources', { expect: 200 });
+    check('SQLite sources report persisted item counts', jobSources.data.items.find(s => s.provider === 'mock_doe')?.itemCount === 26);
+    check('surveyed job sources have links and do not inflate posting counts',
+      ['smartjob', 'jobthai', 'jobsdb', 'jobbkk', 'jobtopgun', 'fastwork', 'jsearch', 'adzuna', 'data_go_th',
+        'thailand_open_apis', 'th_open_data_studio'].every(provider => jobSources.data.items.some(
+        source => source.provider === provider && source.websiteUrl.startsWith('https://') && source.itemCount === 0
+      )));
+
+    const report = who => who('reportOpportunity', { params: jobParams, body: { reason: 'suspicious' }, expect: 202 });
+    await report(jobClient);
+    await report(jobClient);
+    check('SQLite reports from one device do not hide a job', (await jobClient('getOpportunity', { params: jobParams, expect: 200 })).data.suspicious === false);
+    await report(client(jobBase, { 'X-Device-Id': 'device-sqlite-second' }));
+    await report(client(jobBase, { 'X-Device-Id': 'device-sqlite-third' }));
+    const filtered = await jobClient('searchOpportunities', { query: jobQuery, expect: 200 });
+    check('SQLite reports from three devices hide a job', filtered.data.items.length === 0 && filtered.data.hiddenSuspicious === 1);
+    const readOnlyJobs = new DatabaseSync(jobDbFile, { readOnly: true });
+    try {
+      const reports = readOnlyJobs.prepare('SELECT device_hash FROM job_report WHERE job_id = ?').all(jobParams.id);
+      check('SQLite reports persist only hashed device identifiers', reports.length === 4
+        && reports.every(({ device_hash }) => /^[a-f0-9]{12}$/.test(device_hash)));
+    } finally {
+      readOnlyJobs.close();
+    }
+    const partners = new DatabaseSync(jobDbFile);
+    try {
+      const register = partners.prepare("INSERT INTO job_source(provider, name, kind, direction, attribution, data_status,"
+        + " approved, can_store, can_redisplay) VALUES (?, ?, 'fixture', 'push', 'Test source', ?, ?, ?, ?)");
+      for (const [provider, mode, approved] of [
+        ['fixture_a', 'mock', 0], ['fixture_b', 'mock', 0], ['fixture_review', 'curated', 1], ['fixture_pending', 'live', 0]
+      ]) register.run(provider, provider, mode, approved, approved, approved);
+    } finally {
+      partners.close();
+    }
+    const jobPartner = client(jobBase, { 'X-Api-Key': 'test-key' });
+    const firstListing = {
+      externalId: 'a1', title: 'งานพาร์ทไทม์ทดสอบหลายแหล่ง', organization: 'บริษัททดสอบ',
+      category: 'job_part', mapGroup: 'job', sourceUrl: 'https://example.org/jobs/test-a1',
+      money: { basis: 'listing', min: 400, unit: 'บาท/วัน' }, skills: ['จัดสินค้า'],
+      location: { precision: 'city', province: 'เชียงใหม่', district: 'เมืองเชียงใหม่', workMode: 'onsite' }
+    };
+    const sameTitle = { ...firstListing, externalId: 'b2', sourceUrl: 'https://example.org/jobs/test-b2',
+      location: { ...firstListing.location, district: 'หางดง' } };
+    const sendJobs = (provider, items, expect = 200, dataStatus) =>
+      jobPartner('upsertOpportunitiesBatch', { body: { provider, items, dataStatus }, expect });
+    const firstPush = await sendJobs('fixture_a', [firstListing, { ...firstListing, sourceUrl: 'not-a-url' }], 200, 'mock');
+    check('SQLite push accepts valid jobs and rejects invalid rows without rolling back the accepted ones',
+      firstPush.data.accepted === 1 && firstPush.data.rejected[0]?.index === 1);
+    await sendJobs('fixture_pending', [firstListing], 422);
+    await sendJobs('fixture_a', [firstListing], 422, 'live');
+    await sendJobs('fixture_unregistered', [firstListing], 422);
+    const overlapping = await sendJobs('fixture_b', [{ ...firstListing, externalId: 'b1', sourceUrl: firstListing.sourceUrl + '#apply' }, sameTitle]);
+    check('SQLite push keeps duplicate provider rows and reports the matching original without merging similar jobs',
+      overlapping.data.accepted === 1 && overlapping.data.merged[0]?.existingId === 'fixture_a_a1');
+    const filteredJobs = (await jobClient('searchOpportunities', { query: { q: 'งานพาร์ทไทม์ทดสอบหลายแหล่ง',
+      dataMode: 'mock', province: 'เชียงใหม่', district: 'เมืองเชียงใหม่', workMode: 'onsite', skill: 'จัดสินค้า' }, expect: 200 })).data;
+    check('general filters use source fields and one result retains both source links',
+      filteredJobs.totalCount === 1 && filteredJobs.items[0]?.location.lat === undefined
+      && filteredJobs.items[0]?.provenance.sourceLinks?.map(link => link.provider).join(',') === 'fixture_a,fixture_b');
+    const branch = (await jobClient('searchOpportunities', { query: { q: 'งานพาร์ทไทม์ทดสอบหลายแหล่ง', province: 'เชียงใหม่' } })).data;
+    check('jobs with the same title and employer in two branches remain distinct', branch.totalCount === 2);
+    const updatedListing = { ...firstListing, money: { ...firstListing.money, min: 500 } };
+    await sendJobs('fixture_a', [updatedListing]);
+    await sendJobs('fixture_a', [updatedListing]);
+    await sendJobs('fixture_b', [sameTitle]);
+    const curated = await sendJobs('fixture_review', [firstListing]);
+    check('curated jobs enter the review queue', curated.data.accepted === 1);
+    await jobClient('getOpportunity', { params: { id: 'fixture_review_a1' }, expect: 404 });
+    const sql = new DatabaseSync(jobDbFile, { readOnly: true });
+    try {
+      const version = sql.prepare('SELECT version, money_min, prev_snapshot FROM job_posting WHERE id = ?').get('fixture_a_a1');
+      const omitted = sql.prepare('SELECT status, source_url FROM job_posting WHERE id = ?').get('fixture_b_b1');
+      const pending = sql.prepare('SELECT status, review_reason FROM job_posting WHERE id = ?').get('fixture_review_a1');
+      const denied = sql.prepare("SELECT COUNT(*) AS count FROM job_posting WHERE provider IN ('fixture_pending','fixture_unregistered')").get();
+      check('SQLite push rejects unregistered and unapproved job sources without writing any rows', denied.count === 0);
+      check('push updates are idempotent, partial batches keep omitted jobs and curated rows retain their review reason',
+        version.version === 2 && version.money_min === 500 && JSON.parse(version.prev_snapshot).money_min === 400
+        && omitted.status === 'active' && omitted.source_url.endsWith('#apply')
+        && pending.status === 'needs_review' && pending.review_reason === 'new');
+    } finally {
+      sql.close();
+    }
+    await jobPartner('receiveWebhook', { params: { provider: 'fixture_b' }, body: { event: 'opportunity.closed', externalId: 'b1' }, expect: 202 });
+    await jobClient('getOpportunity', { params: { id: 'fixture_b_b1' }, expect: 404 });
+    const listed = (await jobClient('listSources')).data.items;
+    check('SQLite source state tracks partner pushes and batches do not remove other sources',
+      listed.some(source => source.provider === 'fixture_a' && source.state === 'ok' && source.itemCount === 1)
+      && listed.some(source => source.provider === 'mock_doe' && source.itemCount === 26));
+    await new Promise(resolve => jobServer.close(resolve));
+
+    seedDemoJobs(jobDbFile);
+    jobServer = createServer({ jobDbFile, jobs: false, fetch: jobFetch });
+    const restarted = client(await listen(jobServer), { 'X-Device-Id': 'device-sqlite-restarted' });
+    const storedReport = await restarted('getOpportunity', { params: jobParams, expect: 200 });
+    check('SQLite report hiding survives seed and restart', storedReport.data.suspicious === true && storedReport.data.suspiciousReasons.length === 1);
+    const storedPush = (await restarted('getOpportunity', { params: { id: 'fixture_a_a1' }, expect: 200 })).data;
+    const storedBranch = (await restarted('getOpportunity', { params: { id: 'fixture_b_b2' }, expect: 200 })).data;
+    check('jobs from both push sources survive a restart with their URL, pay and location',
+      storedPush.provenance.sourceUrl === firstListing.sourceUrl && storedPush.money.min === 500
+      && storedBranch.provenance.sourceUrl === sameTitle.sourceUrl && storedBranch.location.district === 'หางดง');
+    await restarted('getOpportunity', { params: { id: 'fixture_b_b1' }, expect: 404 });
+  } finally {
+    if (jobServer?.listening) await new Promise(resolve => jobServer.close(resolve));
+    if (fs.existsSync(jobDbFile)) fs.unlinkSync(jobDbFile);
+  }
+
+  // Scheduled mock feed: exercise the registered timer against a real temporary SQLite file.
+  const syncSuffix = require('node:crypto').randomUUID();
+  const syncDbFile = path.join(os.tmpdir(), 'ma-scheduled-' + syncSuffix + '.db');
+  const syncFeedFile = path.join(os.tmpdir(), 'ma-scheduled-' + syncSuffix + '.json');
+  const mockJobs = require('./fixtures/opportunities-mock.json').items.filter(item => item.provider === 'mock_doe' && item.category === 'job_part');
+  const [pay, kept, missingJob, closedJob, expiredJob] = mockJobs;
+  const writeFeed = items => fs.writeFileSync(syncFeedFile, JSON.stringify({ items }));
+  const jobId = item => item.provider + '_' + item.externalId;
+  let syncDb, syncServer, tick;
+  try {
+    syncDb = new DatabaseSync(syncDbFile);
+    syncDb.exec(fs.readFileSync(path.join(__dirname, '../docs/entities/database-script/001_create_job_tables.sql'), 'utf-8'));
+    writeFeed(mockJobs);
+    const readSync = () => syncDb.prepare("SELECT state, last_run_id, last_fetched_at, last_run_stat FROM job_source WHERE provider = 'mock_doe'").get();
+    const readJob = id => syncDb.prepare('SELECT * FROM job_posting WHERE id = ?').get(id);
+
+    const setRealInterval = global.setInterval;
+    global.setInterval = (callback, delay, ...args) => {
+      if (delay === 60 * 60 * 1000) tick = () => callback(...args);
+      return setRealInterval(callback, delay, ...args);
+    };
+    let syncBase;
+    try {
+      syncServer = createServer({ jobDbFile: syncDbFile, mockJobFeedFile: syncFeedFile, fetch: jobFetch, autoJobSync: true });
+      syncBase = await listen(syncServer);
+    } finally {
+      global.setInterval = setRealInterval;
+    }
+    const syncClient = client(syncBase, { 'X-Device-Id': 'device-scheduled-first' });
+
+    async function waitForSource(ready) {
+      const deadline = Date.now() + 3000;
+      do {
+        const source = readSync();
+        if (ready(source)) return source;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      } while (Date.now() < deadline);
+      throw new Error('Mock refresh did not reach the expected SQLite state');
+    }
+
+    const startup = await waitForSource(source => source?.state === 'ok');
+    const health = (await syncClient('getHealth', { expect: 200 })).data;
+    check('SQLite mock feed runs at startup and registers a one-hour timer',
+      JSON.parse(startup.last_run_stat).new === mockJobs.length && typeof tick === 'function'
+      && health.jobs.some(job => job.name === 'mock_job_refresh' && job.enabled && job.everyMinutes === 60));
+    await tick();
+    check('SQLite mock feed repeat preserves IDs and versions',
+      JSON.parse(readSync().last_run_stat).unchanged === mockJobs.length
+      && syncDb.prepare('SELECT COUNT(*) AS count FROM job_posting').get().count === mockJobs.length
+      && readJob(jobId(pay)).version === 1 && readSync().last_run_id !== startup.last_run_id);
+
+    for (const device of ['first', 'second', 'third']) {
+      await client(syncBase, { 'X-Device-Id': 'device-scheduled-' + device })('reportOpportunity', {
+        params: { id: jobId(pay) }, body: { reason: 'suspicious' }, expect: 202
+      });
+    }
+
+    const newJob = { ...kept, externalId: 'sync-new', title: 'DEMO / MOCK งานรายวันเพิ่มใหม่' };
+    const refreshed = mockJobs.filter(item => item !== missingJob).map(item => {
+      if (item === pay) return { ...item, money: { ...item.money, min: item.money.min + 20 } };
+      if (item === closedJob) return { ...item, status: 'closed' };
+      if (item === expiredJob) return { ...item, expiresAt: '2020-01-01T00:00:00Z' };
+      return item;
+    }).concat(newJob);
+    writeFeed(refreshed);
+    const [result, coalesced] = await Promise.all([tick(), tick()]);
+    const updated = readJob(jobId(pay));
+    const stats = JSON.parse(result);
+    const detail = (await syncClient('getOpportunity', { params: { id: jobId(pay) }, expect: 200 })).data;
+    check('SQLite mock feed updates pay once, preserving the previous version and report hide',
+      result === coalesced && stats.changed === 3 && updated.version === 2
+      && JSON.parse(updated.prev_snapshot).money_min === pay.money.min
+      && detail.money.min === pay.money.min + 20 && detail.suspicious && detail.provenance.dataStatus === 'mock'
+      && updated.hidden_by_reports === 1);
+    check('SQLite mock feed marks missing, closed and expired without deleting rows',
+      stats.new === 1 && stats.missing === 1 && readJob(jobId(newJob)).version === 1
+      && readJob(jobId(missingJob)).status === 'needs_review' && readJob(jobId(missingJob)).review_reason === 'missing'
+      && readJob(jobId(closedJob)).status === 'closed' && readJob(jobId(expiredJob)).status === 'expired');
+    const visible = (await syncClient('searchOpportunities', { query: { group: 'job', radiusKm: 100, limit: 100 }, expect: 200 })).data.items;
+    check('SQLite mock feed changes flow through the mobile search API', visible.some(item => item.id === jobId(newJob))
+      && [pay, missingJob, closedJob, expiredJob].every(item => !visible.some(resultItem => resultItem.id === jobId(item))));
+
+    const lastGood = readSync();
+    writeFeed(refreshed.slice(0, 2));
+    const massMissing = await tick();
+    const afterDrop = readSync();
+    check('SQLite mock feed rejects a snapshot missing exactly half of the active rows',
+      massMissing.startsWith('failed:') && afterDrop.state === 'failed' && afterDrop.last_run_id === lastGood.last_run_id
+      && afterDrop.last_fetched_at === lastGood.last_fetched_at && readJob(jobId(newJob)).status === 'active');
+
+    writeFeed([]);
+    const empty = await tick();
+    check('SQLite mock feed rejects an unexpectedly empty snapshot', empty.startsWith('failed:')
+      && readSync().last_run_id === lastGood.last_run_id && readJob(jobId(newJob)).status === 'active');
+    writeFeed([{ ...refreshed[0], money: { basis: 'listing', min: 999, max: 1 } }, ...refreshed.slice(1)]);
+    const invalid = await tick();
+    check('SQLite mock feed rejects invalid pay without writing a partial snapshot',
+      invalid.startsWith('failed:') && readSync().last_run_id === lastGood.last_run_id && readJob(jobId(pay)).version === 2);
+
+    fs.writeFileSync(syncFeedFile, 'invalid JSON');
+    await tick();
+    const stale = (await syncClient('searchOpportunities', { query: { group: 'job', radiusKm: 100, limit: 100 }, expect: 200 })).data;
+    check('SQLite mock feed failure exposes a warning and retains the last successful catalogue',
+      stale.sourceWarnings?.includes('mock_doe') && stale.items.some(item => item.id === jobId(newJob)));
+
+    writeFeed(refreshed);
+    await syncClient('refreshSource', { params: { provider: 'mock_doe' }, expect: 202 });
+    const recovered = await waitForSource(source => source?.state === 'ok' && source.last_run_id !== lastGood.last_run_id);
+    check('SQLite mock feed recovers via the existing refresh endpoint without extra versions',
+      JSON.parse(recovered.last_run_stat).new === 0 && readJob(jobId(pay)).version === 2);
+  } finally {
+    if (syncServer?.listening) await new Promise(resolve => syncServer.close(resolve));
+    syncDb?.close();
+    for (const file of [syncFeedFile, syncDbFile]) if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
+
+  // Partner feeds are polled by the same scheduler and writer as Jobicy.
+  const feedDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ma-job-file-feeds-'));
+  const feedDbFile = path.join(feedDir, 'catalogue.db');
+  const feedConfig = path.join(feedDir, 'feeds.json');
+  const csvFile = path.join(feedDir, 'jobs.csv');
+  const jsonFile = path.join(feedDir, 'jobs.json');
+  const csvHeader = 'externalId,title,category,sourceUrl,province,workMode,moneyBasis,moneyMin,conditions\r\n';
+  const csvLine = pay => 'one,"งานแพ็ก, ขนาด ""เล็ก""",job_part,https://example.org/job/one,เชียงใหม่,onsite,listing,' + pay + ',"หนึ่ง\r\nสอง"\r\n';
+  const jsonJob = { externalId: 'two', title: 'DEMO / MOCK งาน JSON', category: 'job_part', mapGroup: 'job',
+    sourceUrl: 'https://example.org/job/two', money: { basis: 'none' } };
+  let feedServer, feedDb, revalidated = false;
+  const feedOptions = {
+    jobDbFile: feedDbFile, jobFeedsFile: feedConfig, autoJobSync: true,
+    fetch: async (url, options) => {
+      if (url !== 'https://example.org/partner.json') throw new Error('Unexpected feed URL');
+      if (options.headers['If-None-Match'] === '"v1"') {
+        revalidated = true;
+        return new Response(null, { status: 304 });
+      }
+      return new Response(JSON.stringify([jsonJob]), { headers: { etag: '"v1"' } });
+    }
+  };
+  try {
+    feedDb = new DatabaseSync(feedDbFile);
+    feedDb.exec(fs.readFileSync(path.join(__dirname, '../docs/entities/database-script/001_create_job_tables.sql'), 'utf-8'));
+    feedDb.prepare("INSERT INTO job_source(provider, name, kind, direction, attribution, data_status, fetch_url, approved, can_store, can_redisplay)"
+      + " VALUES ('fixture_http', 'Partner API', 'fixture', 'pull', 'Partner API', 'open_data', 'https://example.org/partner.json', 1, 1, 1)").run();
+    fs.writeFileSync(feedConfig, JSON.stringify([
+      { provider: 'mock_csv', mock: true, format: 'csv', file: path.basename(csvFile) },
+      { provider: 'mock_json', mock: true, format: 'json', file: path.basename(jsonFile), everyMinutes: 90 },
+      { provider: 'fixture_http', format: 'json' }
+    ]));
+    fs.writeFileSync(csvFile, '\uFEFF' + csvHeader + csvLine(450));
+    fs.writeFileSync(jsonFile, JSON.stringify({ items: [jsonJob] }));
+    const hourly = [];
+    const setRealInterval = global.setInterval;
+    global.setInterval = (callback, delay, ...args) => {
+      if (delay === 60 * 60_000) hourly.push(() => callback(...args));
+      return setRealInterval(callback, delay, ...args);
+    };
+    let base;
+    try {
+      feedServer = createServer(feedOptions);
+      base = await listen(feedServer);
+    } finally {
+      global.setInterval = setRealInterval;
+    }
+    const readSource = provider => feedDb.prepare('SELECT * FROM job_source WHERE provider = ?').get(provider);
+    const readPosting = id => feedDb.prepare('SELECT * FROM job_posting WHERE id = ?').get(id);
+    const deadline = Date.now() + 3000;
+    while (!['mock_csv', 'mock_json', 'fixture_http'].every(provider => readSource(provider)?.state === 'ok') && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    const health = (await client(base)('getHealth', { expect: 200 })).data;
+    check('scheduled CSV and JSON load at startup, default to an hour and allow a per-source interval',
+      hourly.length === 3 && health.jobs.some(job => job.name === 'job_file_refresh_mock_csv' && job.everyMinutes === 60)
+      && health.jobs.some(job => job.name === 'job_file_refresh_mock_json' && job.everyMinutes === 90)
+      && readPosting('mock_csv_one')?.title === 'งานแพ็ก, ขนาด "เล็ก"'
+      && JSON.parse(readPosting('mock_csv_one').conditions)[0] === 'หนึ่ง สอง'
+      && readPosting('mock_json_two')?.source_url === jsonJob.sourceUrl);
+
+    fs.writeFileSync(csvFile, csvHeader + csvLine(550));
+    await Promise.all(hourly.map(tick => tick()));
+    const lastGood = readSource('mock_csv');
+    const httpSource = readSource('fixture_http');
+    check('the hourly timer updates changed CSV and sends conditional HTTP requests for unchanged feeds',
+      readPosting('mock_csv_one').money_min === 550 && readPosting('mock_csv_one').version === 2
+      && revalidated && JSON.parse(httpSource.last_run_stat).feedUnchanged && readPosting('fixture_http_two').version === 1);
+
+    fs.writeFileSync(csvFile, csvHeader + '"unterminated');
+    fs.writeFileSync(jsonFile, JSON.stringify({ items: [] }));
+    await Promise.all(['mock_csv', 'mock_json'].map(provider => feedServer.ports.jobs.run('job_file_refresh_' + provider)));
+    check('a broken CSV preserves its last successful cursor and an empty partial JSON does not close jobs',
+      readSource('mock_csv').state === 'failed' && readSource('mock_csv').sync_cursor === lastGood.sync_cursor
+      && readPosting('mock_csv_one').money_min === 550 && readPosting('mock_json_two').status === 'active');
+
+    fs.writeFileSync(csvFile, csvHeader + csvLine(550) + csvLine(650).replace(/^one,/, 'manual-only,'));
+    await new Promise(resolve => feedServer.close(resolve));
+    feedServer = createServer({ ...feedOptions, autoJobSync: false });
+    const afterRestart = client(await listen(feedServer));
+    const manualJobs = (await afterRestart('getHealth', { expect: 200 })).data.jobs.filter(job => job.name.includes('refresh'));
+    const paused = manualJobs.length > 0 && manualJobs.every(job => !job.enabled && job.lastRunAt === undefined)
+      && !readPosting('mock_csv_manual-only');
+    await afterRestart('refreshSource', { params: { provider: 'mock_csv' }, expect: 202 });
+    const manualDeadline = Date.now() + 3000;
+    while (!readPosting('mock_csv_manual-only') && Date.now() < manualDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    check('manual mode waits for a refresh request before inserting a new job',
+      paused && readPosting('mock_csv_manual-only')?.money_min === 650);
+    await feedServer.ports.jobs.run('job_file_refresh_mock_csv');
+    const stored = (await afterRestart('getOpportunity', { params: { id: 'mock_csv_one' }, expect: 200 })).data;
+    check('scheduled feed content and revision cursor survive a restart without duplicate updates',
+      stored.money.min === 550 && stored.provenance.sourceUrl === 'https://example.org/job/one'
+      && readPosting('mock_csv_one').version === 2 && JSON.parse(readSource('mock_csv').last_run_stat).feedUnchanged);
+  } finally {
+    if (feedServer?.listening) await new Promise(resolve => feedServer.close(resolve));
+    feedDb?.close();
+    for (const file of [feedDbFile, feedConfig, csvFile, jsonFile]) if (fs.existsSync(file)) fs.unlinkSync(file);
+    fs.rmdirSync(feedDir);
+  }
+
+  // Authorized partner feeds use five minutes unless the provider needs a longer interval.
+  const partnerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ma-partner-feeds-'));
+  const partnerDbFile = path.join(partnerDir, 'catalogue.db');
+  const partnerConfig = path.join(partnerDir, 'feeds.json');
+  const partnerProviders = ['jobthai', 'jobsdb', 'jobbkk', 'jobtopgun', 'fastwork'];
+  const partnerJobName = provider => 'job_file_refresh_' + provider;
+  const partnerKeyVariable = 'MA_TEST_PARTNER_FEED_KEY';
+  const previousPartnerKey = process.env[partnerKeyVariable];
+  const partnerKey = require('node:crypto').randomUUID();
+  const calls = [];
+  let partnerServer, partnerDb;
+  let partnerTime = Date.now();
+  let jobThaiPay = 450;
+  const partnerOptions = {
+    jobDbFile: partnerDbFile, jobFeedsFile: partnerConfig, jobClock: () => partnerTime,
+    fetch: async (input, { headers }) => {
+      const url = new URL(input);
+      const provider = url.pathname.slice(1);
+      if (url.origin !== 'https://partners.example.org' || !partnerProviders.includes(provider)) throw new Error('Unexpected partner feed URL');
+      if (provider === 'jobsdb' && headers['X-Api-Key'] !== partnerKey) throw new Error('Configured key is missing from the JobsDB request');
+      if (provider !== 'jobsdb' && headers['X-Api-Key']) throw new Error('A partner key was sent to the wrong source');
+      calls.push(provider);
+      return Response.json([{
+        externalId: 'listing-1', title: 'Test listing ' + provider, mapGroup: 'job', category: 'job_part',
+        sourceUrl: 'https://example.org/' + provider + '/listing-1',
+        money: { basis: 'listing', unit: 'บาท/วัน', min: provider === 'jobthai' ? jobThaiPay : 500 }
+      }]);
+    }
+  };
+  try {
+    process.env[partnerKeyVariable] = partnerKey;
+    partnerDb = new DatabaseSync(partnerDbFile);
+    partnerDb.exec(fs.readFileSync(path.join(__dirname, '../docs/entities/database-script/001_create_job_tables.sql'), 'utf-8'));
+    const register = partnerDb.prepare("INSERT INTO job_source(provider,name,kind,direction,attribution,data_status,fetch_url,approved,can_store,can_redisplay)"
+      + " VALUES (?, ?, 'fixture', 'pull', ?, 'live', ?, 1, 1, 1)");
+    for (const provider of partnerProviders) register.run(provider, provider, provider, 'https://partners.example.org/' + provider);
+    fs.writeFileSync(partnerConfig, JSON.stringify([
+      ...partnerProviders.map(provider => ({
+        provider, format: 'json',
+        ...(provider === 'fastwork' ? { everyMinutes: 15 } : {}),
+        ...(provider === 'jobsdb' ? { auth: { type: 'api-key', env: partnerKeyVariable } } : {})
+      })),
+      { provider: 'fixture_disabled', format: 'json', enabled: false }
+    ]));
+
+    partnerServer = createServer({ ...partnerOptions, autoJobSync: false });
+    const manualClient = client(await listen(partnerServer));
+    const manual = (await manualClient('getHealth', { expect: 200 })).data.jobs;
+    check('all five feeds can be registered in manual mode and disabled config remains dormant',
+      calls.length === 0 && !manual.some(job => job.name === partnerJobName('fixture_disabled'))
+      && partnerProviders.every(provider => manual.some(job => job.name === partnerJobName(provider) && !job.enabled)));
+    const sqlJob = provider => partnerDb.prepare('SELECT id, version, money_min, source_url FROM job_posting WHERE provider = ?').get(provider);
+    await manualClient('refreshSource', { params: { provider: 'jobthai' }, expect: 202 });
+    const waitUntil = Date.now() + 3000;
+    while (!sqlJob('jobthai') && Date.now() < waitUntil) await new Promise(resolve => setTimeout(resolve, 20));
+    check('manual partner refresh stores a listing before timers are enabled',
+      calls.join() === 'jobthai' && sqlJob('jobthai')?.money_min === 450);
+    await new Promise(resolve => partnerServer.close(resolve));
+
+    const ticks = new Map();
+    const setRealInterval = global.setInterval;
+    global.setInterval = (fn, interval, ...args) => {
+      if ([5 * 60_000, 15 * 60_000].includes(interval)) {
+        if (!ticks.has(interval)) ticks.set(interval, []);
+        ticks.get(interval).push(() => fn(...args));
+      }
+      return setRealInterval(fn, interval, ...args);
+    };
+    let autoBase;
+    try {
+      partnerServer = createServer({ ...partnerOptions, autoJobSync: true });
+      autoBase = await listen(partnerServer);
+    } finally {
+      global.setInterval = setRealInterval;
+    }
+    const auto = (await client(autoBase)('getHealth', { expect: 200 })).data.jobs;
+    const readyUntil = Date.now() + 3000;
+    const mockReady = () => partnerDb.prepare("SELECT last_run_id FROM job_source WHERE provider = 'mock_doe'").get()?.last_run_id;
+    while ((!mockReady() || !partnerProviders.every(provider => sqlJob(provider))) && Date.now() < readyUntil) {
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    check('partner jobs register five-minute timers and a source can use a longer interval',
+      ticks.get(5 * 60_000)?.length === 4 && ticks.get(15 * 60_000)?.length === 1
+      && partnerProviders.every(provider => auto.some(job => job.name === partnerJobName(provider)
+        && job.enabled && job.everyMinutes === (provider === 'fastwork' ? 15 : 5))));
+    check('startup respects the interval across restarts and partner credentials stay source-specific',
+      calls.length === 5 && new Set(calls).size === 5 && partnerProviders.every(provider => sqlJob(provider)?.version === 1));
+    const early = await partnerServer.ports.jobs.run(partnerJobName('jobthai'));
+    jobThaiPay = 550;
+    partnerTime += 5 * 60_000;
+    await Promise.all(ticks.get(5 * 60_000).map(tick => tick()));
+    check('the five-minute timer updates an existing posting and keeps its link without creating duplicates',
+      early.startsWith('skipped:') && calls.filter(provider => provider === 'jobthai').length === 2
+      && calls.filter(provider => provider === 'fastwork').length === 1
+      && sqlJob('jobthai')?.version === 2 && sqlJob('jobthai')?.money_min === 550
+      && sqlJob('jobthai')?.source_url === 'https://example.org/jobthai/listing-1'
+      && partnerDb.prepare("SELECT COUNT(*) AS count FROM job_posting WHERE provider = 'jobthai'").get().count === 1);
+  } finally {
+    if (partnerServer?.listening) await new Promise(resolve => partnerServer.close(resolve));
+    partnerDb?.close();
+    if (previousPartnerKey === undefined) delete process.env[partnerKeyVariable];
+    else process.env[partnerKeyVariable] = previousPartnerKey;
+    for (const file of [partnerDbFile, partnerConfig]) if (fs.existsSync(file)) fs.unlinkSync(file);
+    fs.rmdirSync(partnerDir);
+  }
+
+  // Jobicy uses a rolling feed. Confirm closure using its separate status endpoint.
+  const liveDbFile = path.join(os.tmpdir(), 'ma-jobicy-' + require('node:crypto').randomUUID() + '.db');
+  const listing = (id, jobGeo, extra = {}) => ({
+    id, jobTitle: 'Remote fixture ' + id, companyName: 'Fixture company', jobGeo, jobType: ['Part-Time'],
+    url: 'https://jobicy.com/jobs/' + id + '-example', pubDate: '2026-11-26T09:00:00+07:00', ...extra
+  });
+  const feedPage = (jobs, nextCursor = null) => Response.json({
+    success: true, jobs, jobCount: jobs.length, nextCursor, hasMore: nextCursor !== null
+  });
+  const statusRequests = [];
+  let feedState = 'initial';
+  async function jobicyFetch(input) {
+    const url = new URL(input);
+    const params = url.searchParams;
+    if (url.origin !== 'https://jobicy.com') throw new Error('Unexpected test network URL');
+    if (url.pathname === '/api/jobs/status') {
+      const ids = params.get('ids').split(',');
+      statusRequests.push(ids);
+      const states = { 1002: 'active', 1003: 'closed', 1004: 'unknown' };
+      return Response.json({ success: true, jobs: ids.map(id => ({ id: Number(id), status: states[id] })) });
+    }
+    if (url.pathname !== '/api/jobs' || params.get('geo') !== 'anywhere,thailand') throw new Error('Unexpected Jobicy feed query');
+    if (feedState === 'initial') {
+      return params.has('cursor')
+        ? feedPage([listing(1003, 'Anywhere'), listing(1004, 'Thailand'), listing(1005, 'Thailand')])
+        : feedPage([
+          listing(1001, 'Thailand', { salaryCurrency: 'THB', salaryPeriod: 'daily', salaryMin: 500,
+            jobDescription: '<p>Must not be stored</p>' }),
+          listing(1002, 'Anywhere', { salaryCurrency: 'USD', salaryPeriod: 'yearly', salaryMin: 65000 }),
+          listing(1006, 'APAC, Australia')
+        ], 'fixture-page-2');
+    }
+    if (feedState === 'partial') {
+      return params.has('cursor')
+        ? new Response(null, { status: 503 })
+        : feedPage([listing(1008, 'Thailand')], 'fixture-incomplete');
+    }
+    return feedPage([listing(1001, 'Thailand', { salaryCurrency: 'THB', salaryPeriod: 'daily', salaryMin: 550 }),
+      listing(1005, 'APAC, Australia'), listing(1007, 'Anywhere')]);
+  }
+
+  let jobicyDb, jobicyServer;
+  let jobicyTime = Date.now();
+  const jobicyOptions = { jobDbFile: liveDbFile, jobicySync: true, jobs: false, fetch: jobicyFetch, jobClock: () => jobicyTime };
+  try {
+    jobicyDb = new DatabaseSync(liveDbFile);
+    jobicyDb.exec(fs.readFileSync(path.join(__dirname, '../docs/entities/database-script/001_create_job_tables.sql'), 'utf-8'));
+    jobicyServer = createServer(jobicyOptions);
+    const jobicyClient = client(await listen(jobicyServer), { 'X-Device-Id': 'device-jobicy-test' });
+    const readJobicySource = () => jobicyDb.prepare("SELECT * FROM job_source WHERE provider = 'jobicy'").get();
+    const liveRun = () => jobicyServer.ports.jobs.run('jobicy_refresh');
+    const first = JSON.parse(await liveRun());
+    const source = readJobicySource();
+    const liveHealth = (await jobicyClient('getHealth', { expect: 200 })).data;
+    check('Jobicy consumes the complete paginated feed, filters eligibility, records reuse and registers one hour',
+      first.new === 5 && source.state === 'ok' && source.data_status === 'live'
+      && source.approved && source.can_store && source.can_redisplay && source.terms_url.startsWith('https://jobicy.com/')
+      && liveHealth.jobs.some(job => job.name === 'jobicy_refresh' && job.everyMinutes === 60));
+    jobicyTime += 60 * 60_000 - 1;
+    check('Jobicy skips an early refresh without updating the completed run',
+      (await liveRun()).startsWith('skipped:') && readJobicySource().last_run_id === source.last_run_id);
+    jobicyTime++;
+    const localPay = (await jobicyClient('getOpportunity', { params: { id: 'jobicy_1001' }, expect: 200 })).data;
+    const foreignPay = (await jobicyClient('getOpportunity', { params: { id: 'jobicy_1002' }, expect: 200 })).data;
+    const storedRow = jobicyDb.prepare("SELECT * FROM job_posting WHERE id = 'jobicy_1001'").get();
+    check('Jobicy preserves attribution and apply links without storing descriptions or treating foreign salary as baht',
+      localPay.provenance.attribution === 'Jobicy' && localPay.provenance.dataStatus === 'live'
+      && localPay.provenance.sourceUrl === 'https://jobicy.com/jobs/1001-example'
+      && localPay.money.min === 500 && localPay.money.unit === 'บาท/วัน'
+      && foreignPay.money.basis === 'none' && foreignPay.money.min === undefined && !JSON.stringify(storedRow).includes('Must not be stored'));
+
+    const realPage = await jobicyClient('searchOpportunities', {
+      query: { group: 'job', dataMode: 'real', radiusKm: 50, sort: 'fresh', limit: 1 }, expect: 200
+    });
+    const nextRealPage = await jobicyClient('searchOpportunities', {
+      query: { group: 'job', dataMode: 'real', radiusKm: 50, sort: 'fresh', limit: 1, cursor: realPage.data.nextCursor }, expect: 200
+    });
+    const demoPage = await jobicyClient('searchOpportunities', { query: { group: 'job', dataMode: 'mock' }, expect: 200 });
+    await jobicyClient('searchOpportunities', { query: { dataMode: 'unsupported' }, expect: 400 });
+    check('source filters run before pagination and remote Jobicy listings keep their designation',
+      realPage.data.totalCount > 1 && realPage.data.totalCount === nextRealPage.data.totalCount
+      && realPage.headers.get('x-total-count') === String(realPage.data.totalCount)
+      && realPage.data.items[0].id !== nextRealPage.data.items[0].id
+      && realPage.data.items.every(item => item.provenance.dataStatus !== 'mock')
+      && nextRealPage.data.items.every(item => item.provenance.dataStatus !== 'mock')
+      && demoPage.data.items.length > 0 && demoPage.data.items.every(item => item.provenance.dataStatus === 'mock')
+      && localPay.location.isRemote === true && localPay.location.precision === 'none');
+
+    feedState = 'updated';
+    const next = JSON.parse(await liveRun());
+    const current = (await jobicyClient('getOpportunity', { params: { id: 'jobicy_1001' }, expect: 200 })).data;
+    const visible = (await jobicyClient('searchOpportunities', { query: { group: 'job', radiusKm: 50, limit: 100 }, expect: 200 })).data.items;
+    const ids = visible.filter(item => item.provenance.provider === 'jobicy').map(item => item.id).sort().join(',');
+    check('Jobicy keeps older open jobs and hides closed, unconfirmed and ineligible jobs',
+      statusRequests.at(-1).sort().join(',') === '1002,1003,1004' && next.new === 1 && next.changed === 1
+      && current.money.min === 550 && ids === 'jobicy_1001,jobicy_1002,jobicy_1007'
+      && jobicyDb.prepare("SELECT status FROM job_posting WHERE id = 'jobicy_1003'").get().status === 'closed'
+      && jobicyDb.prepare("SELECT review_reason FROM job_posting WHERE id = 'jobicy_1004'").get().review_reason === 'missing');
+    const lastGood = readJobicySource();
+    feedState = 'partial';
+    jobicyTime += 60 * 60_000;
+    const failed = await liveRun();
+    const after = readJobicySource();
+    const noPartial = jobicyDb.prepare("SELECT COUNT(*) AS count FROM job_posting WHERE id = 'jobicy_1008'").get();
+    check('Jobicy leaves the last good dataset intact if a later page fails',
+      failed.startsWith('failed:') && after.state === 'failed' && after.last_run_id === lastGood.last_run_id
+      && noPartial.count === 0 && (await jobicyClient('getOpportunity', { params: { id: 'jobicy_1007' }, expect: 200 })).data.id === 'jobicy_1007');
+
+    await new Promise(resolve => jobicyServer.close(resolve));
+    jobicyServer = createServer(jobicyOptions);
+    await listen(jobicyServer);
+    check('Jobicy remembers the minimum interval across a restart after a failed attempt',
+      (await liveRun()).startsWith('skipped:') && readJobicySource().state === 'failed');
+    await new Promise(resolve => jobicyServer.close(resolve));
+    jobicyServer = createServer({ jobDbFile: liveDbFile, jobs: false, fetch: jobFetch });
+    const offline = client(await listen(jobicyServer), { 'X-Device-Id': 'device-jobicy-offline' });
+    const persisted = (await offline('getOpportunity', { params: { id: 'jobicy_1001' }, expect: 200 })).data;
+    check('Jobicy remains readable from SQLite after restart with online refresh disabled',
+      persisted.money.min === 550 && persisted.provenance.dataStatus === 'live');
+  } finally {
+    if (jobicyServer?.listening) await new Promise(resolve => jobicyServer.close(resolve));
+    jobicyDb?.close();
+    if (fs.existsSync(liveDbFile)) fs.unlinkSync(liveDbFile);
+  }
 
   const missing = Object.keys(ops).filter(x => !called.has(x));
   check('every OpenAPI operation exercised (' + called.size + '/' + Object.keys(ops).length + ')', !missing.length, missing.join(','));

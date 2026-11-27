@@ -1,0 +1,13 @@
+[
+  { "provider": "smartjob", "name": "กรมการจัดหางาน · SmartJob / ไทยมีงานทำ", "accessMode": "link", "websiteUrl": "https://xn--72c5abh2bf8icw0m9d.doe.go.th/" },
+  { "provider": "jobthai", "name": "JobThai", "accessMode": "link", "websiteUrl": "https://www.jobthai.com/th/jobs" },
+  { "provider": "jobsdb", "name": "JobsDB Thailand", "accessMode": "link", "websiteUrl": "https://th.jobsdb.com/th/jobs" },
+  { "provider": "jobbkk", "name": "JobBKK", "accessMode": "link", "websiteUrl": "https://www.jobbkk.com/jobsearch" },
+  { "provider": "jobtopgun", "name": "JobTopGun", "accessMode": "link", "websiteUrl": "https://www.jobtopgun.com/th" },
+  { "provider": "fastwork", "name": "Fastwork Jobboard", "accessMode": "link", "websiteUrl": "https://jobboard.fastwork.co/" },
+  { "provider": "jsearch", "name": "JSearch", "accessMode": "pending", "websiteUrl": "https://www.openwebninja.com/api/jsearch" },
+  { "provider": "adzuna", "name": "Adzuna", "accessMode": "pending", "websiteUrl": "https://developer.adzuna.com/" },
+  { "provider": "data_go_th", "name": "data.go.th", "accessMode": "discovery", "websiteUrl": "https://data.go.th/" },
+  { "provider": "thailand_open_apis", "name": "Thailand-Open-APIs", "accessMode": "discovery", "websiteUrl": "https://github.com/mogohichi/Thailand-Open-APIs" },
+  { "provider": "th_open_data_studio", "name": "Apify · Thailand Open Data Studio", "accessMode": "discovery", "websiteUrl": "https://apify.com/subimpact/th-open-data-studio" }
+]

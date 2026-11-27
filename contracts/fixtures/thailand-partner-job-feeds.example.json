@@ -1,0 +1,7 @@
+[
+  { "provider": "jobthai", "format": "json", "enabled": false },
+  { "provider": "jobsdb", "format": "json", "enabled": false },
+  { "provider": "jobbkk", "format": "json", "enabled": false },
+  { "provider": "jobtopgun", "format": "json", "enabled": false },
+  { "provider": "fastwork", "format": "json", "enabled": false }
+]

@@ -26,6 +26,68 @@ related:
 
 ขั้นตอนที่ AI ต้องทำตามเมื่อเขียนหรือแก้ส่วนที่นำข้อมูลงานเข้าตาราง `job_posting` แบบ incremental คือเขียนเฉพาะรายการที่เปลี่ยน ไม่ลบรายการที่หายไปทันที และไม่เขียนทับข้อมูลที่ต้องให้คนตรวจ ขั้นตอนนี้ต่อยอดจาก `upsert()` และ `refresh()` ใน `mock-server.js` ซึ่งปัจจุบัน `refresh` ลบรายการของ provider ทั้งหมดแล้วใส่ใหม่
 
+## เปิดใช้การอัปเดต DEMO / MOCK
+
+เมื่อกำหนด `JOB_DB_FILE` เซิร์ฟเวอร์พร้อมรับคำสั่งอัปเดตแหล่ง `mock_doe` จากฟีดจำลองใน `contracts/fixtures/opportunities-mock.json` ค่าเริ่มต้นเป็นแบบสั่งเอง ใช้ `JOB_AUTO_SYNC=0` เพื่อกำหนดโหมดนี้ชัดเจน และ `JOB_AUTO_SYNC=1` เพื่อเปิดการดึงตอนเริ่มรับคำขอและทุก 1 ชั่วโมง
+
+รันคำสั่งนี้จากโฟลเดอร์รากของ repo บน PowerShell
+
+```powershell
+$env:JOB_DB_FILE = (Resolve-Path 'docs/entities/database-script/catalogue.db').Path
+$env:LIVE = '0'
+$env:JOB_AUTO_SYNC = '0'
+npm.cmd --prefix .\contracts run mock
+```
+
+สำหรับการทดสอบฟีดอื่น ให้กำหนด `MOCK_JOB_FEED_FILE` เป็นพาธของไฟล์ JSON ที่คัดลอกมาจากฟีดตัวอย่าง เซิร์ฟเวอร์อ่านไฟล์ใหม่ทุกรอบ ใช้ `POST /v1/sources/mock_doe/refresh` เพื่อรันทันที และ `GET /v1/sources` เพื่อตรวจสถานะกับเวลาที่ดึงสำเร็จล่าสุด
+
+ฟิลด์ `job_source.last_run_stat` บันทึกจำนวน `new`, `changed`, `unchanged` และ `missing` ของรอบที่สำเร็จ หากรายการที่ยังเปิดรับหายตั้งแต่ 50% รอบนั้นจะล้มเหลวและคงข้อมูลเดิม ประกาศที่ต้นทางส่งสถานะ `closed` หรือถึงวันหมดอายุใช้สถานะ `closed` หรือ `expired` ตามลำดับ
+
+## เปิดอัปเดต Jobicy เข้าฐาน SQLite
+
+กำหนด `JOB_DB_FILE` ตามตัวอย่างด้านบน แล้วกำหนด `$env:JOBICY_SYNC = '1'` ก่อนรัน Backend ใช้ `JOB_AUTO_SYNC=0` เพื่อสั่งเอง หรือ `JOB_AUTO_SYNC=1` เพื่อตรวจตอนเปิด Backend และทุก 1 ชั่วโมง ระบบอ่านเวลาเริ่มรอบล่าสุดจาก SQLite เพื่อเว้นอย่างน้อย 1 ชั่วโมงระหว่างรอบทั้งสองโหมด
+
+- `GET /v1/health` แสดงงาน `jobicy_refresh` พร้อมผลรอบล่าสุด และ `GET /v1/sources` แสดงเวลาที่ดึงสำเร็จ
+- `POST /v1/sources/jobicy/refresh` สั่งตรวจว่าครบรอบแล้วหรือยังเมื่อเปิด `JOBICY_SYNC`
+- ฟีด Jobicy ครอบคลุมประกาศที่เผยแพร่ในช่วง 7 วัน และอาจมีหลายหน้า ตัวดึงคัดประกาศที่ระบุ Thailand หรือ Anywhere ชัดเจน หากประกาศเดิมหลุดจากฟีด ระบบตรวจสถานะกับ Jobicy ก่อนเปลี่ยนสถานะใน SQLite
+- เก็บชื่อประกาศ นายจ้าง พื้นที่ ลิงก์ Jobicy วันประกาศ และค่าจ้างที่ระบุเป็นบาท ข้อมูลค่าจ้างสกุลอื่นอ้างกลับไปยังประกาศต้นทาง
+
+[เอกสาร Public API ของ Jobicy](https://jobicy.com/jobs-rss-feed)
+
+## ดึงฟีด CSV/JSON
+
+กำหนด `JOB_FEEDS_FILE` เป็นพาธของไฟล์ตั้งค่าฟีด JSON แล้วรัน Backend ด้วย `JOB_DB_FILE` ที่ชี้ฐาน SQLite ตัวอย่างนี้เตรียมฟีด DEMO / MOCK สองแหล่งสำหรับสั่งนำเข้าจากไฟล์ในโครงการ
+
+```powershell
+$env:JOB_FEEDS_FILE = (Resolve-Path 'contracts/fixtures/job-file-feeds.demo.json').Path
+$env:JOB_AUTO_SYNC = '0'
+npm.cmd --prefix .\contracts run mock
+```
+
+- แต่ละรายการกำหนด `provider` และ `format` เป็น `csv` หรือ `json` ค่าเริ่มต้น `everyMinutes` คือ 60 และกำหนดค่าเป็นรายแหล่งได้
+- ถ้าต้นทางวางไฟล์ในเครื่อง Backend ให้ระบุ `file` พาธสัมพัทธ์นับจากโฟลเดอร์ไฟล์ตั้งค่า สำหรับฟีดจำลองให้ระบุ `mock: true` และใช้รหัสที่ขึ้นต้นด้วย `mock_` ฟีดจำลองที่ผ่านเงื่อนไขนี้จะขึ้นทะเบียนให้อัตโนมัติ
+- สำหรับแหล่งจริง ก่อนตั้งเวลาต้องลงทะเบียนเป็น `direction='pull'` และอนุมัติสิทธิ์เก็บและแสดงข้อมูลตามนโยบายโครงการ หากใช้ไฟล์ออนไลน์ให้เว้น `file` และกำหนดปลายทาง HTTPS ใน `job_source.fetch_url` รูปแบบข้อมูลใช้ฟิลด์เดียวกับการนำเข้าไฟล์จากพาร์ทเนอร์ด้านล่าง
+- Backend ตรวจ ETag หรือ Last-Modified ตามที่ต้นทางรองรับ และเปรียบเทียบเนื้อหาไฟล์กับรอบก่อน ถ้าไฟล์เสียหรือดึงล้มเหลว ข้อมูลและตัวชี้รอบสำเร็จล่าสุดจะยังอยู่ ถ้าประกาศหายจากไฟล์ที่ส่งมาเพียงบางส่วน ระบบคงสถานะเดิมไว้
+- เรียก `POST /v1/sources/<provider>/refresh` เพื่อสั่งนำเข้าด้วยมือ แล้วตรวจผลของ `job_file_refresh_<provider>` ที่ `GET /v1/health` ค่า `enabled` บอกสถานะการตั้งเวลา
+
+### เปิดฟีดเว็บงานไทย
+
+ใช้ [ตัวอย่างการตั้งค่าฟีดห้าเว็บ](../../contracts/fixtures/thailand-partner-job-feeds.example.json) สำหรับ `jobthai`, `jobsdb`, `jobbkk`, `jobtopgun` และ `fastwork` ตัวอย่างตั้ง `enabled: false` ไว้ในแต่ละแหล่ง ให้เปิดเฉพาะแหล่งที่ได้รับฟีดแล้ว
+
+1. ลงทะเบียนฟีดใน `job_source` ด้วยรหัสแหล่งที่ตรงกับไฟล์ตั้งค่า กำหนด `direction='pull'` และเก็บ URL ของฟีดใน `fetch_url` พร้อมผลตรวจสิทธิ์ตาม [นโยบายแหล่งข้อมูล](job-source-policy.md)
+2. ตั้ง `format` ให้ตรงกับ CSV หรือ JSON ในรูปแบบกลางของ Backend แล้วเปลี่ยนแหล่งนั้นเป็น `enabled: true` ถ้าฟีดใช้คีย์ ให้เพิ่ม `auth` เช่น `{ "type": "api-key", "env": "PARTNER_JOB_FEED_KEY" }` โดยตั้งค่าคีย์ใน environment ของ Backend ใช้ `type: "bearer"` สำหรับฟีดที่รับ Bearer token
+3. เริ่มด้วย `JOB_AUTO_SYNC=0` แล้วสั่ง `POST /v1/sources/<provider>/refresh` ตรวจจำนวนแถว ลิงก์ต้นทาง และสถานะใน SQLite เมื่อตรวจผลแล้วจึงเริ่ม Backend ด้วย `JOB_AUTO_SYNC=1`
+
+ห้าแหล่งนี้ใช้รอบเริ่มต้น **5 นาที** และตั้ง `everyMinutes` ให้มากขึ้นได้ตามเงื่อนไขของเจ้าของฟีด ฟีดออนไลน์เก็บเวลาเริ่มดึงไว้ใน SQLite การสั่งซ้ำหรือรีสตาร์ตก่อนครบช่วงเวลาจึงข้ามการเรียกรอบนั้น
+
+### รับข้อมูลจาก Apify
+
+[ตัวอย่างการตั้งค่า Apify](../../contracts/fixtures/apify-job-feeds.example.json) เตรียมรอบ 5 นาทีสำหรับ `jobthai`, `jobbkk` และ `fastwork` โดยปิดแต่ละแหล่งไว้จนกว่าจะมีสิทธิ์ใช้ข้อมูลและ Actor Task ที่พร้อม ฟีดของ Fastwork สำหรับตารางงานใช้ประกาศจากฝั่งผู้จ้างใน Jobboard
+
+1. หลังยืนยันเงื่อนไขการดึง เก็บ และแสดงข้อมูลกับต้นทางแล้ว ให้ทดสอบ Actor Task ทีละแหล่งและตรวจว่า Dataset มีฟิลด์ `OpportunityInput` ตาม [API contract](../../contracts/openapi.yaml) รวมถึงรหัสประกาศที่คงเดิมและ URL สมัคร
+2. กำหนด `job_source.fetch_url` ของแหล่งนั้นเป็น `https://api.apify.com/v2/actor-tasks/<task-id>/runs/last/dataset/items?status=SUCCEEDED&format=json` และตั้ง `APIFY_JOB_FEEDS_TOKEN` ใน environment ของ Backend ระบบส่งคีย์ผ่าน Authorization header และอ่านผลจากรอบที่สำเร็จล่าสุด [เอกสาร Dataset API ของ Apify](https://docs.apify.com/api/v2/actor-task-runs-last-dataset-items-get)
+3. เปิด `enabled` เฉพาะแหล่งที่ผ่านการตรวจ แล้วทดสอบสั่งนำเข้าด้วยมือหนึ่งรอบ หากผลถูกต้อง ให้ตั้งเวลา Actor Task ใน Apify และเปิด `JOB_AUTO_SYNC=1` สำหรับ Backend การตั้งเวลาใน Apify ใช้สร้างผลลัพธ์ใหม่ ส่วน Backend ตรวจผลและนำเข้า SQLite ทุก 5 นาที หรือตามรอบที่เจ้าของแหล่งอนุญาต [เอกสารตั้งเวลา Apify](https://docs.apify.com/actors/running/schedules)
+
 ## คำศัพท์
 
 | คำ | ความหมาย |
@@ -97,6 +159,22 @@ related:
 - เปิด `PRAGMA journal_mode=WAL`, `synchronous=NORMAL` เฉพาะฐาน SQLite
 - Log จำนวนและเหตุผลสรุปรอบ ไม่ log เนื้อหาประกาศทั้งก้อนหรือข้อมูลลับ
 - ห้ามให้ AI/LLM เขียนหรือแก้ค่าฟิลด์ใน `money_*` (ดู `job-data-quality-rules.md`)
+
+## นำเข้าไฟล์จากพาร์ทเนอร์
+
+เปิด Backend ด้วย `JOB_DB_FILE` และใช้รหัสแหล่งที่ลงทะเบียนใน `job_source` เป็น `direction='push'` แล้ว สำหรับแหล่งจริงให้บันทึกผลตรวจสิทธิ์เก็บและแสดงข้อมูลตาม [นโยบายแหล่งข้อมูล](job-source-policy.md) ก่อนเปิดใช้ Backend ใช้สถานะและเครดิตจากทะเบียน รายการ `curated` ใหม่หรือที่เปลี่ยนเนื้อหาจะเข้าคิวตรวจ
+
+ตั้ง `INTEGRATION_KEY` ใน environment ของเครื่องที่ส่งข้อมูล แล้วรันจากโฟลเดอร์โครงการด้วย PowerShell 7
+
+```powershell
+.\contracts\import-job-batch.ps1 -Provider partner_code -InputFile .\jobs.csv -BaseUrl http://127.0.0.1:8080
+```
+
+- ไฟล์ CSV เป็น UTF-8 ใช้คอลัมน์ `externalId,title,category,sourceUrl` และเพิ่ม `organization,province,district,workMode,locationText,precision,lat,lng,moneyBasis,moneyMin,moneyMax,moneyUnit,skills,conditions,postedAt,updatedAt,expiresAt,status` ตามข้อมูลต้นทาง ใช้ `|` คั่นสมาชิกใน `skills` และ `conditions`
+- ไฟล์ JSON เป็นอาร์เรย์รายการ หรือมี `items` เป็นอาร์เรย์ รูปร่างแต่ละรายการใช้ `OpportunityInput` ใน [OpenAPI](../../contracts/openapi.yaml)
+- สคริปต์แบ่งส่งครั้งละไม่เกิน 500 รายการและรายงาน `accepted`, `rejected` และ `merged` พร้อมตำแหน่งในไฟล์เดิม ใช้รหัสประกาศเดิมเมื่อส่งซ้ำเพื่ออัปเดตแถวเดิม ใช้ `status=closed` หรือ webhook เมื่อต้นทางยืนยันว่าปิดรับ
+- `GET /v1/opportunities` รองรับ `province`, `district`, `workMode` และ `skill` จากข้อมูลที่แหล่งส่งมา ถ้า URL ประกาศเดียวกันมาจากมากกว่าหนึ่งแหล่ง API เก็บแยกทุกแถวและรวมผลค้นหาพร้อม `provenance.sourceLinks`
+- Backend เพิ่มคอลัมน์สถานที่และรูปแบบงานจาก [สคริปต์ 002](../entities/database-script/002_job_location_filters.sql) เมื่อเปิดฐานเดิมครั้งแรก ค่าว่างหมายถึงแหล่งยังไม่ระบุ
 
 ## ดูเพิ่มเติม
 

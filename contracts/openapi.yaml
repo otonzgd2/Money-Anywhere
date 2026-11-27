@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.11.0
+  version: 0.13.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -328,7 +328,12 @@ paths:
         - { $ref: '#/components/parameters/DeviceId' }
         - { name: q, in: query, schema: { type: string } }
         - { name: group, in: query, schema: { type: string, description: "map group id or all" } }
+        - { name: dataMode, in: query, schema: { type: string, enum: [all, real, mock], default: all }, description: "real includes live, curated and open_data" }
         - { name: category, in: query, schema: { type: string, description: "one of the 10 categories" } }
+        - { name: province, in: query, schema: { type: string }, description: "Matches a provider-supplied province." }
+        - { name: district, in: query, schema: { type: string }, description: "Matches a provider-supplied district." }
+        - { name: skill, in: query, schema: { type: string }, description: "Matches a skill from the posting." }
+        - { name: workMode, in: query, schema: { type: string, enum: [onsite, hybrid, remote] } }
         - { name: lat, in: query, schema: { type: number, description: "Search point. Defaults to the profile location." } }
         - { name: lng, in: query, schema: { type: number } }
         - { name: radiusKm, in: query, schema: { type: number, default: 5 } }
@@ -551,6 +556,7 @@ paths:
       operationId: upsertOpportunitiesBatch
       tags: [Integrations]
       summary: "ระบบภายนอกหรือทีม curate ส่งโอกาสเข้าเป็นชุด ในรูปแบบฟิลด์กลาง"
+      description: "With SQLite enabled, job batches require a registered push source. Send partial batches freely. Omitting an existing posting leaves it unchanged."
       parameters: [ { $ref: '#/components/parameters/ApiKey' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OpportunityBatch' } } } }
       responses:
@@ -901,6 +907,10 @@ components:
       required: [precision]
       properties:
         precision: { type: string, enum: [exact, city, none] }
+        isRemote: { type: boolean, description: "True when the provider explicitly lists the opportunity as remote." }
+        workMode: { type: string, enum: [onsite, hybrid, remote] }
+        province: { type: string }
+        district: { type: string }
         text: { type: string }
         lat: { type: number }
         lng: { type: number }
@@ -913,6 +923,15 @@ components:
         provider: { type: string }
         dataStatus: { $ref: '#/components/schemas/DataStatus' }
         sourceUrl: { type: string, format: uri }
+        sourceLinks:
+          type: array
+          description: "Provider links retained when the search result represents the same listing from multiple sources."
+          items:
+            type: object
+            required: [provider, sourceUrl]
+            properties:
+              provider: { type: string }
+              sourceUrl: { type: string, format: uri }
         postedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
@@ -955,6 +974,10 @@ components:
         money: { $ref: '#/components/schemas/Money' }
         conditions: { type: array, items: { type: string } }
         sourceUrl: { type: string, format: uri }
+        skills: { type: array, items: { type: string } }
+        forOlder: { type: boolean }
+        postedAt: { type: string, format: date-time }
+        status: { type: string, enum: [active, closed], description: "Optional explicit posting status for a SQLite push source." }
         updatedAt: { type: string, format: date-time }
         expiresAt: { type: string, format: date-time }
 
@@ -963,7 +986,7 @@ components:
       required: [provider, items]
       properties:
         provider: { type: string }
-        dataStatus: { type: string, enum: [live, curated, open_data] }
+        dataStatus: { type: string, enum: [live, curated, open_data, mock], description: "If sent for a SQLite source, it must match its registered data status." }
         attribution: { type: string }
         items: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/OpportunityInput' } }
 
@@ -973,7 +996,7 @@ components:
       properties:
         accepted: { type: integer }
         rejected: { type: array, items: { type: object, required: [index, reason], properties: { index: { type: integer }, reason: { type: string } } } }
-        merged: { type: array, description: "Rows that duplicate an item from another source (same title and organisation). The existing item is kept.", items: { type: object, required: [index, existingId], properties: { index: { type: integer }, existingId: { type: string } } } }
+        merged: { type: array, description: "Rows that match an existing listing from another source. SQLite retains both source records and groups matching posting URLs in search.", items: { type: object, required: [index, existingId], properties: { index: { type: integer }, existingId: { type: string } } } }
 
     WebhookEvent:
       type: object
@@ -997,6 +1020,7 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } }
         nextCursor: { type: string }
+        totalCount: { type: integer, minimum: 0, description: "Matching visible items across all pages." }
         hiddenSuspicious: { type: integer }
         suggestions: { type: array, items: { $ref: '#/components/schemas/Suggestion' }, description: "Only when there are no results (FR-08)" }
         sourceWarnings: { type: array, items: { type: string }, description: "Providers whose last fetch failed. Details in /v1/sources." }
@@ -1277,6 +1301,8 @@ components:
         attribution: { type: string }
         state: { type: string, enum: [ok, failed, loading, static, idle] }
         itemCount: { type: integer }
+        websiteUrl: { type: string, format: uri }
+        accessMode: { type: string, enum: [link, pending, discovery], description: "How a surveyed source is available before its job feed is connected." }
         lastFetchedAt: { type: string, format: date-time }
         error: { type: string }
 

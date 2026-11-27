@@ -5,7 +5,7 @@
 ```powershell
 cd contracts
 npm.cmd install      # ครั้งแรกครั้งเดียว
-npm.cmd run mock     # หรือ $env:LIVE="1"; npm.cmd run mock เพื่อดึงงานจริงจาก Greenhouse/Lever
+npm.cmd run mock     # สั่งดึงงานเอง หรือกำหนด LIVE=1 และ JOB_AUTO_SYNC=1 เพื่อเปิดรอบ Greenhouse/Lever
 ```
 
 ตอนเริ่ม server พิมพ์ที่อยู่ให้ 3 แบบ:

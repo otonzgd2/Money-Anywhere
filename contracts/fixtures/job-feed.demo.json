@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "externalId": "demo-json-1",
+      "title": "DEMO / MOCK งานคีย์ข้อมูล",
+      "sourceUrl": "https://example.org/demo/job-json-1",
+      "category": "job_part",
+      "mapGroup": "job",
+      "money": { "basis": "none" },
+      "location": { "precision": "none", "workMode": "remote" },
+      "skills": ["คีย์ข้อมูล"]
+    }
+  ]
+}

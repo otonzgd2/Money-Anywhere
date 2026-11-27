@@ -1,0 +1,4 @@
+[
+  { "provider": "mock_partner_csv", "format": "csv", "file": "job-feed.demo.csv", "mock": true },
+  { "provider": "mock_partner_json", "format": "json", "file": "job-feed.demo.json", "mock": true }
+]

@@ -1,10 +1,15 @@
 // Demo server that implements every operation in openapi.yaml (ADR-001: this grows into the Demo backend).
 // Run: node mock-server.js   PORT=8080 by default. All variables are listed in ../.env.example.
-//   LIVE=1            pull Greenhouse/Lever on start and every SOURCE_REFRESH_HOURS
+//   LIVE=1            enable the Greenhouse/Lever startup pull when JOB_AUTO_SYNC=1
 //   AI_BASE_URL, AI_API_KEY, AI_MODEL   OpenAI-compatible provider (otherwise rules)
 //   AI_DAILY_LIMIT    AI calls per device per day before falling back to rules (0 = no limit)
 //   AI_LOG_FILE       JSON lines log of AI calls (no prompt text)
 //   DATA_FILE         JSON file that keeps device data across restarts (contract tests use memory)
+//   JOB_DB_FILE       optional SQLite catalogue for scheduled job feeds
+//   JOBICY_SYNC=1     register Jobicy for SQLite refreshes (requires JOB_DB_FILE)
+//   JOB_AUTO_SYNC=1   enable startup and timed job refreshes (default: manual refresh only)
+//   MOCK_JOB_FEED_FILE optional JSON snapshot for mock_doe (defaults to fixtures/opportunities-mock.json)
+//   JOB_FEEDS_FILE    optional JSON configuration for scheduled CSV/JSON feeds (requires JOB_DB_FILE)
 //   RETENTION_DAYS    devices not seen for this many days are archived or deleted (0 = off, Owner sets later)
 //   RETENTION_MODE    archive (default: move profile + activity to ARCHIVE_FILE) or delete
 //   ARCHIVE_FILE      JSON lines archive (default DATA_FILE + .archive.jsonl)
@@ -31,12 +36,17 @@ const { createGovMock } = require('./adapters/gov');
 const { createStore, packDevice, readDevices, archiveRecord, LAYOUT } = require('./adapters/store');
 const { createJobs } = require('./adapters/jobs');
 const { createGuard, toFact } = require('./adapters/guard');
+const { openJobCatalogue, collapseJobListings, normalizeJobText, jobDedupKey, reviewScamSignals, REPORT_HIDE_REASON } = require('./adapters/job-catalogue');
+const { createJobSync, createDemoJobSync, createJobPush, JobFeedError, DEMO_JOB_PROVIDER, JOB_REFRESH_MINUTES, WORK_MODES } = require('./adapters/job-sync');
+const { readJobFileFeeds } = require('./adapters/job-file-feed');
+const { JOBICY_SOURCE, createJobicyFeed } = require('./adapters/jobicy');
 
 const DIR = __dirname;
 const readJson = f => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 const nowIso = () => new Date().toISOString();
 const daysAgo = d => d ? Math.max(0, Math.round((Date.now() - new Date(d)) / 864e5)) : undefined;
 const HOURS = { 'ไม่เกิน 10': 8, '10-20': 15, '20-40': 30, 'เต็มเวลา': 40 };
+const OPPORTUNITY_DATA_MODES = new Map([['real', new Set(['live', 'curated', 'open_data'])], ['mock', new Set(['mock'])]]);
 let COMMIT = process.env.GIT_COMMIT;
 if (!COMMIT) { try { COMMIT = execSync('git rev-parse --short HEAD', { cwd: DIR, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { COMMIT = 'unknown'; } }
 
@@ -66,28 +76,81 @@ function createServer(opts = {}) {
   const aiLogFile = opts.aiLogFile !== undefined ? opts.aiLogFile : process.env.AI_LOG_FILE;
   const retentionDays = opts.retentionDays !== undefined ? opts.retentionDays : envNum(process.env.RETENTION_DAYS, 0);
   const retentionMode = (opts.retentionMode || process.env.RETENTION_MODE || 'archive') === 'delete' ? 'delete' : 'archive';
-  const refreshHours = envNum(process.env.SOURCE_REFRESH_HOURS, 6);
+  const refreshHours = envNum(process.env.SOURCE_REFRESH_HOURS, 1);
+  const autoJobSync = opts.jobs !== false && (opts.autoJobSync ?? (process.env.JOB_AUTO_SYNC === '1'));
   const reportHide = opts.reportHideThreshold || 3;
   const rulesAi = createAi({ baseUrl: '', apiKey: '' }), rulesAgent = createAgent({ baseUrl: '', apiKey: '' });
   const guard = createGuard(readJson('fixtures/assistant-policy.json'));
   const startedAt = nowIso();
-  const scam = text => ref.scamRules.filter(s => new RegExp(s.pattern).test(text)).map(s => s.reason);
+  const scam = text => reviewScamSignals(ref.scamRules, text);
   const purposeIds = NOTICE.purposes.filter(p => !p.feature || (p.feature === 'govConnected' && govOn)).map(p => p.id);
 
   // ---- shared catalogue ----
   const opps = new Map();
+  const fileFeeds = readJobFileFeeds(opts.jobFeedsFile, opts.fetch);
+  if (opts.jobicySync && !opts.jobDbFile) throw new Error('JOBICY_SYNC requires JOB_DB_FILE');
+  if (fileFeeds.length && !opts.jobDbFile) throw new Error('JOB_FEEDS_FILE requires JOB_DB_FILE');
+  const jobCatalogue = opts.jobDbFile ? openJobCatalogue(opts.jobDbFile) : null;
+  const syncOptions = {
+    jobDbFile: opts.jobDbFile,
+    categories: new Set(ref.taxonomies.categories.filter(category => category.mapGroup === 'job').map(category => category.id)),
+    scamRules: ref.scamRules,
+    clock: opts.jobClock
+  };
+  const sqliteRefreshJobs = new Map();
+  if (jobCatalogue) {
+    const mockJobRefresh = createDemoJobSync({
+      ...syncOptions,
+      feedFile: opts.mockJobFeedFile || path.join(DIR, 'fixtures/opportunities-mock.json'),
+      source: ref.sources.find(source => source.provider === DEMO_JOB_PROVIDER)
+    });
+    sqliteRefreshJobs.set(DEMO_JOB_PROVIDER, { name: 'mock_job_refresh', everyMinutes: JOB_REFRESH_MINUTES, run: mockJobRefresh });
+  }
+  if (opts.jobicySync) {
+    const jobicyRefresh = createJobSync({ ...syncOptions, source: JOBICY_SOURCE, load: createJobicyFeed(opts.fetch) });
+    sqliteRefreshJobs.set(JOBICY_SOURCE.provider, { name: 'jobicy_refresh', everyMinutes: JOB_REFRESH_MINUTES, run: jobicyRefresh });
+  }
+  for (const feed of fileFeeds) {
+    const { provider, mock, everyMinutes, minPollMinutes, load } = feed;
+    const registered = jobCatalogue.source(provider);
+    if (sqliteRefreshJobs.has(provider) || provider === JOBICY_SOURCE.provider || sources.providers.includes(provider)
+        || (registered && (!registered.enabled || registered.direction !== 'pull' || (registered.data_status === 'mock') !== mock))
+        || (!registered && !mock)) {
+      jobCatalogue.close();
+      throw new Error('แหล่ง ' + provider + ' ยังไม่พร้อมใช้เป็นฟีด CSV/JSON แบบ pull');
+    }
+    const source = {
+      provider, direction: 'pull', dataStatus: registered?.data_status ?? 'mock', minPollMinutes,
+      name: registered?.name ?? provider, kind: registered?.kind ?? 'ฟีด CSV/JSON จำลอง',
+      attribution: registered?.attribution ?? 'DEMO / MOCK (' + provider + ')'
+    };
+    sqliteRefreshJobs.set(provider, { name: 'job_file_refresh_' + provider, everyMinutes, run: createJobSync({ ...syncOptions, source, load }) });
+  }
+  const pushJobs = jobCatalogue && createJobPush(syncOptions);
+  const sqliteProviders = new Set([...(jobCatalogue?.providers() || []), ...sqliteRefreshJobs.keys()]);
+  const isLegacy = opportunity => !sqliteProviders.has(opportunity.provenance.provider);
+  const opportunityValues = () => {
+    const legacy = [...opps.values()];
+    if (!jobCatalogue) return legacy;
+    const rank = opportunity => fixtureOrder.get(opportunity.id) ?? fixtureOrder.size;
+    return legacy.filter(isLegacy).concat(jobCatalogue.all()).sort((a, b) => rank(a) - rank(b));
+  };
+  const findOpportunity = id => {
+    const legacy = opps.get(id);
+    if (legacy && isLegacy(legacy)) return legacy;
+    return jobCatalogue?.get(id);
+  };
   const fresh = o => ({ ...o, provenance: { ...o.provenance, ageDays: daysAgo(o.provenance.updatedAt) } });
   const reports = [], hiddenByReports = new Set();
   // A10: the same listing from two sources is kept once (first source wins). Key = title + organisation, ignoring
   // spacing, punctuation and bracketed notes.
-  const norm = s => String(s || '').toLowerCase().replace(/\(.*?\)/g, '').replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
-  const dupKey = o => norm(o.title) + '|' + norm(o.organization);
   function upsert(provider, dataStatus, attribution, input) {
-    const id = provider + '_' + input.externalId, key = dupKey(input);
-    const dup = [...opps.values()].find(o => o.provenance.provider !== provider && o.id !== id && dupKey(o) === key);
-    if (dup) return { id: dup.id, merged: true };
+    const id = provider + '_' + input.externalId, key = jobDedupKey(input);
+    const legacyDuplicate = [...opps.values()].find(o => isLegacy(o) && o.provenance.provider !== provider && jobDedupKey(o) === key);
+    const duplicate = legacyDuplicate || jobCatalogue?.findDuplicate(key, provider);
+    if (duplicate) return { id: duplicate.id, merged: true };
     const reasons = scam(input.title + ' ' + (input.conditions || []).join(' ') + ' ' + (input.suspiciousText || ''));
-    if (hiddenByReports.has(id)) reasons.push('ผู้ใช้หลายคนแจ้งว่าน่าสงสัย ซ่อนไว้รอทีมตรวจ');
+    if (hiddenByReports.has(id)) reasons.push(REPORT_HIDE_REASON);
     opps.set(id, {
       id, title: input.title, organization: input.organization, category: input.category, mapGroup: input.mapGroup,
       location: input.location || { precision: 'none' }, money: input.money, conditions: input.conditions || [],
@@ -106,8 +169,12 @@ function createServer(opts = {}) {
   // (fixtures/opportunities-mock.json, generated). On with MOCK_CATALOGUE=1 (the Demo .env); contract tests turn
   // it on for one server only, so counts in the other tests stay stable.
   const moreMock = opts.moreMock !== undefined ? opts.moreMock : process.env.MOCK_CATALOGUE === '1';
-  if (moreMock && fs.existsSync(path.join(__dirname, 'fixtures/opportunities-mock.json'))) {
-    readJson('fixtures/opportunities-mock.json').items.forEach(r => upsert(r.provider, 'mock', 'DEMO / MOCK (' + r.provider + ')', {
+  const demoFixture = (moreMock || jobCatalogue) && fs.existsSync(path.join(__dirname, 'fixtures/opportunities-mock.json'))
+    ? readJson('fixtures/opportunities-mock.json').items : [];
+  // Preserve the fixture order for ties in search and for page cursors with the SQLite overlay.
+  const fixtureOrder = new Map([...opps.keys(), ...demoFixture.map(r => r.provider + '_' + r.externalId)].map((id, index) => [id, index]));
+  if (moreMock) {
+    demoFixture.filter(r => !sqliteProviders.has(r.provider)).forEach(r => upsert(r.provider, 'mock', 'DEMO / MOCK (' + r.provider + ')', {
       ...r, sourceUrl: 'https://example.org/mock/' + r.provider + '/' + r.externalId, updatedAt: new Date(Date.now() - r.ageDays * 864e5).toISOString()
     }));
   }
@@ -119,6 +186,19 @@ function createServer(opts = {}) {
   const srcState = ref.sources.map(s => ({ provider: s.provider, name: s.name, kind: s.kind, attribution: s.attribution,
     direction: s.url ? 'pull' : s.provider === 'curated' ? 'push' : 'static', state: s.url ? 'idle' : 'static',
     itemCount: [...opps.values()].filter(o => o.provenance.provider === s.provider).length }));
+  const sourceReferences = readJson('fixtures/thailand-job-sources.json');
+  const allSourceStates = () => {
+    const states = new Map([...srcState.filter(s => !sqliteProviders.has(s.provider)), ...(jobCatalogue?.sources() || [])]
+      .map(source => [source.provider, source]));
+    for (const ref of sourceReferences) {
+      const source = states.get(ref.provider);
+      states.set(ref.provider, source ? { ...source, websiteUrl: ref.websiteUrl } : {
+        ...ref, kind: ref.accessMode === 'link' ? 'ลิงก์ไปยังแหล่งต้นทาง' : 'ข้อมูลอ้างอิงแหล่ง',
+        direction: 'static', state: 'static', itemCount: 0
+      });
+    }
+    return [...states.values()];
+  };
   async function refresh(which) {
     await Promise.all(sources.providers.filter(p => which === 'all' || p === which).map(async p => {
       const st = srcState.find(s => s.provider === p); st.state = 'loading';
@@ -130,7 +210,7 @@ function createServer(opts = {}) {
       } catch (e) { Object.assign(st, { state: 'failed', error: e.name === 'AbortError' ? 'timeout' : e.message }); }
     }));
   }
-  if (opts.live) refresh('all');
+  if (opts.live && autoJobSync) void refresh('all');
 
   // ---- per-device state ----
   const devices = new Map();
@@ -206,15 +286,23 @@ function createServer(opts = {}) {
     const onlyMoney = q.get('onlyMoney') === 'true', showSus = q.get('showSuspicious') === 'true', sort = q.get('sort') || 'near';
     const key = { near: o => o.location.distanceKm ?? 1e9, money: o => -(o.money.max ?? -1), fresh: o => o.provenance.ageDays ?? 1e9 }[sort];
     if (!key) return null;
-    let xs = [...opps.values()].map(fresh).map(o => o.location.precision === 'exact' ? { ...o, location: { ...o.location, distanceKm: +km(c, o.location).toFixed(2) } } : o)
+    const dataStatuses = OPPORTUNITY_DATA_MODES.get(q.get('dataMode'));
+    const province = normalizeJobText(q.get('province')), district = normalizeJobText(q.get('district'));
+    const skill = normalizeJobText(q.get('skill')), workMode = q.get('workMode');
+    let xs = opportunityValues().filter(o => !dataStatuses || dataStatuses.has(o.provenance.dataStatus)).map(fresh).map(o => o.location.precision === 'exact' ? { ...o, location: { ...o.location, distanceKm: +km(c, o.location).toFixed(2) } } : o)
       .filter(o => group === 'all' || o.mapGroup === group).filter(o => !cat || o.category === cat)
       .filter(o => !text || (o.title + ' ' + (o.organization || '')).includes(text))
       .filter(o => !onlyMoney || o.money.basis !== 'none')
+      .filter(o => !province || normalizeJobText(o.location.province) === province)
+      .filter(o => !district || normalizeJobText(o.location.district) === district)
+      .filter(o => !workMode || (o.location.workMode ?? (o.location.isRemote ? 'remote' : undefined)) === workMode)
+      .filter(o => !skill || o.skills?.some(value => normalizeJobText(value) === skill))
       .filter(o => o.location.precision !== 'exact' || o.location.distanceKm <= r)
       .filter(o => o.provenance.linkStatus !== 'broken')
       .filter(o => !o.provenance.expiresAt || new Date(o.provenance.expiresAt) > new Date());
     const hidden = showSus ? 0 : xs.filter(o => o.suspicious).length;
     if (!showSus) xs = xs.filter(o => !o.suspicious);
+    if (jobCatalogue) xs = collapseJobListings(xs);
     const suggestions = [];
     if (!xs.length) {
       if (r < 10) suggestions.push({ type: 'expand_radius', label: 'ขยายระยะเป็น 10 กม.', radiusKm: 10 });
@@ -234,7 +322,7 @@ function createServer(opts = {}) {
         const t = { id: 't' + d.seq++, moneyId: body.moneyId, title: p.title, steps, doneCount: ready.length === p.docs.length ? 1 : 0, status: 'active' };
         d.tasks.push(t); return [201, taskOut(t)];
       }
-      const o = body && opps.get(body.opportunityId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบโอกาสที่จะบันทึก');
+      const o = body && findOpportunity(body.opportunityId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบโอกาสที่จะบันทึก');
       const ex = d.tasks.find(t => t.opportunityId === o.id); if (ex) return [201, taskOut(ex)];
       const steps = ref.checklists[o.checklistTemplateId] || ['ติดต่อผู้ประกาศ', 'ดำเนินการตามขั้นตอนที่ต้นทาง'];
       const t = { id: 't' + d.seq++, opportunityId: o.id, title: o.title, steps, doneCount: 0, status: 'active' };
@@ -300,7 +388,7 @@ function createServer(opts = {}) {
       get_profile: { mode: 'read', description: 'โปรไฟล์ของผู้ใช้ (ไม่มีชื่อ)', parameters: { type: 'object', properties: {} }, run: () => { const { displayName, ...p } = d.profile || {}; return p; } },
       create_task: { mode: 'confirm', description: 'บันทึกโอกาสหรือรายการเงินเข้าแผน (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { opportunityId: { type: 'string' }, moneyId: { type: 'string' } } },
         findSaved: a => savedMoneyPlan(a.moneyId),
-        label: a => 'บันทึกเข้าแผนของฉัน: ' + ((a.moneyId && (money.programs.find(p => p.id === a.moneyId) || {}).title) || (opps.get(a.opportunityId) || {}).title || 'รายการนี้'), exec: a => svc.createTask(d, a) },
+        label: a => 'บันทึกเข้าแผนของฉัน: ' + ((a.moneyId && (money.programs.find(p => p.id === a.moneyId) || {}).title) || (findOpportunity(a.opportunityId) || {}).title || 'รายการนี้'), exec: a => svc.createTask(d, a) },
       snooze_task: { mode: 'confirm', description: 'ตั้งเตือนงานภายหลัง (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { taskId: { type: 'string' }, until: { type: 'string', enum: ['tomorrow', 'in_3_days', 'next_week'] } }, required: ['taskId'] },
         label: a => 'เตือนงานนี้ ' + ({ tomorrow: 'พรุ่งนี้', in_3_days: 'อีก 3 วัน', next_week: 'สัปดาห์หน้า' }[a.until] || 'พรุ่งนี้'), exec: a => svc.taskEvent(d, device, a.taskId, { type: 'snooze', until: a.until || 'tomorrow' }) },
       complete_step: { mode: 'confirm', description: 'บันทึกว่าทำขั้นปัจจุบันเสร็จ (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
@@ -315,7 +403,7 @@ function createServer(opts = {}) {
   const on = (method, pattern, fn, o = {}) => R.push({ method, re: new RegExp('^' + pattern.replace(/\{(\w+)\}/g, '(?<$1>[^/]+)') + '$'), fn, ...o });
 
   // System + config + privacy
-  on('GET', '/v1/health', () => [200, { status: 'ok', version: readJson('package.json').version, commit: COMMIT, startedAt, ai: { provider: ai.provider, agent: agent.provider }, features: { govConnected: govOn, demo: demoOn }, sources: srcState.map(s => ({ provider: s.provider, state: s.state })),
+  on('GET', '/v1/health', () => [200, { status: 'ok', version: readJson('package.json').version, commit: COMMIT, startedAt, ai: { provider: ai.provider, agent: agent.provider }, features: { govConnected: govOn, demo: demoOn }, sources: allSourceStates().map(s => ({ provider: s.provider, state: s.state })),
     store: store.kind, storeLayout: LAYOUT, retention: { days: retentionDays, mode: retentionMode }, notifier: notifier.kind, aiDailyLimit, jobs: jobs.state }], { public: true });
   on('GET', '/v1/app-config', ({ req }) => {
     const cfg = readJson('app-config.sample.json');
@@ -404,21 +492,34 @@ function createServer(opts = {}) {
 
   // Opportunities
   on('GET', '/v1/opportunities', ({ d, q }) => {
+    const dataMode = q.get('dataMode') ?? 'all';
+    if (dataMode !== 'all' && !OPPORTUNITY_DATA_MODES.has(dataMode)) return E(400, 'VALIDATION', 'dataMode ไม่ถูกต้อง');
+    if (q.has('workMode') && !WORK_MODES.has(q.get('workMode'))) return E(400, 'VALIDATION', 'workMode ไม่ถูกต้อง');
     const res = search(d, q); if (!res) return E(400, 'VALIDATION', 'sort ไม่ถูกต้อง');
     const limit = Math.min(100, Math.max(1, +(q.get('limit') || 30)));
     const start = q.get('cursor') ? +Buffer.from(q.get('cursor'), 'base64url').toString() || 0 : 0;
-    const warn = srcState.filter(s => s.state === 'failed').map(s => s.provider);
-    return [200, { items: res.xs.slice(start, start + limit), nextCursor: start + limit < res.xs.length ? Buffer.from(String(start + limit)).toString('base64url') : undefined,
+    const warn = allSourceStates().filter(s => s.state === 'failed').map(s => s.provider);
+    return [200, { items: res.xs.slice(start, start + limit), totalCount: res.xs.length, nextCursor: start + limit < res.xs.length ? Buffer.from(String(start + limit)).toString('base64url') : undefined,
       hiddenSuspicious: res.hidden, suggestions: res.suggestions.length ? res.suggestions : undefined, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
   });
-  on('GET', '/v1/opportunities/{id}', ({ p }) => opps.has(p.id) ? [200, fresh(opps.get(p.id))] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'), { public: true });
+  on('GET', '/v1/opportunities/{id}', ({ p }) => {
+    const o = findOpportunity(p.id);
+    return o ? [200, fresh(o)] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
+  }, { public: true });
   on('POST', '/v1/opportunities/{id}/reports', ({ device, p, body }) => {
-    if (!opps.has(p.id)) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
+    const o = findOpportunity(p.id);
+    if (!o) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
     if (!body || !['suspicious', 'wrong_info', 'expired', 'other'].includes(body.reason)) return E(400, 'VALIDATION', 'reason ไม่ถูกต้อง');
-    reports.push({ device: hashDevice(device), id: p.id, reason: body.reason, note: body.note, at: nowIso() });
+    const deviceHash = hashDevice(device), at = nowIso();
+    if (sqliteProviders.has(o.provenance.provider)) {
+      if (body.note !== undefined && typeof body.note !== 'string') return E(400, 'VALIDATION', 'note ต้องเป็นข้อความ');
+      return jobCatalogue.report(p.id, deviceHash, body.reason, body.note, at, reportHide)
+        ? [202] : E(404, 'NOT_FOUND', 'ไม่พบรายการนี้');
+    }
+    reports.push({ device: deviceHash, id: p.id, reason: body.reason, note: body.note, at });
     // A13: enough different devices saying "suspicious" hides the item until the team reviews it.
-    const n = new Set(reports.filter(r => r.id === p.id && r.reason === 'suspicious').map(r => r.device)).size, o = opps.get(p.id);
-    if (n >= reportHide && !hiddenByReports.has(p.id)) { hiddenByReports.add(p.id); o.suspicious = true; o.suspiciousReasons = [...o.suspiciousReasons, 'ผู้ใช้หลายคนแจ้งว่าน่าสงสัย ซ่อนไว้รอทีมตรวจ']; }
+    const n = new Set(reports.filter(r => r.id === p.id && r.reason === 'suspicious').map(r => r.device)).size;
+    if (n >= reportHide && !hiddenByReports.has(p.id)) { hiddenByReports.add(p.id); o.suspicious = true; o.suspiciousReasons = [...o.suspiciousReasons, REPORT_HIDE_REASON]; }
     return [202];
   });
 
@@ -445,7 +546,7 @@ function createServer(opts = {}) {
   on('POST', '/v1/ai/rankings', async ({ d, device, body }) => {
     const ids = body && Array.isArray(body.opportunityIds) ? body.opportunityIds : [];
     if (!ids.length) return E(400, 'VALIDATION', 'ต้องมี opportunityIds อย่างน้อย 1 รายการ');
-    const candidates = [...new Set(ids)].slice(0, 50).map(id => opps.get(id)).filter(o => o && !o.suspicious);
+    const candidates = [...new Set(ids)].slice(0, 50).map(findOpportunity).filter(o => o && !o.suspicious);
     if (!has(d, 'ai')) { const r = require('./adapters/ai').rulesRank(d.profile, candidates); return [200, { aiStatus: 'skipped_no_consent', ranked: r }]; }
     const out = await aiFor(d).ai.rank(d.profile, candidates); logAi(device, 'rank', out);
     return [200, { aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId, ranked: out.ranked }];
@@ -454,7 +555,7 @@ function createServer(opts = {}) {
     if (!body || !['task_step', 'opportunity', 'money'].includes(body.subjectType) || !body.subjectId) return E(400, 'VALIDATION', 'ต้องมี subjectType และ subjectId');
     let subject;
     if (body.subjectType === 'task_step') { const t = d.tasks.find(x => x.id === body.subjectId); if (!t) return E(404, 'NOT_FOUND', 'ไม่พบงานนี้'); subject = { type: 'task_step', title: t.title, step: t.steps[Math.min(t.doneCount, t.steps.length - 1)] }; }
-    else if (body.subjectType === 'opportunity') { const o = opps.get(body.subjectId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'); subject = { type: 'opportunity', opportunity: { title: o.title, conditions: o.conditions, category: o.category } }; }
+    else if (body.subjectType === 'opportunity') { const o = findOpportunity(body.subjectId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'); subject = { type: 'opportunity', opportunity: { title: o.title, conditions: o.conditions, category: o.category } }; }
     else { const r = money.route(body.subjectId, d.facts, govData(d)); if (!r) return E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); subject = { type: 'opportunity', opportunity: { title: r.title, conditions: r.reasons.map(x => x.text), category: 'money' } }; }
     if (!has(d, 'ai')) return [200, { aiStatus: 'skipped_no_consent', text: (await createAi({ baseUrl: '', apiKey: '' }).explain(subject)).text }];
     const out = await aiFor(d).ai.explain(subject); logAi(device, 'explain', out);
@@ -653,7 +754,7 @@ function createServer(opts = {}) {
   function jobOptions(d) {
     const h = hoursOf(d), hw = h === undefined ? 20 : h, skills = (d.profile && d.profile.skills) || [];
     const best = new Map();
-    for (const o of opps.values()) {
+    for (const o of opportunityValues()) {
       if (o.mapGroup !== 'job' || o.suspicious || o.money.basis !== 'listing' || typeof o.money.min !== 'number') continue;
       const unit = o.money.unit || '';
       let f, basis;
@@ -665,7 +766,7 @@ function createServer(opts = {}) {
       const x = { kind: 'job', id: o.id, title: o.title, net, numberSource: 'listing', dataStatus: o.provenance.dataStatus, forOlder: o.forOlder, requires: o.skills,
         matched: (o.skills || []).filter(s => skills.includes(s)), assumptions: [basis, 'ยังไม่หักค่าเดินทางและค่าใช้จ่าย' + (/ก่อนหัก/.test(unit) ? ' (' + unit + ')' : '')],
         why: 'ค่าจ้างตามประกาศ' + (o.provenance.dataStatus === 'mock' ? ' (ประกาศตัวอย่าง)' : '') + ' · ' + (o.organization || ''), action: { type: 'opportunity', id: o.id } };
-      const k = norm(o.title), prev = best.get(k);
+      const k = normalizeJobText(o.title), prev = best.get(k);
       if (!prev || x.matched.length > prev.matched.length || (x.matched.length === prev.matched.length && x.net[0] > prev.net[0])) best.set(k, x);
     }
     return [...best.values()];
@@ -673,7 +774,7 @@ function createServer(opts = {}) {
   function planOptions(d, want = []) {
     const h = hoursOf(d);
     return ref.plans.filter(p => !want.length || want.includes(p.opportunityId)).map(p => {
-      let x = { ...p }; const o = p.opportunityId && opps.get(p.opportunityId);
+      let x = { ...p }; const o = p.opportunityId && findOpportunity(p.opportunityId);
       if (h && o && o.money.basis === 'listing' && /วัน|ชั่วโมง/.test(o.money.unit || '')) {
         const units = /ชั่วโมง/.test(o.money.unit) ? h * 4.33 : (h / 6) * 4.33;
         x.grossPerMonth = [Math.round(o.money.min * units), Math.round(o.money.max * units)];
@@ -705,18 +806,39 @@ function createServer(opts = {}) {
   on('POST', '/v1/tasks/{id}/events', ({ d, device, p, body, req }) => svc.taskEvent(d, device, p.id, body, req.headers['idempotency-key']));
 
   // Sources
-  on('GET', '/v1/sources', () => [200, { items: srcState }], { public: true });
+  on('GET', '/v1/sources', () => [200, { items: allSourceStates() }], { public: true });
   on('POST', '/v1/sources/{provider}/refresh', ({ p }) => {
+    const sqliteRefresh = sqliteRefreshJobs.get(p.provider);
+    if (sqliteRefresh) {
+      void jobs.run(sqliteRefresh.name);
+      return [202];
+    }
+    if (p.provider === 'all') {
+      for (const scheduled of sqliteRefreshJobs.values()) void jobs.run(scheduled.name);
+    }
     if (p.provider !== 'all' && !sources.providers.includes(p.provider)) return E(404, 'NOT_FOUND', 'แหล่งนี้ไม่รองรับการดึง');
-    refresh(p.provider); return [202];
+    void refresh(p.provider);
+    return [202];
   }, { public: true });
 
   // Integrations (inbound)
   const validInput = i => i && i.externalId && i.title && i.category && i.mapGroup && i.money && ['official', 'listing', 'none'].includes(i.money.basis) && /^https?:\/\//.test(i.sourceUrl || '')
     && (!i.location || i.location.precision !== 'exact' || (typeof i.location.lat === 'number' && typeof i.location.lng === 'number'));
   on('POST', '/v1/integrations/opportunities/batch', ({ body }) => {
-    if (!body || !body.provider || !Array.isArray(body.items)) return E(422, 'VALIDATION', 'ต้องมี provider และ items');
+    if (typeof body?.provider !== 'string' || !body.provider || !Array.isArray(body.items)) return E(422, 'VALIDATION', 'ต้องมี provider และ items');
     if (body.items.length > 500) return E(422, 'VALIDATION', 'ส่งได้ครั้งละไม่เกิน 500 รายการ');
+    const sqlSource = jobCatalogue?.source(body.provider);
+    if (sqlSource || sqliteProviders.has(body.provider) || (jobCatalogue && body.items.some(item => item?.mapGroup === 'job'))) {
+      try {
+        const result = pushJobs(body.provider, body.dataStatus, body.items);
+        sqliteProviders.add(body.provider);
+        return [200, result];
+      } catch (error) {
+        if (!(error instanceof JobFeedError)) throw error;
+        return E(422, 'VALIDATION', error.message);
+      }
+    }
+    if (body.dataStatus === 'mock') return E(422, 'VALIDATION', 'ข้อมูล DEMO / MOCK ต้องใช้แหล่ง push ที่ลงทะเบียนใน SQLite');
     const status = ['live', 'curated', 'open_data'].includes(body.dataStatus) ? body.dataStatus : 'curated';
     const rejected = [], mergedInto = []; let accepted = 0;
     body.items.forEach((it, index) => {
@@ -730,8 +852,23 @@ function createServer(opts = {}) {
     return [200, { accepted, rejected, merged: mergedInto }];
   }, { integration: true });
   on('POST', '/v1/integrations/webhooks/{provider}', ({ p, body }) => {
-    if (!srcState.some(s => s.provider === p.provider)) return E(404, 'NOT_FOUND', 'ไม่รู้จักผู้ให้ข้อมูลนี้');
-    if (!body || !['opportunity.closed', 'opportunity.updated'].includes(body.event) || !body.externalId) return E(422, 'VALIDATION', 'event หรือ externalId ไม่ถูกต้อง');
+    const sqlSource = jobCatalogue?.source(p.provider);
+    if (!sqlSource && !srcState.some(s => s.provider === p.provider)) return E(404, 'NOT_FOUND', 'ไม่รู้จักผู้ให้ข้อมูลนี้');
+    if (!body || !['opportunity.closed', 'opportunity.updated'].includes(body.event)
+        || typeof body.externalId !== 'string' || !body.externalId) return E(422, 'VALIDATION', 'event หรือ externalId ไม่ถูกต้อง');
+    if (sqlSource || sqliteProviders.has(p.provider)) {
+      try {
+        const closing = body.event === 'opportunity.closed';
+        const result = pushJobs(p.provider, undefined, closing ? [] : [{ ...body.data, externalId: body.externalId }],
+          closing ? { closeId: body.externalId } : undefined);
+        if (result.rejected.length) return E(422, 'VALIDATION', result.rejected[0].reason);
+        sqliteProviders.add(p.provider);
+        return [202];
+      } catch (error) {
+        if (!(error instanceof JobFeedError)) throw error;
+        return E(422, 'VALIDATION', error.message);
+      }
+    }
     const id = p.provider + '_' + body.externalId;
     if (body.event === 'opportunity.closed') opps.delete(id);
     else { if (!validInput({ ...body.data, externalId: body.externalId })) return E(422, 'VALIDATION', 'data ไม่ครบ'); upsert(p.provider, 'curated', p.provider, { ...body.data, externalId: body.externalId }); }
@@ -764,7 +901,7 @@ function createServer(opts = {}) {
   // ---- scheduled jobs (B3) ----
   async function checkLinks(ctx) {
     const f = ctx.fetch || opts.fetch || fetch;
-    const xs = [...opps.values()].filter(o => o.provenance.provider !== 'mock' && /^https?:\/\//.test(o.provenance.sourceUrl || '')).slice(0, ctx.limit || 300);
+    const xs = [...opps.values()].filter(o => o.provenance.dataStatus !== 'mock' && /^https?:\/\//.test(o.provenance.sourceUrl || '')).slice(0, ctx.limit || 300);
     const count = { ok: 0, broken: 0, unknown: 0 };
     for (const o of xs) {
       let st = 'unknown';
@@ -785,7 +922,8 @@ function createServer(opts = {}) {
     return 'เตือน: ' + t.title + ' ขั้นต่อไป ' + t.steps[Math.min(t.doneCount, t.steps.length - 1)];
   };
   const jobs = createJobs([
-    { name: 'sources_refresh', everyMinutes: refreshHours * 60, enabled: !!opts.live, run: async () => { await refresh('all'); return srcState.filter(s => s.direction === 'pull').map(s => s.provider + ' ' + s.state).join(', '); } },
+    { name: 'sources_refresh', everyMinutes: refreshHours * 60, enabled: !!opts.live && autoJobSync, run: async () => { await refresh('all'); return srcState.filter(s => s.direction === 'pull').map(s => s.provider + ' ' + s.state).join(', '); } },
+    ...[...sqliteRefreshJobs.values()].map(job => ({ ...job, enabled: autoJobSync })),
     { name: 'link_check', everyMinutes: 24 * 60, run: checkLinks },
     { name: 'reminders', everyMinutes: 1, run: ctx => { const n = notifier.dispatch(ctx.now ?? Date.now(), reminderText); if (n) persist(); return 'sent ' + n; } },
     { name: 'retention', everyMinutes: 24 * 60, enabled: retentionDays > 0, run: ctx => {
@@ -842,7 +980,16 @@ function createServer(opts = {}) {
     send(...E(404, 'NOT_FOUND', 'ไม่พบ endpoint นี้'));
   });
   server.ports = { ai, agent, notifier, refresh, jobs, store, persist };
-  if (opts.jobs !== false) { jobs.start(); server.on('close', () => jobs.stop()); }
+  if (jobCatalogue) server.once('close', () => jobCatalogue.close());
+  if (opts.jobs !== false) {
+    server.once('listening', () => {
+      if (autoJobSync) {
+        for (const scheduled of sqliteRefreshJobs.values()) void jobs.run(scheduled.name);
+      }
+      jobs.start();
+    });
+    server.on('close', () => jobs.stop());
+  }
   return server;
 }
 
@@ -851,7 +998,8 @@ if (require.main === module) {
   const port = +(process.env.PORT || 8080);
   // `npm run mock` keeps data in contracts/.data/ (git-ignored) so a restart does not wipe the demo.
   const dataDir = path.join(DIR, '.data');
-  const s = createServer({ live: process.env.LIVE === '1', debug: true,
+  const s = createServer({ live: process.env.LIVE === '1', debug: true, jobDbFile: process.env.JOB_DB_FILE,
+    mockJobFeedFile: process.env.MOCK_JOB_FEED_FILE, jobicySync: process.env.JOBICY_SYNC === '1', jobFeedsFile: process.env.JOB_FEEDS_FILE,
     dataFile: process.env.DATA_FILE !== undefined ? process.env.DATA_FILE : path.join(dataDir, 'state.json'),
     aiLogFile: process.env.AI_LOG_FILE !== undefined ? process.env.AI_LOG_FILE : path.join(dataDir, 'ai-calls.jsonl') });
   s.listen(port, () => {
