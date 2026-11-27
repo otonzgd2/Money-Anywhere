@@ -1,7 +1,8 @@
-// Assistant guard. Runs on every chat message BEFORE the LLM, using fixtures/assistant-policy.json.
-// Order: refusals (injection, sensitive data, guarantees, scams/loans, off-topic) win over everything,
-// then an answer to the question the assistant just asked, then in-scope topics. Anything else is
-// redirected back to the current checklist step. Refused text never reaches the model or the chat history.
+// Refusals and credential checks run before conversation routing and any model call.
+const thaiDigits = text => String(text).replace(/[๐-๙]/g, digit => String(digit.charCodeAt(0) - 0x0E50));
+const credentialName = /\b(?:otp|pin)\b|รหัสผ่าน|รหัส\s*(?:ยืนยัน|ใช้ครั้งเดียว)|เลขบัญชี/i;
+const credentialValue = /\d{4,}|\b(?:otp|pin)\s*[:=]?\s*\d|(?:รหัสผ่าน|password)\s*(?:คือ|เป็น|[:=])\s*\S/i;
+const safetyQuestion = /ปลอดภัย|ควรส่งไหม|ให้ส่ง.*ไหม|มิจฉาชีพ|หลอก|ควรทำอย่างไร/i;
 function createGuard(policy) {
   const rules = policy.rules.map(r => ({ id: r.id, res: r.patterns.map(p => new RegExp(p, 'i')), reply: r.reply }));
   const NUM = /^\s*[\d,]+(\.\d+)?\s*(บาท|วัน|ปี|คน)?\s*(ค่ะ|ครับ|คะ)?\s*$/;
@@ -11,8 +12,14 @@ function createGuard(policy) {
   return {
     version: policy.version,
     check(text, expect) {
-      const t = String(text || '').trim();
+      const t = thaiDigits(text || '').trim();
+      if (credentialName.test(t) && safetyQuestion.test(t) && !credentialValue.test(t)
+        && !/\d(?:[-\s]?\d){3,}/.test(t)
+        && !rules.find(r => r.id === 'injection').res.some(re => re.test(t))) {
+        return { kind: 'safe_advice', reply: 'อย่าส่ง OTP, PIN หรือรหัสผ่านให้นายจ้าง ตรวจชื่อบริษัทและช่องทางรับสมัครกับบริษัทโดยตรงค่ะ' };
+      }
       for (const r of rules) if (r.res.some(re => re.test(t))) return { kind: r.id, reply: r.reply };
+      if (credentialName.test(t)) return { kind: 'sensitive', reply: rules.find(r => r.id === 'sensitive').reply };
       if (expect && expect.options && expect.options.includes(t)) return { kind: 'answer' };
       // "I don't understand the question": explain it (help text + options) instead of refusing.
       if (expect && CONFUSED.test(t)) return { kind: 'explain' };
@@ -20,7 +27,7 @@ function createGuard(policy) {
       if (expect && expect.type === 'number' && ZERO.test(t)) return { kind: 'answer', value: '0' };
       // "Not sure / skip" while a question is open: move on to the next question, ask this one later.
       if (expect && SKIP.test(t)) return { kind: 'skip' };
-      if (expect && expect.type === 'number' && NUM.test(t)) return { kind: 'answer' };
+      if (expect && expect.type === 'number' && NUM.test(t)) return { kind: 'answer', value: t };
       if (policy.inScope.some(w => t.includes(w))) return { kind: 'in_scope' };
       return { kind: 'unclear', reply: 'ฉันช่วยได้เฉพาะเรื่องเงินที่ควรได้ งาน และรายได้จากทักษะ' };
     },
@@ -45,4 +52,4 @@ function toFact(expect, text) {
   if (expect.type === 'bool') return t === expect.options[0];
   return t;
 }
-module.exports = { createGuard, toFact };
+module.exports = { createGuard, toFact, thaiDigits };

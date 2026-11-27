@@ -29,6 +29,8 @@ const taxDemoPersonas = {
   'dmytax-after': {
     ...samplePersona,
     label: 'D-MyTax: after import (DEMO)',
+    initialAnswers: baseline,
+    records: { dMyTax: taxSample },
     facts: { ...baseline, ...taxWithholdingFacts(taxSample, taxYear) }
   }
 };

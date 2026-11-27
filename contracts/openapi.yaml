@@ -400,7 +400,7 @@ paths:
       operationId: createConversation
       tags: [AI]
       summary: "เริ่มคุยกับผู้ช่วย AI ที่รู้ข้อมูลของฉัน (ต้องยินยอม ai)"
-      description: "Default mode is guided: the greeting asks the first missing fact and quick replies are its options. Every message is checked against fixtures/assistant-policy.json before any AI call."
+      description: "Guided mode begins with an intent choice. Quick replies refer to the displayed step, when present. Every message passes the Guard before any AI call."
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody:
         required: false
@@ -416,7 +416,7 @@ paths:
       tags: [AI]
       summary: "ถามผู้ช่วย ได้คำตอบ เครื่องมือที่ใช้ งานที่รอผู้ใช้ยืนยัน และสิ่งที่จำไว้"
       parameters: [ { $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/Id' } ]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 1000 } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, maxLength: 1000 }, stepId: { type: string, description: "Identifier of the step that displayed this quick reply" } } } } } }
       responses:
         '200': { description: Agent turn, content: { application/json: { schema: { $ref: '#/components/schemas/AgentTurn' } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -736,6 +736,13 @@ components:
       description: "Answers used by the eligibility rules. Definitions in /v1/taxonomies facts."
       properties:
         ageBand: { type: string, nullable: true }
+        nationality: { type: boolean, nullable: true }
+        registryDistrict: { type: string, nullable: true }
+        registryProvince: { type: string, nullable: true }
+        disabilityGets: { type: boolean, nullable: true }
+        ageAtLeast55: { type: boolean, nullable: true }
+        coverageEnded: { type: boolean, nullable: true }
+        lifetimePaidMonths33And39: { type: number, nullable: true }
         govPension: { type: boolean, nullable: true }
         work: { type: string, nullable: true }
         ss33: { type: boolean, nullable: true }
@@ -826,7 +833,7 @@ components:
       properties:
         fact: { type: string }
         question: { type: string }
-        type: { type: string, enum: [enum, bool, number] }
+        type: { type: string, enum: [enum, bool, number, text] }
         help: { type: string, description: "0.8: plain explanation shown when the person does not understand the question" }
         options: { type: array, items: { type: string } }
 
@@ -1143,11 +1150,12 @@ components:
         step: { $ref: '#/components/schemas/ChecklistStep' }
 
     ChecklistStep:
-      description: "The question the assistant is waiting for (guided mode). Quick replies are its options."
+      description: "The currently displayed question. Its identifier changes when the applicable question changes."
       allOf:
         - { $ref: '#/components/schemas/MoneyQuestion' }
         - type: object
           properties:
+            id: { type: string }
             moneyId: { type: string }
 
     IncomeGoalPart:
@@ -1179,7 +1187,7 @@ components:
     GuardResult:
       type: object
       required: [kind, policyVersion]
-      description: "How fixtures/assistant-policy.json classified the message. Only in_scope and ai_scope reach the AI. skip = the person is not sure, the question moves to the end (0.7). ai_scope = no keyword matched and nothing was refused, so the configured model judged it under the scope prompt and declines off-topic text (0.7; without a model this is unclear and redirected)."
+      description: "How the Guard handled the message. Skipped questions remain unanswered for the current topic. Unclear messages can show a clarification question."
       properties:
         kind: { type: string, enum: [answer, skip, explain, in_scope, ai_scope, injection, sensitive, guarantee, scam, off_topic, unclear] }
         policyVersion: { type: string }
@@ -1212,7 +1220,7 @@ components:
       required: [id, tool, label]
       properties:
         id: { type: string }
-        tool: { type: string, enum: [create_task, snooze_task, complete_step, update_facts] }
+        tool: { type: string, enum: [create_task, snooze_task, complete_step, update_facts, save_income_goal] }
         label: { type: string, description: "What will happen, in Thai, shown on the confirm button" }
 
     ActionResult:
@@ -1339,6 +1347,20 @@ components:
         goals: { type: array, items: { type: string } }
         constraints: { type: string }
         fromGov: { type: array, items: { type: string }, description: "อ่านอย่างเดียว: ช่องที่ ThaID เติมให้ (มีเมื่อเชื่อม ThaID แล้ว)" }
+        dataStatus: { type: string, enum: [mock] }
+        factProvenance:
+          type: object
+          additionalProperties:
+            type: object
+            required: [source, value]
+            properties:
+              source: { type: string, enum: [user, demo_answers, thaid, tangRat, socialSecurity, dMyTax] }
+              value: { oneOf: [{ type: string }, { type: boolean }, { type: number }] }
+              checkedAt: { type: string }
+              taxYear: { type: integer }
+              confirmed: { type: boolean }
+              dataStatus: { type: string, enum: [mock] }
+              status: { type: string, enum: [conflict, stale] }
 
     Settings:
       type: object
@@ -1414,6 +1436,7 @@ components:
         field: { type: string, enum: [identity, disabilityCard, ss33, taxWithheld] }
         label: { type: string }
         value: { type: string }
+        checkedAt: { type: string, format: date }
 
     DemoProfilePreview:
       type: object

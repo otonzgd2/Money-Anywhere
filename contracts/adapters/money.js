@@ -4,7 +4,8 @@
 const OPS = {
   eq: (a, b) => a === b, neq: (a, b) => a !== b,
   gt: (a, b) => typeof a === 'number' && a > b, gte: (a, b) => typeof a === 'number' && a >= b,
-  lt: (a, b) => typeof a === 'number' && a < b, in: (a, b) => Array.isArray(b) && b.includes(a)
+  lt: (a, b) => typeof a === 'number' && a < b, in: (a, b) => Array.isArray(b) && b.includes(a),
+  present: a => typeof a === 'string' && a.trim().length > 0
 };
 
 function amountOf(p, facts) {
@@ -38,6 +39,11 @@ function createMoney(ref) {
     const g = govData && govData[p.id];
     if (g) return { status: 'verified', reasons: [{ ok: true, text: 'ข้อมูลจากหน่วยงานผ่าน ThaID' }], amount: { basis: 'verified', value: g.amount, unit: p.kind === 'monthly' ? 'บาท/เดือน' : 'บาท', note: g.text }, dataStatus: g.mock ? 'mock' : 'live' };
     const reasons = [];
+    if (p.id === 'old_age' && facts.oldAgeGets === true || p.id === 'disability' && facts.disabilityGets === true) {
+      const h = p.haveIf || { label: 'ได้รับอยู่แล้ว', note: 'ติดต่อท้องถิ่นตามทะเบียนบ้านเพื่อตรวจรอบและยอดโอน' };
+      return { status: 'check', alreadyReceiving: true, reasons: [{ ok: true, text: h.label }, { ok: null, text: h.note }],
+        amount: { ...amountOf(p, facts), note: h.note, needsFact: undefined }, dataStatus: 'curated' };
+    }
     for (const c of p.conditions) {
       if (facts[c.fact] === undefined) return { status: 'need', reasons, nextQuestion: question(c.fact), amount: amountOf(p, facts), dataStatus: 'curated' };
       const ok = OPS[c.op](facts[c.fact], c.value); reasons.push({ ok, text: c.label });
@@ -83,11 +89,13 @@ function createMoney(ref) {
         if (v === null) { clean[k] = undefined; continue; }
         if (d.type === 'enum' && !d.options.includes(v)) errors.push(k + ': ต้องเป็นหนึ่งใน ' + d.options.join(', '));
         else if (d.type === 'bool' && typeof v !== 'boolean') errors.push(k + ': ต้องเป็น true/false');
-        else if (d.type === 'number' && (typeof v !== 'number' || v < d.min || v > d.max)) errors.push(k + ': ต้องเป็นตัวเลข ' + d.min + '-' + d.max);
+        else if (d.type === 'number' && (!Number.isFinite(v) || v < d.min || v > d.max)) errors.push(k + ': ต้องเป็นตัวเลข ' + d.min + '-' + d.max);
+        else if (d.type === 'text' && (typeof v !== 'string' || !/^[\p{Script=Thai}\s]{2,40}$/u.test(v.trim()))) errors.push(k + ': ระบุชื่อพื้นที่');
         else clean[k] = v;
       }
       return { errors, clean };
     },
+    question,
     claimSteps(id) { const p = programs.find(x => x.id === id); return p ? ['เตรียมเอกสาร', p.channels[0].title, 'ติดตามผล', 'ได้รับเงิน (ผู้ใช้แจ้ง)'] : null; }
   };
 }

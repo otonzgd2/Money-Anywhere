@@ -29,7 +29,7 @@ class _Msg {
 
 const _guardLabel = {
   'injection': 'ขอเปลี่ยนกฎ', 'sensitive': 'ข้อมูลส่วนตัว', 'guarantee': 'ขอการรับประกัน',
-  'scam': 'เสี่ยงมิจฉาชีพ/เงินกู้', 'off_topic': 'นอกเรื่อง', 'unclear': 'นอกขอบเขต',
+  'scam': 'เสี่ยงมิจฉาชีพ/เงินกู้', 'off_topic': 'นอกเรื่อง',
 };
 
 String _who(_Msg m) {
@@ -44,16 +44,31 @@ String _who(_Msg m) {
 }
 
 /// Lives as long as the app (held by the home screen), so going back and opening the chat again keeps the conversation.
-class ChatSession {
+class ChatSession extends ChangeNotifier {
   final List<_Msg> _msgs = [];
   final Set<String> decided = {};
   List<String> quick = [];
+  String? stepId;
   String? conversationId;
+  bool _sending = false;
   bool get started => conversationId != null;
 
   /// The person sent at least one message. Only then the home button says "คุยกับ AI ต่อ".
   bool get talked => _msgs.any((m) => m.mine);
-  void reset() { _msgs.clear(); decided.clear(); quick = []; conversationId = null; }
+  void reset() {
+    _msgs.clear();
+    decided.clear();
+    quick = [];
+    stepId = null;
+    conversationId = null;
+    _sending = false;
+    notifyListeners();
+  }
+
+  void _updateMessages(VoidCallback update) {
+    update();
+    notifyListeners();
+  }
 }
 
 class _ChatScreenState extends State<ChatScreen> {
@@ -74,6 +89,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    s.addListener(_sessionChanged);
     if (s.started) {
       busy = false;
       _scrollDown();
@@ -84,9 +100,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    s.removeListener(_sessionChanged);
     input.dispose();
     scroll.dispose();
     super.dispose();
+  }
+
+  void _sessionChanged() {
+    if (!mounted) return;
+    setState(() {});
+    _scrollDown();
   }
 
   Future<void> _start() async {
@@ -99,6 +122,7 @@ class _ChatScreenState extends State<ChatScreen> {
       setState(() {
         msgs.add(_Msg(false, '${c['greeting']}', status: 'guarded'));
         quick = (c['quickReplies'] as List? ?? const []).cast<String>();
+        s.stepId = (c['step'] as Map?)?['id'] as String?;
         busy = false;
       });
     } on ApiException catch (e) {
@@ -106,37 +130,57 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _send(String text) async {
+  Future<void> _send(String text, {String? stepId}) async {
     final t = text.trim();
-    if (t.isEmpty || conversationId == null || busy) return;
+    if (t.isEmpty || conversationId == null || busy || s._sending) return;
     input.clear();
-    setState(() { msgs.add(_Msg(true, t)); quick = []; busy = true; });
-    _scrollDown();
+    final session = s;
+    final id = conversationId;
+    final pending = _Msg(true, 'กำลังตรวจข้อความ…');
+    session._updateMessages(() {
+      msgs.add(pending);
+      session._sending = true;
+    });
     try {
-      final r = await api.post('/v1/ai/conversations/$conversationId/messages', {'text': t});
-      if (!mounted) return;
+      final r = await api.post('/v1/ai/conversations/$id/messages', {
+        'text': t,
+        'stepId': ?stepId,
+      });
+      if (session.conversationId != id) return;
       final guard = (r['guard'] as Map?)?['kind'] as String?;
       final planLinks = [
         for (final plan in r['planLinks'] as List? ?? const [])
           if (plan case {'taskId': final String taskId, 'title': final String title})
             (taskId: taskId, label: 'เปิดแผน $title'),
       ];
-      setState(() {
-        msgs.add(_Msg(false, '${r['reply']}', status: r['aiStatus'] as String?, guard: guard,
-            actions: (r['pendingActions'] as List? ?? const []).cast<Map<String, dynamic>>(), planLinks: planLinks));
-        quick = (r['quickReplies'] as List? ?? const []).cast<String>();
-        busy = false;
-      });
+      final index = session._msgs.indexOf(pending);
+      if (index >= 0) {
+        session._updateMessages(() {
+          session._msgs[index] = _Msg(true, guard == 'sensitive' ? 'ซ่อนข้อความที่มีข้อมูลส่วนตัว' : t);
+          session._msgs.add(_Msg(false, '${r['reply']}', status: r['aiStatus'] as String?, guard: guard,
+              actions: (r['pendingActions'] as List? ?? const []).cast<Map<String, dynamic>>(), planLinks: planLinks));
+          session.quick = (r['quickReplies'] as List? ?? const []).cast<String>();
+          session.stepId = (r['step'] as Map?)?['id'] as String?;
+          session._sending = false;
+        });
+      }
     } on ApiException catch (e) {
-      if (!mounted) return;
-      if (e.status == 404) {
+      final index = session._msgs.indexOf(pending);
+      if (session.conversationId != id) return;
+      if (e.status == 404 && mounted) {
         // The server restarted and forgot this conversation: start a new one (answers already saved are not asked again).
         s.reset();
         setState(() => busy = true);
         await _start();
         return;
       }
-      setState(() { msgs.add(_Msg(false, e.message, status: 'error')); busy = false; });
+      if (index >= 0) {
+        session._updateMessages(() {
+          session._msgs[index] = _Msg(true, 'ส่งข้อความไม่สำเร็จ');
+          session._msgs.add(_Msg(false, 'ตรวจข้อความไม่ได้ ลองส่งอีกครั้งนะคะ', status: 'error'));
+          session._sending = false;
+        });
+      }
     }
     _scrollDown();
   }
@@ -173,11 +217,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+        if (mounted && scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       });
 
   @override
   Widget build(BuildContext context) {
+    final displayedStepId = s.stepId;
+    final sending = busy || s._sending;
     return Scaffold(
       appBar: AppBar(title: Text(widget.title ?? 'ให้ AI หาเงินให้ฉัน')),
       body: SafeArea(
@@ -191,14 +237,14 @@ class _ChatScreenState extends State<ChatScreen> {
               itemBuilder: (_, i) => _bubble(msgs[i]),
             ),
           ),
-          if (busy && conversationId != null) const LinearProgressIndicator(minHeight: 2),
+          if (sending && conversationId != null) const LinearProgressIndicator(minHeight: 2),
           if (quick.isNotEmpty)
             SizedBox(
               height: 56,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                children: [for (final q in quick) Padding(padding: const EdgeInsets.only(right: 6), child: ActionChip(label: Text(q), onPressed: () => _send(q)))],
+                children: [for (final q in quick) Padding(padding: const EdgeInsets.only(right: 6), child: ActionChip(label: Text(q), onPressed: sending ? null : () => _send(q, stepId: displayedStepId)))],
               ),
             ),
           Padding(
@@ -206,7 +252,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Row(children: [
               Expanded(child: TextField(controller: input, textInputAction: TextInputAction.send, onSubmitted: _send, decoration: const InputDecoration(hintText: 'พิมพ์ตอบ หรือถามเรื่องเงินของคุณ', border: OutlineInputBorder()))),
               const SizedBox(width: 6),
-              IconButton.filled(onPressed: busy ? null : () => _send(input.text), icon: const Icon(Icons.send)),
+              IconButton.filled(onPressed: sending ? null : () => _send(input.text), icon: const Icon(Icons.send)),
             ]),
           ),
         ]),

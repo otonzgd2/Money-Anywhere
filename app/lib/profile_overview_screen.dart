@@ -6,7 +6,7 @@ import 'money.dart';
 import 'profile_screen.dart';
 import 'thaid.dart';
 
-typedef DemoConnection = ({String field, String source, String value});
+typedef DemoConnection = ({String field, String source, String value, String? checkedAt});
 
 class ProfileDemo {
   const ProfileDemo._(this._profile, this.identity, this.connections);
@@ -37,7 +37,7 @@ class ProfileDemo {
               'label': final String label,
               'value': final String value,
             })
-              (field: field, source: label, value: value),
+              (field: field, source: label, value: value, checkedAt: _text(source['checkedAt'])),
         ],
       );
     }
@@ -51,12 +51,14 @@ class ProfileSnapshot {
     this.identity,
     this.example,
     this.sample,
+    this.facts = const {},
   });
 
   final Map<String, dynamic> _profile;
   final ThaidProfileIdentity? identity;
   final ProfileDemo? example;
   final ProfileDemo? sample;
+  final Map<String, Object?> facts;
 
   factory ProfileSnapshot.demo(ProfileDemo demo) =>
       ProfileSnapshot._(demo._profile, identity: demo.identity, sample: demo);
@@ -65,7 +67,7 @@ class ProfileSnapshot {
       identity?.displayName ?? _text(_profile['displayName']);
   String? get district => identity?.district ?? _text(_profile['district']);
   int? get age => identity?.age;
-  bool get mock => sample != null || identity?.mock == true;
+  bool get mock => sample != null || identity?.mock == true || _profile['dataStatus'] == 'mock';
 
   static Future<ProfileSnapshot> load(
     Api api, {
@@ -92,6 +94,7 @@ class ProfileSnapshot {
       profile,
       identity: linked == null ? null : ThaidProfileIdentity(linked),
       example: example,
+      facts: facts,
     );
   }
 
@@ -214,6 +217,49 @@ List<String> _texts(Object? value) => [
     for (final item in value) ?_text(item),
 ];
 
+const _factLabels = {
+  'ageBand': 'ช่วงอายุ',
+  'nationality': 'สัญชาติไทย',
+  'registryDistrict': 'เขตหรืออำเภอตามทะเบียนบ้าน',
+  'registryProvince': 'จังหวัดตามทะเบียนบ้าน',
+  'govPension': 'เงินประจำจากรัฐ',
+  'oldAgeGets': 'ได้รับเบี้ยผู้สูงอายุ',
+  'disabilityCard': 'บัตรคนพิการที่ใช้ได้',
+  'disabilityGets': 'ได้รับเบี้ยความพิการ',
+  'welfareCard': 'บัตรสวัสดิการแห่งรัฐ',
+  'work': 'สถานะการทำงาน',
+  'ss33': 'สมทบ ม.33 ครบ 6 เดือนใน 15 เดือนก่อนออกงาน',
+  'wage': 'ค่าจ้างล่าสุด',
+  'taxWithheld': 'ภาษีหัก ณ ที่จ่าย',
+  'coverageEnded': 'สิ้นสุดสถานะผู้ประกันตน',
+  'lifetimePaidMonths33And39': 'เดือนสมทบสะสม ม.33 และ ม.39',
+};
+
+const _factSources = {
+  'user': 'คุณกรอกเอง',
+  'demo_answers': 'คำตอบตัวอย่าง',
+  'thaid': 'ThaID',
+  'tangRat': 'ทางรัฐ',
+  'socialSecurity': 'ประกันสังคม',
+  'dMyTax': 'D-MyTax',
+};
+
+String? _checkedDate(Object? raw) {
+  final value = _text(raw);
+  if (value == null) return null;
+  final date = DateTime.tryParse(value);
+  if (date == null) return null;
+  final day = value.contains('T') ? date.toUtc().add(const Duration(hours: 7)) : date;
+  return '${day.day}/${day.month}/${day.year + 543}';
+}
+
+String _factValue(Object? value) => switch (value) {
+  true => 'ใช่',
+  false => 'ไม่มี / ไม่ใช่',
+  null => 'ยังไม่มีข้อมูล',
+  _ => '$value',
+};
+
 class _ProfileDetails extends StatelessWidget {
   const _ProfileDetails({required this.data, this.onEdit, this.onExample});
   final ProfileSnapshot data;
@@ -239,6 +285,25 @@ class _ProfileDetails extends StatelessWidget {
     final registryAddress = identity?.address;
     final registryDistrict = identity?.district;
     final registeredName = identity?.displayName;
+    final provenance = profile['factProvenance'] as Map? ?? const {};
+    final factRows = <Widget>[
+      if (data.sample case final sample?)
+        for (final connection in sample.connections)
+          _ProfileRow(
+            icon: Icons.source_outlined,
+            label: _factLabels[connection.field] ?? 'ข้อมูลยืนยันตัวตน',
+            value: [
+              connection.value,
+              connection.source,
+              if (_checkedDate(connection.checkedAt) case final checked?) 'ตรวจล่าสุด $checked',
+            ].join(' · '),
+          )
+      else if (data.facts.isNotEmpty || provenance.isNotEmpty)
+        for (final entry in _factLabels.entries)
+          if (data.facts.containsKey(entry.key) || provenance.containsKey(entry.key)
+              || const {'ageBand', 'disabilityCard', 'ss33', 'taxWithheld'}.contains(entry.key))
+            _factRow(entry.value, data.facts[entry.key], provenance[entry.key] as Map?),
+    ];
     final personalRows = <Widget>[
       if (data.age case final age?)
         _ProfileRow(icon: Icons.cake_outlined, label: 'อายุ', value: '$age ปี'),
@@ -248,10 +313,10 @@ class _ProfileDetails extends StatelessWidget {
           label: 'ที่อยู่ตามทะเบียนบ้าน',
           value: address,
         )
-      else if (data.district case final district?)
+      else if (jobDistrict case final district?)
         _ProfileRow(
           icon: Icons.location_on_outlined,
-          label: 'เขตที่อยู่',
+          label: 'เขตสำหรับหางาน',
           value: district,
         ),
       if (identity?.maskedId case final id?)
@@ -268,9 +333,7 @@ class _ProfileDetails extends StatelessWidget {
           label: 'ชื่อที่ใช้ในแอป',
           value: nickname,
         ),
-      if (registryDistrict != null &&
-          jobDistrict != null &&
-          registryDistrict != jobDistrict)
+      if (registryDistrict != null && jobDistrict != null)
         _ProfileRow(
           icon: Icons.work_outline,
           label: 'เขตสำหรับหางาน',
@@ -376,12 +439,41 @@ class _ProfileDetails extends StatelessWidget {
             ),
           ),
         ],
+        if (factRows.isNotEmpty) ...[
+          const Divider(height: 28),
+          Text('ข้อมูลที่ใช้คัดกรอง', style: theme.textTheme.titleMedium),
+          ...factRows,
+        ],
         if (onExample case final example?)
           TextButton(
             onPressed: example,
             child: const Text('ดูโปรไฟล์ตัวอย่าง'),
           ),
       ],
+    );
+  }
+  Widget _factRow(String label, Object? value, Map? detail) {
+    final year = detail?['taxYear'];
+    final date = _checkedDate(detail?['checkedAt']);
+    return _ProfileRow(
+      icon: Icons.fact_check_outlined,
+      label: year is int ? '$label · ปีภาษี ${year + 543}' : label,
+      value: [
+        if (detail?['status'] == 'conflict')
+          'รอยืนยัน · ค่าจากแหล่งข้อมูล ${_factValue(detail?['value'])} · คุณตอบ ${_factValue(detail?['userValue'])}'
+        else if (detail?['status'] == 'stale')
+          'ข้อมูลเก่า ${_factValue(detail?['value'])} · รอตรวจข้อมูลปัจจุบัน'
+        else
+          _factValue(value),
+        if (detail?['confirmed'] == true)
+          'คุณยืนยัน'
+        else if (_factSources[detail?['source']] case final source?)
+          source
+        else if (value != null)
+          'คำตอบในโปรไฟล์',
+        if (date != null) 'ตรวจล่าสุด $date',
+        if (detail?['dataStatus'] == 'mock') 'DEMO / MOCK',
+      ].join(' · '),
     );
   }
 }

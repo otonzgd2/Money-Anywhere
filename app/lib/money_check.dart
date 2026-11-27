@@ -112,14 +112,23 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
           ),
         ),
       const SizedBox(height: 16),
-      if (q['type'] == 'number') ...[
+      if (q['type'] == 'number' || q['type'] == 'text') ...[
         Row(children: [
-          Expanded(child: TextField(controller: numberInput, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: 'ใส่ตัวเลข เช่น 10', border: OutlineInputBorder()))),
+          Expanded(child: TextField(
+            controller: numberInput,
+            keyboardType: q['type'] == 'number' ? TextInputType.number : TextInputType.text,
+            decoration: InputDecoration(
+              hintText: q['type'] == 'number' ? 'ใส่ตัวเลข เช่น 10' : 'พิมพ์ชื่อเขตหรืออำเภอ',
+              border: const OutlineInputBorder(),
+            ),
+          )),
           const SizedBox(width: 8),
           FilledButton(onPressed: () => _answer(q, numberInput.text), child: const Text('ตกลง')),
         ]),
-        const SizedBox(height: 8),
-        OutlinedButton(onPressed: () => _answer(q, 'ไม่มี'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)), child: const Text('ไม่มี (0)')),
+        if (q['type'] == 'number') ...[
+          const SizedBox(height: 8),
+          OutlinedButton(onPressed: () => _answer(q, 'ไม่มี'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)), child: const Text('ไม่มี (0)')),
+        ],
       ]
       else
         for (final o in options)

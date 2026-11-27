@@ -54,7 +54,7 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
     if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
     app.chat.reset();
     app.bump();
-    if (context.mounted) toast(context, 'เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เติมโปรไฟล์ให้แล้ว เงินที่หน่วยงานมีข้อมูลจะขึ้นว่า ยืนยันจากหน่วยงาน');
+    if (context.mounted) toast(context, 'เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เพิ่มข้อมูลยืนยันตัวตนในโปรไฟล์แล้ว');
     return true;
   } on ApiException catch (e) {
     if (context.mounted) {
@@ -151,7 +151,7 @@ class ThaidCard extends StatelessWidget {
           dense: true,
           leading: const Text('🪪', style: TextStyle(fontSize: 22)),
           title: const Text('เชื่อม ThaID แล้ว', style: TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text('เงินที่หน่วยงานมีข้อมูลแสดงว่า ยืนยันจากหน่วยงาน · ข้อมูลจำลอง (DEMO)'),
+          subtitle: const Text('ใช้ช่วงอายุและพื้นที่ตามทะเบียนช่วยตรวจเกณฑ์ · ข้อมูลจำลอง (DEMO)'),
         ),
       );
     }
@@ -160,7 +160,7 @@ class ThaidCard extends StatelessWidget {
       child: ListTile(
         minVerticalPadding: 12,
         leading: const Text('🪪', style: TextStyle(fontSize: 30)),
-        title: const Text('เชื่อม ThaID ดึงสิทธิ์จากรัฐอัตโนมัติ', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('เชื่อม ThaID เพื่อเติมข้อมูลยืนยันตัวตน', style: TextStyle(fontWeight: FontWeight.bold)),
         subtitle: const Text('ไม่ต้องตอบคำถามเอง เห็นเงินที่ได้อยู่และเงินรอรับ · โหมดสาธิตใช้ข้อมูลจำลอง'),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => connectThaid(context, app),

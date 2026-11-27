@@ -15,8 +15,8 @@ const fs = require('fs');
 const path = require('path');
 
 const COLLECTIONS = {
-  identity: ['gov'],
-  profile: ['profile', 'facts', 'settings', 'docsReady'],
+  identity: ['gov', 'demoProfile'],
+  profile: ['profile', 'facts', 'answerDetails', 'taxAnswers', 'settings', 'docsReady'],
   activity: ['consents', 'tasks', 'events', 'memory'],
   runtime: ['sessions', 'conversations', 'idem', 'seq', 'lastSeenAt', 'aiUse']
 };

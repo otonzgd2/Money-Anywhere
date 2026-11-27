@@ -33,10 +33,10 @@ function createGovMock(govMock, thaid = {}) {
 
   function identityFor(deviceId, facts, profile, data, now) {
     // Keep the mock coherent: an unknown age follows the agency records (old-age record -> 60+).
-    const band = facts.ageBand || (data.old_age ? '60-69' : 'ต่ำกว่า 60');
+    const band = facts.ageBand || thaid.defaultAgeBand || (data.old_age ? '60-69' : 'ต่ำกว่า 60');
     const p = band === 'ต่ำกว่า 60' ? people.default || {} : people.older || people.default || {};
     const birthdate = (years[band] || 1988) + '-04-12';
-    const district = profile.district || thaid.defaultDistrict || 'ปทุมวัน';
+    const district = profile.registryDistrict || thaid.defaultDistrict || 'ปทุมวัน';
     const pid = syntheticPid(deviceId);
     const claims = {
       title: p.title, given_name: p.given_name, middle_name: '', family_name: p.family_name,
@@ -76,4 +76,4 @@ function createGovMock(govMock, thaid = {}) {
     }
   };
 }
-module.exports = { createGovMock, syntheticPid, maskPid, bandOf };
+module.exports = { createGovMock, syntheticPid, maskPid, bandOf, ageOn };

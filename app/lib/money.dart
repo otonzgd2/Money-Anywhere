@@ -11,6 +11,9 @@ Object? toFactValue(Map<String, dynamic> question, String answer) {
       // "ไม่มี / ไม่ค้าง" to a number question means 0 (otherwise the same question would come back).
       if (RegExp(r'^\s*(ไม่มี|ไม่ค้าง|ไม่เคย)').hasMatch(answer)) return 0;
       return int.tryParse(answer.replaceAll(RegExp(r'[^0-9]'), ''));
+    case 'text':
+      final value = answer.trim();
+      return RegExp(r'^[ก-๛\s]{2,40}$').hasMatch(value) ? value : null;
     default:
       return answer;
   }

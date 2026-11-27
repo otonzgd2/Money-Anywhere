@@ -104,6 +104,18 @@ class _ChatApi extends Api {
           'planLinks': [{'taskId': _task['id'], 'title': _task['title']}],
         };
       }
+      if (body['text'] == 'เช็กสิทธิเบี้ยผู้สูงอายุ') {
+        expect(body['stepId'], 'intent-test');
+        return {
+          'reply': 'คุณอายุเท่าไหร่',
+          'step': {'id': 'age-test', 'fact': 'ageBand'},
+          'quickReplies': ['60-69'],
+        };
+      }
+      if (body['text'] == '60-69') {
+        expect(body['stepId'], 'age-test');
+        return {'reply': 'คุณมีสัญชาติไทยไหม'};
+      }
       return {
         'reply': 'เตรียมเอกสารและยื่นกับกรมการจัดหางาน',
         'pendingActions': [
@@ -121,8 +133,9 @@ class _ChatApi extends Api {
     starts++;
     return {
       'conversationId': 'conv-test',
-      'greeting': seeded ? 'ถูกรวมข้อมูล DEMO แล้ว' : 'คุณอายุเท่าไหร่',
-      if (seeded) 'quickReplies': ['ดูวิธีรับเงินว่างงาน'],
+      'greeting': 'อยากเริ่มจากเช็กสิทธิรับเงิน หรือวางแผนหาเงินเพิ่ม?',
+      'step': {'id': 'intent-test', 'fact': 'intent'},
+      'quickReplies': [if (seeded) 'ดูวิธีรับเงินว่างงาน' else 'เช็กสิทธิเบี้ยผู้สูงอายุ'],
     };
   }
 }
@@ -142,7 +155,7 @@ void main() {
 
       await tester.tap(find.text('เริ่มคุยเลย ›'));
       await tester.pumpAndSettle();
-      expect(find.text('ถูกรวมข้อมูล DEMO แล้ว'), findsOneWidget);
+      expect(find.text('อยากเริ่มจากเช็กสิทธิรับเงิน หรือวางแผนหาเงินเพิ่ม?'), findsOneWidget);
       expect(find.text('คุณอายุเท่าไหร่'), findsNothing);
       expect(personal.starts, 0);
       expect(demo.starts, 1);
@@ -156,7 +169,14 @@ void main() {
       );
       await tester.tap(find.text('เริ่มคุยด้วยข้อมูลของฉัน'));
       await tester.pumpAndSettle();
+      expect(find.text('อยากเริ่มจากเช็กสิทธิรับเงิน หรือวางแผนหาเงินเพิ่ม?'), findsOneWidget);
+      expect(find.text('คุณอายุเท่าไหร่'), findsNothing);
+      await tester.tap(find.widgetWithText(ActionChip, 'เช็กสิทธิเบี้ยผู้สูงอายุ'));
+      await tester.pumpAndSettle();
       expect(find.text('คุณอายุเท่าไหร่'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ActionChip, '60-69'));
+      await tester.pumpAndSettle();
+      expect(find.text('คุณมีสัญชาติไทยไหม'), findsOneWidget);
       expect(personal.starts, 1);
       expect(personal.seeded, isFalse);
     },
@@ -216,7 +236,9 @@ void main() {
         addTearDown(sources.close);
         await tester.pumpWidget(MoneyAnywhereApp(app: AppState(personal)));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('เริ่มคุยเลย ›'));
+        final entry = find.text('เริ่มคุยเลย ›').hitTestable();
+        await tester.scrollUntilVisible(entry, 100, scrollable: find.byType(Scrollable).first);
+        await tester.tap(entry);
         await tester.pumpAndSettle();
         await tester.tap(find.text('ดูวิธีรับเงินว่างงาน'));
         await tester.pumpAndSettle();

@@ -4,11 +4,20 @@
 // Money figures in replies must come from tool results; others are removed.
 const { createResponsesClient } = require('./responses');
 
-const MONEY_RE = /(฿\s?\d[\d,]*|\d[\d,]*\s?(บาท|baht|THB))/gi;
+const MONEY_RE = /(฿\s?\d[\d,.]*|\d[\d,.]*\s?(บาท|baht|THB))/gi;
 
 function guardMoney(reply, toolJson) {
   const known = new Set((toolJson.match(/\d+(\.\d+)?/g) || []));
   return String(reply || '').replace(MONEY_RE, m => (known.has(m.replace(/[^\d.]/g, '')) ? m : '(ดูยอดในแอป)'));
+}
+
+function guardReferences(reply, results) {
+  const urlLike = /(?:https?:\/\/|www\.)[^\s<>()\]]+|(?:[\w-]+\.)+(?:com|net|org|go\.th|co\.th|io)(?:\/[^\s<>()\]]*)?/gi;
+  const phoneLike = /(?<!\d)(?:\+66[\s-]?|0)\d(?:[\s-]?\d){7,8}(?!\d)|(?<=โทร(?:หา|ที่)?\s*|เบอร์(?:โทร)?\s*)\d{3,4}(?!\d)/gi;
+  const references = pattern => new Set(results.flatMap(value => value.match(pattern) || []));
+  const links = references(urlLike), phones = references(phoneLike);
+  return reply.replace(urlLike, value => links.has(value) ? value : 'ดูช่องทางในแอป')
+    .replace(phoneLike, value => phones.has(value) ? value : 'ดูเบอร์ติดต่อในแอป');
 }
 
 const PREF_RE = /(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ทำได้แค่[^.?!]*|ว่างแค่[^.?!]*)/;
@@ -162,10 +171,10 @@ function createAgent(opts = {}) {
     ? createResponsesClient({ baseUrl, apiKey, model, fetchImpl, timeoutMs: opts.timeoutMs || 15000 })
     : null;
 
-  async function llm(messages, toolSpecs) {
+  async function llm(messages, toolSpecs, signal) {
     const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), timeoutMs);
     try {
-      const res = await fetchImpl(baseUrl.replace(/\/$/, '') + '/chat/completions', { method: 'POST', signal: ctl.signal,
+      const res = await fetchImpl(baseUrl.replace(/\/$/, '') + '/chat/completions', { method: 'POST', signal: signal ? AbortSignal.any([signal, ctl.signal]) : ctl.signal,
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
         body: JSON.stringify({ model, temperature: 0, messages, tools: toolSpecs }) });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -175,28 +184,31 @@ function createAgent(opts = {}) {
 
   return {
     provider: configured ? 'openai_compatible' : 'rules',
-    async respond({ text, history = [], memory = [], profile = {}, tools, systemPrompt }) {
-      if (!configured) return rulesAgent({ text, tools });
-      const calls = [], pending = [], mem = [], savedMoneyIds = []; let toolJson = '';
+    async respond({ text, history = [], memory = [], profile = {}, tools, systemPrompt, signal, fallback }) {
+      if (!configured) return fallback ? fallback() : rulesAgent({ text, tools });
+      const calls = [], pending = [], mem = [], savedMoneyIds = [], results = []; let toolJson = '';
       const specs = Object.entries(tools).map(([name, t]) => ({ type: 'function', function: { name, description: t.description, parameters: t.parameters } }));
       const responseTools = responses && specs.map(({ type, function: spec }) => ({ type, ...spec, strict: false }));
       // systemPrompt comes from fixtures/assistant-policy.json (scope + checklist + current step).
       const messages = [
         { role: 'system', content: systemPrompt || 'คุณคือผู้ช่วยของแอป Money Anywhere ตอบภาษาไทยสั้นๆ ใช้เฉพาะข้อมูลจากเครื่องมือ ห้ามแต่งตัวเลขเงิน สิทธิ์ หรือหน่วยงาน ห้ามรับประกันว่าจะได้เงินหรือได้งาน แอปไม่ยื่นแทนผู้ใช้ งานที่เปลี่ยนข้อมูลต้องรอผู้ใช้ยืนยัน' },
-        { role: 'system', content: 'สิ่งที่ผู้ใช้เคยบอก: ' + (memory.join(' · ') || 'ไม่มี') + ' · โปรไฟล์: ' + JSON.stringify({ district: profile.district, skills: profile.skills, goals: profile.goals, hoursPerWeek: profile.hoursPerWeek }) },
+        { role: 'system', content: 'สิ่งที่ผู้ใช้เคยบอก: ' + (memory.join(' · ') || 'ไม่มี') + ' · โปรไฟล์: ' + JSON.stringify({ skills: profile.skills, hoursPerWeek: profile.hoursPerWeek, constraints: profile.constraints }) },
         ...history.slice(-8), { role: 'user', content: String(text) }];
       try {
         for (let step = 0; step < maxSteps; step++) {
-          const response = responses && await responses(messages, { tools: responseTools });
+          signal?.throwIfAborted();
+          const response = responses && await responses(messages, { tools: responseTools }, signal);
           const msg = response ? {
             content: response.text,
             tool_calls: response.output
               .filter(item => item.type === 'function_call')
               .map(item => ({ id: item.call_id, function: { name: item.name, arguments: item.arguments } }))
-          } : await llm(messages, specs);
+          } : await llm(messages, specs, signal);
+          signal?.throwIfAborted();
           if (!msg.tool_calls || !msg.tool_calls.length) {
-            if (response && !msg.content) throw new Error('Empty Responses reply');
-            return { aiStatus: 'ok', reply: guardMoney(msg.content, toolJson), toolCalls: calls, pending, memory: mem, quickReplies: [], savedMoneyIds };
+            if (typeof msg.content !== 'string' || !msg.content.trim()) throw new Error('Empty model reply');
+            const reply = guardReferences(guardMoney(msg.content, toolJson), results);
+            return { aiStatus: 'ok', reply, toolCalls: calls, pending, memory: mem, quickReplies: [], savedMoneyIds };
           }
           if (response) {
             // Replay reasoning items alongside function calls in stateless requests.
@@ -209,7 +221,11 @@ function createAgent(opts = {}) {
             try { args = JSON.parse(tc.function.arguments || '{}'); } catch { args = {}; }
             let out;
             if (!tool) out = { error: 'tool not allowed' };
-            else if (tool.mode === 'read') { out = await tool.run(args); calls.push({ tool: name, args }); }
+            else if (tool.mode === 'read') {
+              out = await tool.run(args);
+              calls.push({ tool: name, args });
+              results.push(JSON.stringify(out));
+            }
             else if (tool.mode === 'memory') { const note = String(args.text || '').slice(0, 200); if (note) mem.push(note); out = { saved: !!note }; calls.push({ tool: name, args }); }
             else {
               const task = tool.findSaved?.(args);
@@ -223,7 +239,11 @@ function createAgent(opts = {}) {
           }
         }
         throw new Error('too many steps');
-      } catch (e) { const r = await rulesAgent({ text, tools }); return { ...r, error: e.message }; }
+      } catch (e) {
+        signal?.throwIfAborted();
+        const r = fallback ? await fallback() : await rulesAgent({ text, tools });
+        return { ...r, error: e.message };
+      }
     }
   };
 }

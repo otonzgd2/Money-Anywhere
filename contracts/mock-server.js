@@ -24,10 +24,10 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { URL } = require('url');
 const { createAi } = require('./adapters/ai');
-const { createAgent, rulesAgent: runRulesAgent, goalTarget, moneyGuide, moneySummaryQuery,
+const { createAgent, rulesAgent: runRulesAgent, formatGoal, moneyGuide, moneySummaryQuery,
   unpaidPlansQuery, planStatusQuery, matchingMoneyPlans, planPaymentStatus } = require('./adapters/agent');
 const { taxDemoPersonas } = require('./adapters/demo-tax');
-const { govPrefillPersona, govPrefillSourceIds } = require('./adapters/gov-prefill-demo');
+const { govPrefillPersona, govPrefillSourceIds, loadDemoTangRatCard } = require('./adapters/gov-prefill-demo');
 const sources = require('./adapters/sources');
 const { createGeocoder } = require('./adapters/geocoder');
 const { createNotifier } = require('./adapters/notifier');
@@ -35,7 +35,10 @@ const { createMoney } = require('./adapters/money');
 const { createGovMock } = require('./adapters/gov');
 const { createStore, packDevice, readDevices, archiveRecord, LAYOUT } = require('./adapters/store');
 const { createJobs } = require('./adapters/jobs');
-const { createGuard, toFact } = require('./adapters/guard');
+const { createGuard, thaiDigits } = require('./adapters/guard');
+const { intentQuestion, intentOptions, benefitOptions, expense, jobRequest, monthly, lumpSum, otherSubject,
+  self, shortAnswer, moneyText, topicRequests, parseGoal, bangkokDay, answerValue } = require('./adapters/chat-intent');
+const { resolveProfileFacts } = require('./adapters/profile-facts');
 const { openJobCatalogue, collapseJobListings, normalizeJobText, jobDedupKey, reviewScamSignals, REPORT_HIDE_REASON,
   BANGKOK_DEMO_PROVIDER, BANGKOK_INFO_PATH } = require('./adapters/job-catalogue');
 const { createJobSync, createDemoJobSync, createJobPush, JobFeedError, DEMO_JOB_PROVIDER, JOB_REFRESH_MINUTES, WORK_MODES } = require('./adapters/job-sync');
@@ -65,13 +68,16 @@ function createServer(opts = {}) {
   if (appMode !== 'demo' && appMode !== 'user') throw new Error('APP_MODE must be demo or user');
   const govOn = appMode === 'demo' && (opts.govConnected ?? (process.env.GOV_CONNECTED === '1'));
   const demoOn = appMode === 'demo' && (opts.demo ?? (process.env.DEMO_MODE !== '0'));
-  const demoPersonas = demoOn ? { ...ref.demoPersonas, ...taxDemoPersonas, 'gov-prefill': govPrefillPersona(ref.thaid) } : {};
+  const demoPersonas = demoOn ? { ...ref.demoPersonas, ...taxDemoPersonas, 'gov-prefill': govPrefillPersona(ref.thaid, undefined, opts.demoSourceRecords) } : {};
   const ai = opts.ai || createAi(opts.aiOptions || {});
   const agent = opts.agent || createAgent(opts.aiOptions || {});
   const geo = createGeocoder(ref.taxonomies.districts);
   const notifier = createNotifier({ debug: opts.debug });
   const money = createMoney(ref);
-  const govAdapter = govOn ? createGovMock(ref.govMock, ref.thaid) : null;
+  const legacyGovFixtures = opts.legacyGovFixtures === true;
+  const govAdapter = govOn ? createGovMock(legacyGovFixtures ? ref.govMock : {}, {
+    ...ref.thaid, ...(legacyGovFixtures ? {} : { defaultAgeBand: '60-69' })
+  }) : null;
   const integrationKey = opts.integrationKey || process.env.INTEGRATION_KEY || 'dev-only-key';
   const store = opts.store || createStore({ file: opts.dataFile });
   const envNum = (v, dflt) => v !== undefined ? +v : dflt;
@@ -272,11 +278,18 @@ function createServer(opts = {}) {
     } catch (e) { console.error('ai log: ' + e.message); }
   }
   const curConsent = d => d.consents[d.consents.length - 1];
+  const assistantRequests = new WeakMap();
+  function cancelAssistantRequests(d) {
+    for (const conversation of Object.values(d.conversations)) assistantRequests.get(conversation)?.abort();
+  }
   const has = (d, p) => { const c = curConsent(d); return !!(c && c.noticeVersion === NOTICE.version && c.purposes[p] === true); };
   const E = (status, code, message, extra = {}) => [status, { code, message, status, retryable: status >= 500, ...extra }];
   const need = (d, p) => has(d, p) ? null : E(403, 'CONSENT_REQUIRED', 'ต้องได้รับความยินยอมเรื่องนี้ก่อน', { missingFields: [p] });
-  const govData = d => d.gov.status === 'connected' && has(d, 'gov') ? d.gov.data : null;
+  const govData = d => legacyGovFixtures && d.gov.status === 'connected' && has(d, 'gov') ? d.gov.data : null;
   const govIdentity = d => d.gov.status === 'connected' && has(d, 'gov') ? d.gov.identity || null : null;
+  const day = () => bangkokDay(opts.clock ? opts.clock() : Date.now());
+  const profileFacts = (d, context = {}) => resolveProfileFacts(d, { day: day(), govIdentity: govIdentity(d), ...context });
+  const effectiveFacts = d => profileFacts(d).facts;
   // ThaID identity fills the profile and age only where the person has not answered yet; remember what was filled
   // so a disconnect can take it back (data from the government must not stay after the link is removed).
   function applyIdentity(d, id) {
@@ -285,14 +298,15 @@ function createServer(opts = {}) {
     if (!p.displayName) { p.displayName = id.derived.displayName; applied.displayName = { value: p.displayName }; }
     if (!p.district) { const g = geo.geocode(id.derived.district); if (g) { p.district = id.derived.district; p.lat = g.lat; p.lng = g.lng; applied.district = { value: p.district }; } }
     if (Object.keys(applied).length) d.profile = p;
-    if (d.facts.ageBand !== id.derived.ageBand) { applied.ageBand = { value: id.derived.ageBand, prev: d.facts.ageBand }; d.facts = { ...d.facts, ageBand: id.derived.ageBand }; }
+    if (d.facts.ageBand !== id.derived.ageBand) applied.ageBand = { value: id.derived.ageBand, separate: true };
     return applied;
   }
   function dropGov(d) {
+    if (d.gov.status === 'connected') cancelAssistantRequests(d);
     const a = (d.gov && d.gov.applied) || {}, p = d.profile;
     if (p && a.displayName && p.displayName === a.displayName.value) delete p.displayName;
     if (p && a.district && p.district === a.district.value) { delete p.district; delete p.lat; delete p.lng; }
-    if (a.ageBand && d.facts.ageBand === a.ageBand.value) { const f = { ...d.facts }; if (a.ageBand.prev === undefined) delete f.ageBand; else f.ageBand = a.ageBand.prev; d.facts = f; }
+    if (a.ageBand && !a.ageBand.separate && d.facts.ageBand === a.ageBand.value) { const f = { ...d.facts }; if (a.ageBand.prev === undefined) delete f.ageBand; else f.ageBand = a.ageBand.prev; d.facts = f; }
     d.gov = { status: 'not_connected' };
   }
   const govOut = d => ({ status: d.gov.status, provider: govAdapter.provider, mock: true, connectedAt: d.gov.connectedAt, ...(govIdentity(d) ? { identity: { ...d.gov.identity, applied: Object.keys(d.gov.applied || {}) } } : {}) });
@@ -396,31 +410,54 @@ function createServer(opts = {}) {
       d.events.push({ id: 'ev' + d.seq++, taskId: t.id, type: body.type, before, at: nowIso() });
       const result = [201, taskOut(t)]; if (key) d.idem.set(key, result); return result;
     },
-    patchFacts(d, body) {
+    patchFacts(d, body, context = {}) {
       const gate = need(d, 'core'); if (gate) return gate;
       const { errors, clean } = money.validateFacts(body);
       if (errors.length) return E(422, 'VALIDATION', 'ข้อมูลไม่ถูกต้อง', { missingFields: errors });
-      for (const [k, v] of Object.entries(clean)) v === undefined ? delete d.facts[k] : d.facts[k] = v;
-      return [200, d.facts];
+      d.answerDetails ||= {};
+      for (const [key, value] of Object.entries(clean)) {
+        const taxYear = key === 'taxWithheld' ? context.taxYear || Number(day().slice(0, 4)) : undefined;
+        if (key === 'ageBand' && d.gov.applied?.ageBand && !d.gov.applied.ageBand.separate) d.gov.applied.ageBand.separate = true;
+        if (value === undefined) {
+          delete d.facts[key];
+          delete d.answerDetails[key];
+          if (taxYear && d.taxAnswers) delete d.taxAnswers[taxYear];
+        } else {
+          d.facts[key] = value;
+          d.answerDetails[key] = { checkedAt: nowIso(),
+            ...(taxYear ? { taxYear } : {}),
+            ...(key === 'ss33' && context.newExit ? { newExit: true } : {}),
+            ...(context.conflicts?.[key] ? { confirmedSource: context.conflicts[key] } : {}) };
+          if (taxYear) {
+            d.taxAnswers ||= {};
+            d.taxAnswers[taxYear] = { ...d.answerDetails[key], value };
+          }
+        }
+      }
+      return [200, effectiveFacts(d)];
     }
   };
 
   // ---- agent tools: what the AI may see and do for this one user ----
-  function agentTools(d, device) {
+  function agentTools(d, device, context = {}) {
+    const facts = () => profileFacts(d, context).facts;
     const savedMoneyPlan = moneyId => {
       const task = moneyId && d.tasks.find(t => t.moneyId === moneyId);
       return task ? taskOut(task) : undefined;
     };
     return {
-      get_money_overview: { mode: 'read', description: 'สรุปเงินที่ผู้ใช้อาจได้ และสถานะแต่ละรายการ', parameters: { type: 'object', properties: {} }, run: () => money.list(d.facts, govData(d)) },
+      get_money_overview: { mode: 'read', description: 'สรุปเงินที่ผู้ใช้อาจได้ และสถานะแต่ละรายการ', parameters: { type: 'object', properties: {} }, run: () => money.list(facts(), govData(d)) },
       get_money_route: { mode: 'read', description: 'ขั้นตอนรับเงินของรายการหนึ่ง พร้อมแผนเดิมและผลที่ผู้ใช้แจ้งถ้ามี', parameters: { type: 'object', properties: { moneyId: { type: 'string' } }, required: ['moneyId'] },
-        run: a => { const route = money.route(a.moneyId, d.facts, govData(d), d.docsReady[a.moneyId]); return route ? { ...route, savedPlan: savedMoneyPlan(a.moneyId) } : { error: 'not found' }; } },
+        run: a => { const route = money.route(a.moneyId, facts(), govData(d), d.docsReady[a.moneyId]); return route ? { ...route, savedPlan: savedMoneyPlan(a.moneyId) } : { error: 'not found' }; } },
       search_opportunities: { mode: 'read', description: 'ค้นหาโอกาสใกล้ผู้ใช้', parameters: { type: 'object', properties: { q: { type: 'string' }, group: { type: 'string' }, limit: { type: 'integer' } } },
-        run: a => { const q = new URLSearchParams(); if (a.q) q.set('q', a.q); if (a.group) q.set('group', a.group); const r = search(d, q); return { items: r.xs.slice(0, Math.min(5, a.limit || 3)).map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) }; } },
+        run: a => { const q = new URLSearchParams(); if (a.q) q.set('q', a.q); if (a.group) q.set('group', a.group); if (context.remote) q.set('workMode', 'remote'); const r = search(d, q); return { items: r.xs.slice(0, Math.min(5, a.limit || 3)).map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) }; } },
       plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
-        parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => goalPlan(d, Math.max(1, Math.min(1000000, Math.round(+a.target || 0)))) },
+        parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => Number.isInteger(a.target) && a.target > 0 && a.target <= 1000000 ? goalPlan(d, a.target, context) : { error: 'invalid monthly goal' } },
       list_tasks: { mode: 'read', description: 'งานในแผนของผู้ใช้', parameters: { type: 'object', properties: {} }, run: () => ({ items: d.tasks.map(taskOut) }) },
-      get_profile: { mode: 'read', description: 'โปรไฟล์ของผู้ใช้ (ไม่มีชื่อ)', parameters: { type: 'object', properties: {} }, run: () => { const { displayName, ...p } = d.profile || {}; return p; } },
+      get_profile: { mode: 'read', description: 'ทักษะ เวลาว่าง และข้อจำกัดสำหรับหางาน', parameters: { type: 'object', properties: {} }, run: () => { const { skills, hoursPerWeek, constraints } = d.profile || {}; return { skills, hoursPerWeek, constraints }; } },
+      save_income_goal: { mode: 'confirm', description: 'บันทึกเป้ารายเดือนที่ผู้ใช้เลือก',
+        label: a => 'บันทึกเป้ารายเดือน ' + moneyText(a.target) + ' บาท',
+        exec: a => { d.profile = { ...d.profile, incomeGoalPerMonth: a.target }; return [200, d.profile]; } },
       create_task: { mode: 'confirm', description: 'บันทึกโอกาสหรือรายการเงินเข้าแผน (ต้องให้ผู้ใช้ยืนยัน)', parameters: { type: 'object', properties: { opportunityId: { type: 'string' }, moneyId: { type: 'string' } } },
         findSaved: a => savedMoneyPlan(a.moneyId),
         label: a => 'บันทึกเข้าแผนของฉัน: ' + ((a.moneyId && (money.programs.find(p => p.id === a.moneyId) || {}).title) || (findOpportunity(a.opportunityId) || {}).title || 'รายการนี้'), exec: a => svc.createTask(d, a) },
@@ -452,8 +489,13 @@ function createServer(opts = {}) {
   on('GET', '/v1/privacy/notice', () => [200, { version: NOTICE.version, note: NOTICE.note, sections: NOTICE.sections, purposes: NOTICE.purposes.filter(p => purposeIds.includes(p.id)).map(({ feature, ...p }) => p) }], { public: true });
 
   // Me
-  on('DELETE', '/v1/me', ({ device }) => { devices.delete(device); notifier.cancel(device); return [204]; });
-  on('GET', '/v1/me/profile', ({ d }) => d.profile ? [200, { ...d.profile, ...(govIdentity(d) ? { fromGov: Object.keys(d.gov.applied || {}) } : {}) }] : E(404, 'NOT_FOUND', 'ยังไม่มีโปรไฟล์'));
+  on('DELETE', '/v1/me', ({ d, device }) => { cancelAssistantRequests(d); devices.delete(device); notifier.cancel(device); return [204]; });
+  on('GET', '/v1/me/profile', ({ d }) => {
+    const { details } = profileFacts(d, { includeProvenance: true });
+    if (!d.profile && !Object.keys(details).length) return E(404, 'NOT_FOUND', 'ยังไม่มีโปรไฟล์');
+    return [200, { ...d.profile, factProvenance: details, ...(d.demoProfile ? { dataStatus: 'mock' } : {}),
+      ...(govIdentity(d) ? { fromGov: Object.keys(d.gov.applied || {}) } : {}) }];
+  });
   on('PUT', '/v1/me/profile', ({ d, body }) => {
     const gate = need(d, 'core'); if (gate) return gate;
     if (!body || typeof body !== 'object' || Array.isArray(body)) return E(422, 'VALIDATION', 'ข้อมูลไม่ถูกต้อง');
@@ -472,7 +514,7 @@ function createServer(opts = {}) {
     const c = { id: 'c' + d.seq++, noticeVersion: body.noticeVersion, ageConfirmed: true, purposes, at: nowIso() };
     d.consents.push(c);
     // Withdrawals take effect immediately.
-    if (prev && prev.purposes.ai && !purposes.ai) { d.memory = d.memory.filter(m => m.source !== 'ai'); d.conversations = {}; }
+    if (prev && prev.purposes.ai && !purposes.ai) { cancelAssistantRequests(d); d.memory = d.memory.filter(m => m.source !== 'ai'); d.conversations = {}; }
     if (!purposes.reminders) notifier.cancel(device);
     if (!purposes.gov && d.gov.status !== 'not_connected') dropGov(d);
     return [201, c];
@@ -483,7 +525,7 @@ function createServer(opts = {}) {
     d.settings = { ...d.settings, ...Object.fromEntries(Object.entries(body || {}).filter(([k, v]) => k === 'largeText' && typeof v === 'boolean')) };
     return [200, d.settings];
   });
-  on('GET', '/v1/me/facts', ({ d }) => [200, d.facts]);
+  on('GET', '/v1/me/facts', ({ d }) => [200, effectiveFacts(d)]);
   on('PATCH', '/v1/me/facts', ({ d, body }) => svc.patchFacts(d, body));
   on('GET', '/v1/me/memory', ({ d }) => [200, { items: d.memory }]);
   on('POST', '/v1/me/memory', ({ d, body }) => {
@@ -500,10 +542,12 @@ function createServer(opts = {}) {
   // Government connection (hidden mode)
   const govGate = () => govOn ? null : E(404, 'FEATURE_DISABLED', 'โหมดเชื่อมรัฐยังไม่เปิดใช้');
   on('GET', '/v1/me/gov-link', ({ d }) => govGate() || [200, govOut(d)]);
-  on('POST', '/v1/me/gov-link', ({ d, device }) => { const g = govGate() || need(d, 'gov'); if (g) return g; const s = govAdapter.start(device); d.gov = { status: 'pending' }; return [201, { status: s.status, provider: govAdapter.provider, mock: true, authUrl: s.authUrl, state: s.state }]; });
+  on('POST', '/v1/me/gov-link', ({ d, device }) => { const g = govGate() || need(d, 'gov'); if (g) return g; dropGov(d); const s = govAdapter.start(device); d.gov = { status: 'pending', state: s.state }; return [201, { status: s.status, provider: govAdapter.provider, mock: true, authUrl: s.authUrl, state: s.state }]; });
   on('POST', '/v1/me/gov-link/callback', ({ d, device, body }) => {
     const g = govGate() || need(d, 'gov'); if (g) return g;
-    const r = govAdapter.finish(device, body && body.state, body && body.code, d.facts, d.profile || {}); if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
+    const r = d.gov.status === 'pending' && d.gov.state === body?.state
+      && govAdapter.finish(device, body.state, body.code, d.facts, d.profile || {}, opts.clock ? opts.clock() : Date.now());
+    if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
     d.gov = r; d.gov.applied = applyIdentity(d, r.identity); return [200, govOut(d)];
   });
   on('DELETE', '/v1/me/gov-link', ({ d }) => { const g = govGate(); if (g) return g; dropGov(d); return [204]; });
@@ -564,7 +608,7 @@ function createServer(opts = {}) {
   });
 
   // Money
-  on('GET', '/v1/money', ({ d }) => [200, { ...money.list(d.facts, govData(d)), govLink: govOn ? d.gov.status : 'disabled' }]);
+  on('GET', '/v1/money', ({ d }) => [200, { ...money.list(effectiveFacts(d), govData(d)), govLink: govOn ? d.gov.status : 'disabled' }]);
   // Check money from answers without storing anything (before consent). Same engine, no device state.
   on('POST', '/v1/money/preview', ({ body }) => {
     const { errors, clean } = money.validateFacts(body && body.facts);
@@ -573,13 +617,13 @@ function createServer(opts = {}) {
     const r = money.list(facts, null), next = r.items.find(i => i.status === 'need' && i.nextQuestion);
     return [200, { ...r, nextQuestion: next ? { ...next.nextQuestion, moneyId: next.id } : undefined, stored: false }];
   }, { public: true });
-  on('GET', '/v1/money/{id}', ({ d, p }) => { const r = money.route(p.id, d.facts, govData(d), d.docsReady[p.id]); return r ? [200, r] : E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); });
+  on('GET', '/v1/money/{id}', ({ d, p }) => { const r = money.route(p.id, effectiveFacts(d), govData(d), d.docsReady[p.id]); return r ? [200, r] : E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); });
   on('PATCH', '/v1/money/{id}', ({ d, p, body }) => {
     const g = need(d, 'core'); if (g) return g;
     const prog = money.programs.find(x => x.id === p.id); if (!prog) return E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้');
     const ready = body && Array.isArray(body.documentsReady) ? body.documentsReady : null;
     if (!ready || ready.some(i => !Number.isInteger(i) || i < 0 || i >= prog.docs.length)) return E(422, 'VALIDATION', 'documentsReady ต้องเป็นลำดับเอกสารที่มีจริง');
-    d.docsReady[p.id] = [...new Set(ready)]; return [200, money.route(p.id, d.facts, govData(d), d.docsReady[p.id])];
+    d.docsReady[p.id] = [...new Set(ready)]; return [200, money.route(p.id, effectiveFacts(d), govData(d), d.docsReady[p.id])];
   });
 
   // AI one-shot
@@ -596,157 +640,507 @@ function createServer(opts = {}) {
     let subject;
     if (body.subjectType === 'task_step') { const t = d.tasks.find(x => x.id === body.subjectId); if (!t) return E(404, 'NOT_FOUND', 'ไม่พบงานนี้'); subject = { type: 'task_step', title: t.title, step: t.steps[Math.min(t.doneCount, t.steps.length - 1)] }; }
     else if (body.subjectType === 'opportunity') { const o = findOpportunity(body.subjectId); if (!o) return E(404, 'NOT_FOUND', 'ไม่พบรายการนี้'); subject = { type: 'opportunity', opportunity: { title: o.title, conditions: o.conditions, category: o.category } }; }
-    else { const r = money.route(body.subjectId, d.facts, govData(d)); if (!r) return E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); subject = { type: 'opportunity', opportunity: { title: r.title, conditions: r.reasons.map(x => x.text), category: 'money' } }; }
+    else { const r = money.route(body.subjectId, effectiveFacts(d), govData(d)); if (!r) return E(404, 'NOT_FOUND', 'ไม่พบรายการเงินนี้'); subject = { type: 'opportunity', opportunity: { title: r.title, conditions: r.reasons.map(x => x.text), category: 'money' } }; }
     if (!has(d, 'ai')) return [200, { aiStatus: 'skipped_no_consent', text: (await createAi({ baseUrl: '', apiKey: '' }).explain(subject)).text }];
     const out = await aiFor(d).ai.explain(subject); logAi(device, 'explain', out);
     return [200, { aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId, text: out.text }];
   });
 
-  // AI assistant (agent)
-  // Guided checklist: the next missing fact, in program order, from the money engine itself.
-  // Facts the person already gave (anywhere in the app) are never asked again; skipped ones wait until the end.
-  // After an answer, finish the same program first ("has a child under 6" -> "family income"), so a likely
-  // benefit is not left half-asked while other programs' questions come in between.
-  const nextStep = (d, skipped = [], prefer) => {
-    const open = money.list(d.facts, govData(d)).items.filter(i => i.status === 'need' && i.nextQuestion && !skipped.includes(i.nextQuestion.fact));
-    const it = open.find(i => i.id === prefer) || open[0];
-    return it ? { ...it.nextQuestion, moneyId: it.id } : null;
-  };
-  const ANSWER_START = /^(ใช่|ไม่|มี|เคย|ได้|ทำ|ยัง|เป็น|อายุ)/;
-  const SHORT_ANSWER = /^(ใช่|ไม่ใช่|มี|ไม่มี|แล้ว|ยัง|ได้|ไม่ได้|เคย|ไม่เคย|เรียบร้อย|(?:ขึ้น|ยื่น|ทำ|ส่ง|สมัคร)แล้ว|ยังไม่(?:ได้)?(?:ขึ้น|ยื่น|ทำ|ส่ง|สมัคร)?)(?:\s*(?:ค่ะ|ครับ|คะ))?$/;
-  // Answered from data, never by the model: next steps, contacts, and "what money should I get" (the model
-  // listed every program, including ones the person has not qualified for).
+  // AI assistant. The conversation owns the displayed question and uncommitted goal.
   const DIRECT_RE = /ลิงก์|ลิงค์|link|เว็บ|ติดต่อ|เบอร์|โทร|ช่องทาง|ทำไง|ต้องทำ|ทำอะไรต่อ|ขั้นตอน|บริบท|ควรได้|ได้อะไร|สิทธิ์อะไร|เงินอะไร|จากรัฐ/i;
-  const stepQuick = s => s && s.options ? [...s.options, guard.skipQuickReply] : undefined;
+  const choice = (fact, question, options, type = 'enum') => ({ fact, question, options, type });
+  const intentStep = choice('intent', intentQuestion, intentOptions);
+  const stepQuick = step => step ? [...(step.options || []), guard.skipQuickReply] : undefined;
   const planLinks = plans => plans.filter(plan => plan.outcome?.result !== 'received').map(plan => ({ taskId: plan.id, title: plan.title }));
+  const benefitContext = topic => ({ taxYear: topic.taxYear, newExit: topic.newExit });
+  const promptAge = /^(?:อายุ\s*)?\d{1,3}\s*(?:ปี)?(?:แล้ว)?(?:\s*(?:ค่ะ|ครับ|คะ))?$/;
+  const safeForModel = value => typeof value === 'string' && !['injection', 'sensitive'].includes(guard.check(value).kind);
+
+  function setStep(d, c, step) {
+    if (!step) { c.expect = null; return; }
+    const { key, ...publicStep } = step;
+    const signature = JSON.stringify([c.topic?.id, c.topic?.mode, c.topic?.taxYear, c.topic?.newExit, key, publicStep]);
+    if (c.stepSignature === signature && c.expect?.id) return;
+    c.stepSignature = signature;
+    c.expect = { ...publicStep, id: 'step' + d.seq++ };
+  }
+
+  function benefitCheck(d, c) {
+    const topic = c.topic, id = topic.id;
+    const { facts, conflicts } = profileFacts(d, benefitContext(topic));
+    const available = fact => facts[fact] !== undefined;
+    const skipped = c.skipped || [];
+    const q = (fact, question) => {
+      if (!fact || skipped.includes(fact)) return null;
+      const step = money.question(fact);
+      const wording = question || step.question;
+      return { ...step, moneyId: id, question: conflicts[fact] ? 'ข้อมูลข้อนี้ไม่ตรงกัน ช่วยยืนยันอีกครั้งค่ะ ' + wording : wording, key: conflicts[fact] };
+    };
+    if (id === 'social_security_retirement') {
+      let fact;
+      if (!available('ageAtLeast55') && (!available('ageBand') || facts.ageBand === 'ต่ำกว่า 60')) fact = 'ageAtLeast55';
+      else if (facts.ageAtLeast55 !== false) fact = ['coverageEnded', 'lifetimePaidMonths33And39'].find(key => !available(key) && !skipped.includes(key));
+      return { step: q(fact), reply: 'ตรวจสิทธิชราภาพกับประกันสังคมโดยใช้สถานะผู้ประกันตนและเดือนสมทบสะสม ม.33 และ ม.39 ดูประวัติและสอบถามยอดจริงกับสำนักงานประกันสังคมค่ะ' };
+    }
+    if (id === 'old_age' && topic.mode === 'payment') {
+      if (!available('oldAgeGets')) return { step: q('oldAgeGets', 'ตอนนี้ได้รับเบี้ยอยู่แล้วไหม?'), reply: 'ยังไม่ทราบสถานะการรับเบี้ยผู้สูงอายุ ติดต่อท้องถิ่นตามทะเบียนบ้านเพื่อตรวจได้ค่ะ' };
+      if (facts.oldAgeGets) {
+        const district = facts.registryDistrict ? 'ที่ ' + facts.registryDistrict : 'ตามทะเบียนบ้าน';
+        return { reply: 'ติดตามการจ่ายเบี้ยผู้สูงอายุ ตรวจรายการโอนงวดนี้แล้วติดต่อท้องถิ่น' + district + ' เพื่อสอบถามรอบโอนและช่องทางแก้ไขค่ะ' };
+      }
+    }
+    // ThaID contributes identity facts here. A legacy mock payment feed is separate from those claims.
+    const routeFacts = id === 'disability' && topic.mode !== 'supplement' ? { ...facts, welfareCard: false } : facts;
+    const route = money.route(id, routeFacts, null, d.docsReady[id]);
+    if (!route) return { reply: 'ยังไม่มีเกณฑ์ของรายการนี้ในแอป ตรวจชื่อโครงการและช่องทางที่หน่วยงานประกาศค่ะ' };
+    const suffix = id === 'tax_refund' ? ' ปีภาษี ' + ((topic.taxYear || Number(day().slice(0, 4))) + 543) : '';
+    const tracking = id === 'old_age' && topic.mode === 'payment' ? 'ยังไม่ได้รับเบี้ย มาดูเกณฑ์ลงทะเบียนค่ะ\n' : '';
+    const base = tracking + route.title + suffix;
+    const fact = route.nextQuestion?.fact;
+    const includeFact = id !== 'disability' || fact !== 'welfareCard' || topic.mode === 'supplement';
+    const yearQuestion = id === 'tax_refund' && fact === 'taxWithheld' ? 'ปีภาษี ' + ((topic.taxYear || Number(day().slice(0, 4))) + 543) + ' ถูกหักภาษี ณ ที่จ่ายไหม?' : undefined;
+    if (fact && includeFact && (route.status === 'need' || route.status === 'likely')) {
+      const step = q(fact, yearQuestion);
+      if (step) return { step };
+      if (route.status === 'need') return { reply: base + ' ยังมีข้อมูลไม่พอสำหรับประเมิน ตรวจเกณฑ์และช่องทางกับ ' + route.payer + ' ค่ะ' };
+    }
+    if (route.status === 'unlikely') {
+      const reason = id === 'disability' ? 'ต้องมีบัตรคนพิการที่ยังใช้ได้' : route.reasons.find(reason => reason.ok === false)?.text;
+      return { reply: base + ' ยังไม่เข้าเกณฑ์จากข้อมูลที่มี' + (reason ? ' · ' + reason : '') };
+    }
+    if (id === 'tax_refund') {
+      return { reply: base + '\nมีข้อมูลว่าถูกหักภาษี ณ ที่จ่าย ตรวจเอกสารหักภาษีและยื่นแบบกับกรมสรรพากรเพื่อดูผลและยอดคืนจริงค่ะ' };
+    }
+    if (route.alreadyReceiving) return { reply: base + '\nได้รับอยู่แล้ว ตรวจยอดและรอบจ่ายกับ ' + route.payer + ' ค่ะ' };
+    const a = route.amount;
+    return { reply: base + '\n' + (a.value !== undefined ? 'ประเมิน ' + moneyText(a.value) + ' ' + a.unit + ' ตามเกณฑ์ที่แอปมี ' : 'ยังประเมินยอดไม่ได้ ') + 'ตรวจเงื่อนไขและขั้นตอนยื่นกับ ' + route.payer + ' ค่ะ',
+      action: route.claimable ? { tool: 'create_task', args: { moneyId: id } } : undefined };
+  }
+
+  function currentQuestion(d, c) {
+    if (c.subjectAge !== undefined) return choice('subjectAge', 'อายุที่บอกเป็นอายุของคุณเองใช่ไหม?', ['อายุของฉัน', 'เป็นอายุคนอื่น']);
+    if (!c.topic) return c.guided === false && c.expect?.fact !== 'intent' ? null : intentStep;
+    if (c.topic.id === 'benefits') return choice('benefitTopic', 'อยากเช็กสิทธิเรื่องไหนก่อน?', benefitOptions);
+    if (c.topic.id === 'program') return choice('programName', 'ขอชื่อโครงการหรือประกาศที่คุณเห็น เพื่อเช็กสิทธิของโครงการนั้นค่ะ', undefined, 'text');
+    if (c.topic.id !== 'income') return benefitCheck(d, c).step;
+    return c.incomeQuestion || null;
+  }
+
   on('POST', '/v1/ai/conversations', ({ d, body }) => {
-    const g = need(d, 'ai'); if (g) return g;
-    const id = 'conv' + d.seq++, guided = !body || body.mode !== 'free';
-    const step = guided ? nextStep(d) : null;
-    d.conversations[id] = { history: [], pending: {}, expect: step, skipped: [] };
-    return [201, { conversationId: id, greeting: 'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย' + (step ? '\nเริ่มจากข้อนี้: ' + step.question : ''),
-      quickReplies: stepQuick(step) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], step: step || undefined }];
+    const gate = need(d, 'ai'); if (gate) return gate;
+    const id = 'conv' + d.seq++, guided = body?.mode !== 'free';
+    const c = { history: [], pending: {}, expect: null, skipped: [], guided, queue: [] };
+    d.conversations[id] = c;
+    setStep(d, c, currentQuestion(d, c));
+    return [201, { conversationId: id, greeting: guided ? intentQuestion : 'สวัสดีค่ะ ถามเรื่องเงินของคุณได้เลย',
+      quickReplies: stepQuick(c.expect) || intentOptions, step: c.expect || undefined }];
   });
+
   on('POST', '/v1/ai/conversations/{id}/messages', async ({ d, device, p, body }) => {
-    const g = need(d, 'ai'); if (g) return g;
+    const gate = need(d, 'ai'); if (gate) return gate;
     const c = d.conversations[p.id]; if (!c) return E(404, 'NOT_FOUND', 'ไม่พบการคุยนี้');
-    if (!body || typeof body.text !== 'string' || !body.text.trim()) return E(422, 'VALIDATION', 'ต้องมีข้อความ');
-    const text = body.text.trim().slice(0, 1000), tools = agentTools(d, device);
+    if (!body || typeof body.text !== 'string' || !body.text.trim() || (body.stepId !== undefined && typeof body.stepId !== 'string')) {
+      return E(422, 'VALIDATION', 'ต้องมีข้อความและรหัสคำถามต้องเป็นข้อความ');
+    }
+    const raw = body.text.trim();
+    const text = raw.slice(0, 1000);
+    const displayed = c.expect;
     const previousAiReply = c.lastTurnUsedAi ? c.history.at(-1)?.content : undefined;
     c.lastTurnUsedAi = false;
-    const turn = (reply, kind, extra = {}) => [200, { aiStatus: 'guarded', reply, toolCalls: [], pendingActions: [], planLinks: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
-      step: c.expect || undefined, quickReplies: stepQuick(c.expect) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด', 'หางานใกล้บ้าน'], ...extra }];
+    const turnNumber = c.turnNumber = (c.turnNumber || 0) + 1;
+    assistantRequests.get(c)?.abort();
+    const today = day();
     const savedPlans = () => d.tasks.filter(task => task.moneyId);
-    const replyDetails = (out, summary = false) => {
+    const defaultReplies = () => c.queue?.length ? ['ไปเรื่องถัดไป', ...intentOptions] : intentOptions;
+    const waiting = () => c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : '';
+    const turn = (reply, kind = 'in_scope', extra = {}) => [200, { aiStatus: 'guarded', reply,
+      toolCalls: [], pendingActions: [], planLinks: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
+      step: c.expect || undefined, quickReplies: stepQuick(c.expect) || defaultReplies(), ...extra }];
+    c.skipped ||= [];
+    c.queue ||= [];
+
+    function details(out, tools, query = text) {
       const plans = savedPlans();
-      const related = summary || moneySummaryQuery.test(text) ? plans : matchingMoneyPlans(plans, { ...out, text });
-      const alreadySaved = new Set();
-      const pendingActions = [];
-      for (const action of out.pending) {
+      const related = moneySummaryQuery.test(query) ? plans : matchingMoneyPlans(plans, { ...out, text: query });
+      const alreadySaved = new Set(), pendingActions = [];
+      for (const action of out.pending || []) {
         if (tools[action.tool]?.mode !== 'confirm') continue;
+        if (action.tool === 'update_facts') {
+          const facts = action.args?.facts;
+          if (!facts || typeof facts !== 'object' || Array.isArray(facts) || !Object.keys(facts).length || money.validateFacts(facts).errors.length) continue;
+        }
         const existing = action.tool === 'create_task' && plans.find(t => t.moneyId === action.args?.moneyId);
         if (existing) { alreadySaved.add(existing); continue; }
+        if (action.tool === 'create_task' && action.args?.moneyId) {
+          const facts = profileFacts(d, c.topic ? benefitContext(c.topic) : {}).facts;
+          if (!money.route(action.args.moneyId, facts, govData(d))?.claimable) continue;
+        }
         const id = 'pa' + d.seq++;
-        c.pending[id] = action;
-        pendingActions.push({ id, tool: action.tool, label: action.label });
+        c.pending[id] = { ...action, ...(action.tool === 'save_income_goal' ? { goalVersion: c.goalVersion } : {}) };
+        pendingActions.push({ id, tool: action.tool, label: action.label || tools[action.tool].label(action.args || {}) });
       }
       const savedNote = [...alreadySaved].map(task => 'บันทึกแผน ' + task.title + ' ไว้แล้ว · ' + planPaymentStatus(task));
-      return {
-        reply: [out.reply, ...savedNote].join('\n'), toolCalls: out.toolCalls.map(t => ({ tool: t.tool })), pendingActions,
-        planLinks: planLinks(related), quickReplies: stepQuick(c.expect) || out.quickReplies,
-      };
-    };
-    if (c.expect && d.facts[c.expect.fact] !== undefined) {
-      c.expect = nextStep(d, c.skipped, c.expect.moneyId);
-      return turn('ข้อมูลที่บันทึกไว้ตอบข้อนี้แล้ว' + (c.expect ? '\nข้อต่อไป: ' + c.expect.question : '\nไม่มีคำถามอื่นแล้ว ถามเรื่องเงินของคุณต่อได้เลย'), 'answer');
+      return { reply: [out.reply, ...savedNote].join('\n'), toolCalls: (out.toolCalls || []).map(t => ({ tool: t.tool })),
+        pendingActions, planLinks: planLinks(related), quickReplies: stepQuick(c.expect) || (c.queue.length ? defaultReplies() : out.quickReplies) || defaultReplies() };
     }
-    let v = guard.check(text, c.expect);
-    // "อยากได้เดือนละ 10,000": the goal plan, computed from data (not the model), before any answer parsing.
-    if (['unclear', 'in_scope', 'answer'].includes(v.kind) && !(c.expect && c.expect.options && c.expect.options.includes(text)) && goalTarget(text)) {
-      const r = await rulesAgent.respond({ text, tools });
-      c.goal = goalTarget(text);
-      const { reply, ...details } = replyDetails(r);
-      return turn(reply + (c.expect ? '\n\nเพื่อให้แผนแม่นขึ้น ตอบข้อนี้ต่อ: ' + c.expect.question : ''), 'in_scope', details);
+
+    function benefitReply(kind = 'in_scope', prefix = '') {
+      const result = benefitCheck(d, c);
+      setStep(d, c, currentQuestion(d, c));
+      if (c.expect) return turn(prefix + c.expect.question, kind);
+      const { reply, ...extra } = details({ reply: result.reply, pending: result.action ? [result.action] : [],
+        toolCalls: money.programs.some(program => program.id === c.topic.id) ? [{ tool: 'get_money_route', args: { moneyId: c.topic.id } }] : [] },
+      agentTools(d, device), result.reply);
+      return turn(prefix + reply, kind, extra);
     }
-    // A free-text reply to the current question ("อายุ 65") may still be an answer: normalise it, keep it only if valid.
-    if (v.kind === 'unclear' && c.expect) {
-      const r = await aiFor(d).ai.extract({ question: c.expect.question, options: c.expect.options, number: c.expect.type === 'number' }, text);
-      // Only text that looks like an answer counts (a number, a yes/no word, or the option itself). The model must not
-      // turn "แนะนำร้านกาแฟหน่อย" into a stored fact just because it was forced to pick an option.
-      const looksLikeAnswer = /\d/.test(text) || ANSWER_START.test(text) || (r.value !== undefined && text.includes(String(r.value)));
-      if (looksLikeAnswer && ((c.expect.options && c.expect.options.includes(r.value)) || (c.expect.type === 'number' && typeof r.value === 'number'))) v = { kind: 'answer', value: String(r.value) };
+
+    function incomeAsk(fact, question, options, kind = 'in_scope') {
+      c.incomeQuestion = choice(fact, question, options, options ? 'enum' : 'text');
+      setStep(d, c, c.incomeQuestion);
+      return turn(question, kind);
     }
-    if (v.kind === 'explain') {
-      const q = c.expect;
-      return turn('ข้อนี้ถามว่า: ' + q.question + (q.help ? '\n' + q.help : '') + (q.options ? '\nตอบได้: ' + q.options.join(' / ') : '\nตอบเป็นตัวเลข') + '\nไม่แน่ใจ กด "' + guard.skipQuickReply + '" ได้', 'explain');
+
+    function incomeIdeas() {
+      c.incomeQuestion = null;
+      setStep(d, c, null);
+      const profile = d.profile || {};
+      const tasks = c.topic.remote ? 'ดูงานที่ระบุว่าทำจากบ้านและตรวจผู้ว่าจ้าง หรือเริ่มจากงานรับทำตามทักษะที่ส่งงานออนไลน์ได้'
+        : 'ลองดูงานพาร์ตไทม์ตามเวลาที่สะดวก หรืองานรับทำตามทักษะที่มี';
+      const skills = c.topic.jobDetails?.skills || profile.skills?.join(', ');
+      const hours = c.topic.jobDetails?.hours ?? profile.hoursPerWeek;
+      const available = [skills ? 'ทักษะ ' + skills : '', hours !== undefined ? 'เวลาว่าง ' + hours + ' ชม./สัปดาห์' : ''].filter(Boolean);
+      return turn((available.length ? 'จากข้อมูลที่ให้ไว้ (' + available.join(' · ') + ') ' : '') + tasks + ' ดูประกาศจริงในหน้าโอกาสค่ะ');
     }
-    if (v.kind === 'skip') {
-      c.skipped = [...(c.skipped || []), c.expect.fact];
-      c.expect = nextStep(d, c.skipped);
-      return turn('ได้ค่ะ ข้ามข้อนี้ไปก่อน' + (c.expect ? '\nข้อต่อไป: ' + c.expect.question : '\nไม่มีคำถามอื่นแล้ว ถามเรื่องเงินของคุณต่อได้เลย'), 'skip');
+
+    function goalReply(input, kind = 'in_scope') {
+      const old = c.goal || {};
+      const goal = c.goal = { ...old };
+      if (input.denied || input.ambiguous || (input.amount !== undefined && (!Number.isInteger(input.amount) || input.amount <= 0 || input.amount > 1000000))) {
+        delete goal.amount;
+        c.goalVersion = (c.goalVersion || 0) + 1;
+        return incomeAsk('goalAmount', input.ambiguous ? 'ยอดไหนคือจำนวนเงินที่อยากหาเพิ่ม?' : 'ระบุจำนวนเงินเป้าหมายใหม่ได้ไหม? เลือกดูทางเลือกก่อนได้ค่ะ', ['ดูทางเลือก'], kind);
+      }
+      if (input.amount !== undefined) goal.amount = input.amount;
+      if (input.kind !== undefined) goal.kind = input.kind;
+      if (input.deadline !== undefined) goal.deadline = input.deadline;
+      if (input.expense) goal.expense = input.expense;
+      if (goal.amount !== old.amount || goal.kind !== old.kind || goal.deadline !== old.deadline) c.goalVersion = (c.goalVersion || 0) + 1;
+      if (input.skip) {
+        if (c.incomeQuestion?.fact === 'goalExpense' || text === 'ดูทางเลือก') return incomeIdeas();
+        if (c.incomeQuestion?.fact === 'goalPeriod' || c.incomeQuestion?.fact === 'goalDeadline') return incomeIdeas();
+        return incomeAsk('goalExpense', 'มีค่าใช้จ่ายเรื่องไหนที่อยากให้เงินส่วนนี้ช่วยก่อน?', ['ดูทางเลือก'], 'skip');
+      }
+      if (!goal.amount) {
+        const savedGoal = d.profile?.incomeGoalPerMonth;
+        if (Number.isInteger(savedGoal) && savedGoal > 0 && savedGoal <= 1000000 && c.incomeQuestion?.fact !== 'goalAmount') {
+          return incomeAsk('savedGoal', 'ใช้เป้าเดิมเดือนละ ' + moneyText(savedGoal) + ' บาท หรือเปลี่ยนเป้าหมาย?', ['ใช้เป้าเดิม', 'เปลี่ยนเป้าหมาย']);
+        }
+        return incomeAsk('goalAmount', 'อยากหาเงินเพิ่มประมาณเท่าไหร่?', ['ยังไม่แน่ใจ', 'ดูทางเลือก'], kind);
+      }
+      if (!goal.kind) return incomeAsk('goalPeriod', 'ต้องการ ' + moneyText(goal.amount) + ' บาทเป็นเงินก้อน หรืออยากมีเพิ่มเดือนละ ' + moneyText(goal.amount) + ' บาท?', ['เงินก้อน', 'รายเดือน'], kind);
+      if (goal.deadline === null || goal.deadline < today) return incomeAsk('goalDeadline', 'กำหนดใช้เงินคือวันไหน? พิมพ์วันที่แบบ ปี-เดือน-วัน หรือบอกว่าใช้พรุ่งนี้ค่ะ', undefined, kind);
+      c.incomeQuestion = null;
+      setStep(d, c, null);
+      if (goal.kind === 'once') {
+        const deadline = goal.deadline ? ' ภายใน ' + new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(goal.deadline + 'T00:00:00Z')) : '';
+        return turn('เป้าเงินก้อน ' + moneyText(goal.amount) + ' บาท' + (goal.expense ? ' สำหรับ' + goal.expense : '') + deadline +
+          '\nลองดูงานรายครั้งที่จ่ายทันกำหนด หรือรับงานตามทักษะที่ทำเสร็จได้ในเวลาที่มี ดูเงื่อนไขจ่ายเงินในประกาศก่อนสมัครค่ะ', kind);
+      }
+      const context = { includeBenefits: c.topic.includeBenefits === true, remote: c.topic.remote === true };
+      const tools = agentTools(d, device, context);
+      const plan = tools.plan_income_goal.run({ target: goal.amount });
+      const pending = goal.amount === d.profile?.incomeGoalPerMonth ? [] : [{ tool: 'save_income_goal', args: { target: goal.amount } }];
+      const { reply, ...extra } = details({ reply: formatGoal(plan), pending, toolCalls: [{ tool: 'plan_income_goal' }] }, tools);
+      return turn(reply, kind, extra);
     }
-    if (v.kind === 'answer') {
-      // The person picked an option the app offered: this is their own entry, not an AI write.
-      const [st, res] = svc.patchFacts(d, { [c.expect.fact]: toFact(c.expect, v.value || text) });
-      if (st >= 400) return turn('คำตอบนี้ใช้ไม่ได้ ลองเลือกจากตัวเลือกอีกครั้ง\n' + c.expect.question, 'answer');
-      c.expect = nextStep(d, c.skipped || [], c.expect.moneyId);
-      if (c.expect) return turn('บันทึกแล้ว\nข้อต่อไป: ' + c.expect.question, 'answer');
-      const sum = await runRulesAgent({ text: 'เงินฉันอยู่ไหน', tools });
-      const { reply, ...details } = replyDetails(sum, true);
-      return turn('บันทึกแล้ว ตอบครบแล้ว\n' + reply + '\nขั้นต่อไป: เตรียมเอกสาร แล้วไปยื่นตามช่องทางในแอป', 'answer', details);
-    }
-    if (['in_scope', 'unclear'].includes(v.kind)) {
-      const plans = savedPlans();
-      const named = matchingMoneyPlans(plans, { text });
-      if (unpaidPlansQuery.test(text) || (planStatusQuery.test(text) && named.length)) {
-        const links = planLinks(named.length ? named : plans);
-        const reply = named.length ? named.map(task => task.title + ' · ' + planPaymentStatus(task)).join('\n')
-          : links.length ? 'เปิดแผนที่บันทึกไว้และยังไม่มีการแจ้งว่าได้รับเงินได้จากปุ่มด้านล่างค่ะ' : 'ตอนนี้ไม่มีแผนที่บันทึกไว้และยังรอแจ้งว่าได้รับเงินค่ะ';
-        return turn(reply, 'in_scope', { planLinks: links, quickReplies: stepQuick(c.expect) || ['เงินฉันอยู่ไหน', 'เอกสารที่ยังขาด'] });
+
+    function selectTopic(topic, rest = []) {
+      c.topic = topic;
+      c.skipped = [];
+      c.queue = rest;
+      c.subjectAge = undefined;
+      if (topic.id === 'income') {
+        c.goal = {};
+        c.goalVersion = (c.goalVersion || 0) + 1;
+        c.incomeQuestion = null;
       }
     }
-    if ((v.kind === 'in_scope' && DIRECT_RE.test(text)) || (['in_scope', 'unclear'].includes(v.kind) && moneyGuide.test(text))) {
-      const r = await rulesAgent.respond({ text, tools });
-      const { reply, ...details } = replyDetails(r);
-      return turn(reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''), 'in_scope', details);
+
+    async function runAssistant(query, kind, { deterministic = false, income = false, benefit } = {}) {
+      const tools = agentTools(d, device, { ...benefitContext(benefit || {}), remote: income && c.topic.remote });
+      const allowed = income ? Object.fromEntries(Object.entries(tools).filter(([key]) =>
+        ['search_opportunities', 'create_task', 'get_profile'].includes(key))) : { ...tools };
+      delete allowed.save_income_goal;
+      delete allowed.plan_income_goal;
+      if (income) delete allowed.get_profile;
+      if (benefit) {
+        const routeTool = allowed.get_money_route;
+        for (const key of Object.keys(allowed)) if (!['get_money_route', 'create_task'].includes(key)) delete allowed[key];
+        allowed.get_money_route = { ...routeTool, run: () => routeTool.run({ moneyId: benefit.id }) };
+      }
+      const narrowed = income ? query === 'หางานใกล้บ้าน' ? query : 'ช่วยคิดทางเลือกหารายได้จากทักษะ' + (c.topic.remote ? 'ที่ทำจากบ้าน' : '')
+        + (c.topic.limitedTravel ? ' เดินทางไกลไม่สะดวก' : '') : benefit && !shortAnswer.test(query) ? 'ช่วยอธิบายขั้นตอนของ ' + money.programs.find(program => program.id === benefit.id).title : query;
+      const consent = d.conversations[p.id];
+      const gov = d.gov;
+      const controller = new AbortController();
+      assistantRequests.set(c, controller);
+      const fallback = async () => benefit ? { reply: benefitCheck(d, c).reply, aiStatus: 'fallback_rules' }
+        : runRulesAgent({ text: narrowed, tools: allowed });
+      let out;
+      try {
+        out = deterministic ? await runRulesAgent({ text: narrowed, tools: allowed })
+          : await aiFor(d).agent.respond({ text: narrowed, tools: allowed,
+            history: income ? [] : c.history, memory: [],
+            profile: income ? { skills: d.profile?.skills?.filter?.(safeForModel),
+              hoursPerWeek: safeForModel(d.profile?.hoursPerWeek) ? d.profile.hoursPerWeek : undefined,
+              constraints: safeForModel(d.profile?.constraints) ? d.profile.constraints : undefined } : {},
+            signal: controller.signal, fallback,
+            systemPrompt: guard.systemPrompt('แอปเลือกหัวข้อและคำถามแล้ว ให้สรุปทางเลือกจากเครื่องมือโดยไม่ถามคัดกรองอีก') });
+      } catch {
+        if (!controller.signal.aborted) out = await fallback();
+      } finally {
+        if (assistantRequests.get(c) === controller) assistantRequests.delete(c);
+      }
+      if (!has(d, 'ai') || devices.get(device) !== d || d.conversations[p.id] !== consent) {
+        return E(403, 'CONSENT_REQUIRED', 'เซสชันนี้ไม่มีสิทธิ์ใช้ AI แล้ว');
+      }
+      if (c.turnNumber !== turnNumber) return turn(c.expect?.question || 'มีข้อความใหม่ในบทสนทนาแล้วค่ะ', 'unclear');
+      if (d.gov !== gov) {
+        setStep(d, c, currentQuestion(d, c));
+        if (benefit) return benefitReply('in_scope');
+        if (!income) return runAssistant('เงินฉันอยู่ไหน', 'in_scope', { deterministic: true });
+      }
+      if (!out) out = await fallback();
+      if (income && out.aiStatus === 'fallback_rules' && narrowed !== 'หางานใกล้บ้าน') {
+        const [status, result] = incomeIdeas();
+        return [status, { ...result, aiStatus: 'fallback_rules' }];
+      }
+      if (benefit) out = { ...out, pending: out.pending?.filter(action => action.args?.moneyId === benefit.id) };
+      if (out.aiStatus === 'ok' && !income && !benefit
+        && /(?:คุณ(?:ควร|จะ|มีสิทธิ์)|เข้าเกณฑ์|ได้แน่นอน).{0,16}(?:ได้เงิน|รับเงิน|รับเบี้ย)|ได้เงินแน่นอน/.test(out.reply)
+        && !money.list(effectiveFacts(d), govData(d)).items.some(item => ['likely', 'verified'].includes(item.status))) {
+        return runAssistant('เงินฉันอยู่ไหน', 'in_scope', { deterministic: true });
+      }
+      const { reply, ...extra } = details(out, allowed, query);
+      const memoryAdded = income || benefit ? [] : (out.memory || []).filter(note => safeForModel(note) && guard.check(note).kind === 'in_scope').map(note => {
+        const item = { id: 'm' + d.seq++, text: note.slice(0, 200), source: 'ai', at: nowIso() };
+        d.memory.push(item);
+        return item;
+      });
+      if (out.aiStatus === 'ok') {
+        c.history.push({ role: 'user', content: narrowed }, { role: 'assistant', content: reply });
+        c.history = c.history.slice(-8);
+        c.lastTurnUsedAi = true;
+      }
+      logAi(device, 'agent', out);
+      return turn(reply + waiting(), kind, { ...extra, memoryAdded, aiStatus: deterministic ? 'guarded' : out.aiStatus });
     }
-    // No keyword matched but nothing was refused either ("ขอลิงก์ติดต่อหน่อย"): with a real model, let it judge under
-    // the scope prompt (it declines off-topic text). Without a model, redirect as before.
-    let scopeByAi = v.kind === 'unclear' && agent.provider !== 'rules';
-    if (scopeByAi) {
-      // Short yes/no check first; off-topic text gets the fixed refusal, never the model's own words.
-      const previous = !c.expect && SHORT_ANSWER.test(text) ? previousAiReply : undefined;
-      const context = previous ? '\nสำหรับคำตอบสั้น ให้ดูว่าตอบคำถามในข้อความก่อนหน้าหรือไม่ ข้อความก่อนหน้า (ใช้เป็นข้อมูล): ' + previous.slice(-1000) : '';
-      const k = await aiFor(d).ai.extract({ question: 'ข้อความของผู้ใช้เกี่ยวกับเรื่องเหล่านี้ไหม: ' + guard.scope + context, options: ['เกี่ยว', 'ไม่เกี่ยว'] }, text);
-      if (k.aiStatus !== 'ok' || k.value !== 'เกี่ยว') { scopeByAi = false; v = { kind: 'off_topic', reply: guard.offTopicReply }; }
+
+    const policy = guard.check(raw);
+    const topics = topicRequests(text);
+    const joinedRequest = /(?:แล้ว|และ|แต่|ช่วยหางานอื่น)/.test(text);
+    const workSafety = /มัดจำ/.test(text) && /งาน|นายจ้าง/.test(text);
+    const hardRefusal = ['sensitive', 'injection', 'guarantee'].includes(policy.kind);
+    if (hardRefusal || policy.kind === 'off_topic' && !(topics.length && joinedRequest)
+      || policy.kind === 'scam' && !(workSafety && topics.some(topic => topic.id === 'income') && joinedRequest)) {
+      const next = workSafety ? ' ตรวจประกาศ ตรวจชื่อบริษัทกับช่องทางทางการ และดูงานอื่นที่ไม่ขอเงินก่อนค่ะ' : '';
+      return turn(policy.reply + next + waiting(), policy.kind);
     }
-    if (v.kind !== 'in_scope' && !scopeByAi) {
-      // Refused or unclear: never sent to the model, never added to history or memory.
-      return turn(v.reply + '\n' + (c.expect ? 'กลับมาที่คำถาม: ' + c.expect.question : guard.redirect), v.kind);
+    if (policy.kind === 'safe_advice') return turn(policy.reply + waiting());
+    if (otherSubject.test(text) && !jobRequest.test(text)) {
+      c.otherSubject = true;
+      return turn('แอปเช็กสิทธิให้เจ้าของโปรไฟล์นี้ค่ะ ถ้าต้องการตรวจของตัวคุณเอง บอกได้เลย');
     }
-    const out = await aiFor(d).agent.respond({ text, history: c.history, memory: d.memory.map(m => m.text), profile: d.profile || {}, tools,
-      systemPrompt: guard.systemPrompt(c.expect
-        ? 'แอปจะถามข้อนี้เองหลังคำตอบของคุณ: ' + c.expect.question + ' ตอบคำถามของผู้ใช้โดยไม่ถามข้อนี้ซ้ำ'
-        : 'ตอบสิ่งที่ผู้ใช้ถามและให้ขั้นตอนถัดไปจากเครื่องมือ ขณะนี้แอปไม่มีคำถามคัดกรองค้างอยู่ ใช้ข้อมูลที่มี ห้ามเริ่มถามคัดกรองใหม่หรือถามว่าทำขั้นตอนไปแล้วหรือยัง ให้บอกขั้นตอนแยกตามกรณีแทน')
-        + '\nเมื่อพูดถึงความคืบหน้าในแผน ใช้ list_tasks หรือ savedPlan จาก get_money_route อ้างชื่อรายการตามข้อมูล ถ้าเคยบันทึกแล้วให้บอกว่ามีแผนเดิม ใช้ outcome.result=received เป็นผลที่ผู้ใช้แจ้งว่าได้รับเงิน แอปแนบปุ่มเปิดแผนเอง ห้ามแต่ง URL ของแผน' });
-    const { reply, ...details } = replyDetails(out);
-    logAi(device, 'agent', out);
-    const memoryAdded = out.memory.map(text => { const m = { id: 'm' + d.seq++, text: text.slice(0, 200), source: 'ai', at: nowIso() }; d.memory.push(m); return m; });
-    c.history.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
-    c.lastTurnUsedAi = out.aiStatus === 'ok';
-    return [200, { aiStatus: out.aiStatus, aiInvocationId: 'agent-' + crypto.randomUUID().slice(0, 8), reply: reply + (c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : ''),
-      ...details, memoryAdded,
-      guard: { kind: scopeByAi ? 'ai_scope' : 'in_scope', policyVersion: guard.version }, step: c.expect || undefined }];
+
+    // Refresh against the current data while keeping the identifier of the question the user saw.
+    setStep(d, c, currentQuestion(d, c));
+    if (body.stepId && body.stepId !== c.expect?.id) {
+      return turn(c.expect?.question || 'คำถามนี้ปิดแล้ว เลือกเรื่องที่อยากทำต่อได้เลยค่ะ', 'unclear');
+    }
+    const asked = c.expect;
+    const sameQuestion = displayed?.id === asked?.id && asked;
+    const resumeQueue = text === 'ไปเรื่องถัดไป' && c.queue.length;
+    if (resumeQueue) topics.push(c.queue.shift(), ...c.queue);
+
+    const plans = savedPlans();
+    const named = matchingMoneyPlans(plans, { text });
+    if (unpaidPlansQuery.test(text) || (planStatusQuery.test(text) && named.length)) {
+      setStep(d, c, null);
+      const links = planLinks(named.length ? named : plans);
+      const reply = named.length ? named.map(task => task.title + ' · ' + planPaymentStatus(task)).join('\n')
+        : links.length ? 'เปิดแผนที่บันทึกไว้และยังไม่มีการแจ้งว่าได้รับเงินได้จากปุ่มด้านล่างค่ะ' : 'ตอนนี้ไม่มีแผนที่บันทึกไว้และยังรอแจ้งว่าได้รับเงินค่ะ';
+      return turn(reply, 'in_scope', { planLinks: links });
+    }
+    if (moneyGuide.test(text) || text === 'ดูรายการสิทธิทั้งหมด') {
+      c.topic = null;
+      setStep(d, c, null);
+      return runAssistant(text === 'ดูรายการสิทธิทั้งหมด' ? 'เงินฉันอยู่ไหน' : text, 'in_scope', { deterministic: true });
+    }
+
+    const explicit = topics[0];
+    if (explicit && explicit.id === 'income' && c.topic?.id === 'income' && !resumeQueue) {
+      c.topic.remote ||= explicit.remote;
+      c.topic.limitedTravel ||= explicit.limitedTravel;
+    } else if (explicit) {
+      selectTopic(explicit, topics.slice(1));
+    }
+    if (explicit?.id === 'benefits') {
+      setStep(d, c, currentQuestion(d, c));
+      return turn(c.expect.question);
+    }
+    if (explicit?.id === 'program') {
+      setStep(d, c, currentQuestion(d, c));
+      return turn(c.expect.question);
+    }
+
+    if (explicit?.id === 'income') {
+      const incomeText = resumeQueue ? text : thaiDigits(text).slice(explicit.index);
+      const input = resumeQueue ? explicit.goal : parseGoal(incomeText, today);
+      if (input.amount !== undefined || input.kind || input.denied || input.ambiguous || input.skip || !jobRequest.test(incomeText)) return goalReply(input);
+      if (workSafety) return turn('ระวังงานที่ขอมัดจำค่ะ ตรวจชื่อบริษัทกับช่องทางทางการก่อน ดูงานอื่นที่ระบุเงื่อนไขชัดและสมัครได้โดยไม่โอนเงิน');
+      if (explicit.remote && !d.profile?.skills?.length) return incomeAsk('jobSkills', 'ถ้าจะทำงานจากบ้าน คุณถนัดงานอะไรบ้าง?', ['ดูทางเลือก']);
+      if (explicit.remote && !d.profile?.hoursPerWeek) return incomeAsk('jobHours', 'คุณมีเวลาทำงานจากบ้านประมาณกี่ชั่วโมงต่อสัปดาห์?', ['ดูทางเลือก']);
+      setStep(d, c, null);
+      return runAssistant(text, 'in_scope', { income: true });
+    }
+    if (explicit) {
+      const topic = c.topic;
+      const foundYear = thaiDigits(text).match(/(?:ปีภาษี|ปี)\s*(\d{4})/);
+      if (topic.id === 'tax_refund' && foundYear) topic.taxYear = Number(foundYear[1]) - (Number(foundYear[1]) >= 2400 ? 543 : 0);
+      if (topic.id === 'unemployment') topic.newExit = /(?:ออกจากงาน|ออกงาน|ตกงาน|เลิกจ้าง).{0,24}(?:ครั้งใหม่|รอบใหม่|ล่าสุด)|(?:ครั้งใหม่|รอบใหม่|ล่าสุด).{0,24}(?:ออกจากงาน|ออกงาน|ตกงาน|เลิกจ้าง)/.test(text);
+      if (self.test(text)) c.otherSubject = false;
+      const age = /อายุ\s*[๐-๙\d]{1,3}\s*(?:ปี)?/.exec(text);
+      if (age && topic.id === 'old_age') {
+        const value = answerValue(money.question('ageBand'), age[0]);
+        if (c.otherSubject && !self.test(text)) c.subjectAge = value;
+        else if (value !== undefined) {
+          const { facts } = profileFacts(d);
+          if (facts.ageBand === undefined) svc.patchFacts(d, { ageBand: value });
+        }
+      }
+      if (/^(?:ช่วย)?(?:ขอ|อธิบาย).*รายละเอียด/.test(text) && money.programs.some(program => program.id === topic.id)
+        && !benefitCheck(d, c).step && money.route(topic.id, profileFacts(d, benefitContext(topic)).facts, null)?.claimable) {
+        setStep(d, c, null);
+        return runAssistant(text, 'in_scope', { benefit: topic });
+      }
+      return benefitReply();
+    }
+
+    if (/^(?:เตือนฉัน|ฉันไม่สะดวก)/.test(text) && policy.kind === 'in_scope') {
+      setStep(d, c, null);
+      return runAssistant(text, 'in_scope');
+    }
+    if (/^ช่วย(?:ดู|อธิบายผลเช็ก)เงินของฉัน/.test(text)) {
+      setStep(d, c, null);
+      return runAssistant('ช่วยดูเงินของฉันหน่อย', 'in_scope');
+    }
+    if (c.topic?.id === 'income') {
+      if (sameQuestion?.fact === 'jobSkills' || sameQuestion?.fact === 'jobHours') {
+        if (text === 'ดูทางเลือก' || guard.check(text, sameQuestion).kind === 'skip') return incomeIdeas();
+        const skillText = sameQuestion.fact === 'jobSkills' ? text : undefined;
+        const hours = sameQuestion.fact === 'jobHours' ? /^([๐-๙\d]{1,3})(?:\s*ชั่วโมง)?/.exec(text) : undefined;
+        c.topic.jobDetails = { ...c.topic.jobDetails, ...(skillText ? { skills: skillText } : {}), ...(hours ? { hours: Number(thaiDigits(hours[1])) } : {}) };
+        return incomeIdeas();
+      }
+      const input = parseGoal(sameQuestion?.fact === 'goalDeadline' && /^\d{4}-\d{2}-\d{2}$/.test(thaiDigits(text)) ? 'วันที่ ' + text : text, today);
+      if (text === 'เปลี่ยนเป้าหมาย') {
+        c.goal = {};
+        return incomeAsk('goalAmount', 'อยากหาเงินเพิ่มประมาณเท่าไหร่?', ['ยังไม่แน่ใจ', 'ดูทางเลือก']);
+      }
+      if (text === 'ใช้เป้าเดิม' && sameQuestion?.fact === 'savedGoal') return goalReply({ amount: d.profile.incomeGoalPerMonth, kind: 'monthly' });
+      if (input.kind || input.amount !== undefined || input.denied || input.skip || input.ambiguous
+        || ((sameQuestion || c.goal?.amount) && (input.deadline !== undefined || input.expense))) return goalReply(input);
+    }
+    if (/^ยังไม่รู้ว่าอยากได้เท่าไหร่/.test(text)) {
+      selectTopic({ id: 'income' });
+      return goalReply({ skip: true });
+    }
+
+    if (sameQuestion) {
+      const rule = guard.check(text, sameQuestion);
+      if (rule.kind === 'explain') return turn('ข้อนี้ถามว่า: ' + asked.question + (asked.help ? '\n' + asked.help : ''), 'explain');
+      if (rule.kind === 'skip') {
+        c.skipped = [...c.skipped, asked.fact];
+        if (asked.moneyId) return benefitReply('skip', 'ข้ามข้อนี้ไว้ก่อนค่ะ\n');
+        if (asked.fact === 'subjectAge') {
+          c.subjectAge = undefined;
+          c.otherSubject = false;
+          setStep(d, c, currentQuestion(d, c));
+          return turn(c.expect?.question || intentQuestion, 'skip');
+        }
+        if (c.topic?.id === 'program') { selectTopic({ id: 'benefits' }); setStep(d, c, currentQuestion(d, c)); }
+        return turn(c.expect?.question || intentQuestion, 'skip');
+      }
+      if (c.otherSubject && asked.fact !== 'subjectAge' && promptAge.test(thaiDigits(text))) {
+        c.subjectAge = answerValue(money.question('ageBand'), text);
+        if (c.subjectAge !== undefined) {
+          setStep(d, c, currentQuestion(d, c));
+          return turn(c.expect.question, 'unclear');
+        }
+      }
+      if (asked.fact === 'subjectAge' && /^(อายุของฉัน|ใช่|เป็นอายุคนอื่น|ไม่ใช่)/.test(text)) {
+        if (/^(อายุของฉัน|ใช่)/.test(text)) svc.patchFacts(d, { ageBand: c.subjectAge });
+        c.subjectAge = undefined;
+        c.otherSubject = false;
+        if (c.topic && money.programs.some(program => program.id === c.topic.id)) return benefitReply('answer');
+        setStep(d, c, currentQuestion(d, c));
+        return turn(c.expect?.question || intentQuestion, 'answer');
+      }
+      if (asked.moneyId) {
+        const value = answerValue(asked, text);
+        if (value !== undefined) {
+          const context = benefitContext(c.topic);
+          const { conflicts } = profileFacts(d, context);
+          const [status] = svc.patchFacts(d, { [asked.fact]: value }, { ...context, conflicts });
+          if (status >= 400) return turn('คำตอบนี้ใช้ไม่ได้ ลองตอบอีกครั้งค่ะ\n' + asked.question, 'unclear');
+          return benefitReply('answer', 'บันทึกคำตอบแล้วค่ะ\n');
+        }
+      }
+      if (asked.fact === 'programName' && policy.kind !== 'off_topic') return turn('ยังจับคู่กับรายการที่มีในแอปไม่ได้ ลองตรวจชื่อและเงื่อนไขจากประกาศของหน่วยงานที่จัดโครงการค่ะ');
+    }
+
+    if (asked?.moneyId || asked?.fact === 'subjectAge') {
+      if (DIRECT_RE.test(text) && !shortAnswer.test(text)) return turn('ยังต้องตอบคำถามข้อนี้เพื่อประเมินสิทธิค่ะ' + waiting());
+      return turn(asked.question, 'unclear');
+    }
+    if (DIRECT_RE.test(text) && policy.kind === 'in_scope') return runAssistant(text, 'in_scope', { deterministic: true });
+    if (!explicit && (monthly.test(text) || lumpSum.test(text)) && !expense.test(text)) {
+      selectTopic({ id: 'income' });
+      return goalReply(parseGoal(text, today));
+    }
+    if (expense.test(text)) {
+      c.topic = null;
+      setStep(d, c, intentStep);
+      return turn('เข้าใจว่ากังวลเรื่อง' + text.match(expense)[0] + 'ค่ะ ' + intentQuestion, 'unclear');
+    }
+    if (c.guided === false && shortAnswer.test(text) && previousAiReply && /[?？]|แล้วหรือยัง|ไหม/.test(previousAiReply)) {
+      return runAssistant(text, 'ai_scope', { benefit: c.topic || undefined });
+    }
+    if (c.guided === false && shortAnswer.test(text)) return turn(guard.offTopicReply + '\n' + guard.redirect, 'off_topic');
+    if (!asked) c.topic = null;
+    setStep(d, c, asked || intentStep);
+    return turn(c.expect.question, 'unclear');
   });
+
   on('POST', '/v1/ai/conversations/{id}/actions/{actionId}', ({ d, device, p, body }) => {
-    const g = need(d, 'ai'); if (g) return g;
+    const gate = need(d, 'ai'); if (gate) return gate;
     const c = d.conversations[p.id]; if (!c) return E(404, 'NOT_FOUND', 'ไม่พบการคุยนี้');
-    const a = c.pending[p.actionId]; if (!a) return E(404, 'NOT_FOUND', 'ไม่พบคำขอนี้ หรือทำไปแล้ว');
+    const done = c.decisions?.[p.actionId];
+    const action = c.pending[p.actionId];
+    if (!action && !done) return E(404, 'NOT_FOUND', 'ไม่พบคำขอนี้');
     if (!body || !['confirm', 'reject'].includes(body.decision)) return E(422, 'VALIDATION', 'decision ต้องเป็น confirm หรือ reject');
+    if (done) return done.decision === body.decision ? done.response : E(409, 'CONFLICT', 'ยืนยันผลของข้อเสนอนี้ไปแล้ว');
+    if (action.tool === 'save_income_goal' && action.goalVersion !== c.goalVersion) return E(409, 'CONFLICT', 'เป้าหมายเปลี่ยนแล้ว กรุณาใช้ข้อเสนอล่าสุด');
+    let response = [200, { status: 'rejected' }];
+    if (body.decision === 'confirm') {
+      const [status, result] = agentTools(d, device)[action.tool].exec(action.args);
+      if (status >= 300) return [status, result];
+      response = [200, { status: 'done', result }];
+    }
     delete c.pending[p.actionId];
-    if (body.decision === 'reject') return [200, { status: 'rejected' }];
-    const [st, result] = agentTools(d, device)[a.tool].exec(a.args);
-    return st < 300 ? [200, { status: 'done', result }] : [st, result];
+    c.decisions ||= {};
+    c.decisions[p.actionId] = { decision: body.decision, response };
+    return response;
   });
 
   // Planner
@@ -759,18 +1153,19 @@ function createServer(opts = {}) {
   });
   // "I want X baht this month": benefits the person likely qualifies for (sourced rates) + the best-fitting
   // earning options for their skills and free time, until the low end reaches the goal. Ranges, never a promise.
-  function goalPlan(d, target) {
+  function goalPlan(d, target, { includeBenefits = true, remote = false } = {}) {
     const skills = (d.profile && d.profile.skills) || [], h = hoursOf(d);
-    const mList = money.list(d.facts, govData(d)).items;
+    const facts = includeBenefits ? effectiveFacts(d) : {};
+    const mList = includeBenefits ? money.list(facts, govData(d)).items : [];
     const benefits = mList.filter(i => ['likely', 'verified'].includes(i.status) && i.kind === 'monthly' && typeof i.amount.value === 'number')
       .map(i => ({ kind: 'benefit', id: i.id, title: i.title, net: [i.amount.value, i.amount.value], numberSource: 'official', dataStatus: i.dataStatus,
         why: i.status === 'verified' ? 'ยืนยันจากหน่วยงาน' : 'เงินสวัสดิการที่น่าจะมีสิทธิ์ ยังไม่ยืนยัน', action: { type: 'money_route', id: i.id } }));
     const ideas = ref.skillIdeas.map(i => ({ kind: 'skill', id: i.id, title: i.title, net: [i.grossPerMonth[0] - i.costPerMonth[1], i.grossPerMonth[1] - i.costPerMonth[0]],
       numberSource: 'estimate', dataStatus: 'mock', requires: i.skills, matched: i.skills.filter(s => skills.includes(s)), assumptions: i.assumptions, why: 'ประมาณการ ยังไม่มีผู้ซื้อยืนยัน', action: { type: 'idea', id: i.id } }));
-    const jobs = jobOptions(d);
+    const jobs = jobOptions(d, remote);
     // Skill matches first, then (for people 60+) jobs that accept older workers, then the higher low end.
     // Free time limits how many earning options fit.
-    const older = d.facts.ageBand && d.facts.ageBand !== 'ต่ำกว่า 60';
+    const older = facts.ageBand && facts.ageBand !== 'ต่ำกว่า 60';
     // Only options the person can do: no special skill needed, or at least one of their skills matches.
     const pool = [...ideas, ...jobs].filter(x => !(x.requires || []).length || x.matched.length)
       .filter((x, i, a) => a.findIndex(y => y.title === x.title) === i)
@@ -782,7 +1177,7 @@ function createServer(opts = {}) {
     parts.forEach(x => { delete x.requires; delete x.forOlder; });
     const total = [parts.reduce((s, x) => s + x.net[0], 0), parts.reduce((s, x) => s + x.net[1], 0)];
     const missing = [];
-    if (!Object.keys(d.facts).length) missing.push({ id: 'money_check', text: 'ยังไม่ได้เช็คเงินที่ควรได้จากรัฐ อาจมีเงินเพิ่ม' });
+    if (includeBenefits && !Object.keys(facts).length) missing.push({ id: 'money_check', text: 'ยังไม่ได้เช็คเงินที่ควรได้จากรัฐ อาจมีเงินเพิ่ม' });
     else if (mList.some(i => i.status === 'need')) missing.push({ id: 'money_check', text: 'ยังมีคำถามเรื่องเงินจากรัฐที่ยังไม่ได้ตอบ อาจมีเงินเพิ่ม' });
     if (!skills.length) missing.push({ id: 'skills', text: 'ยังไม่รู้ทักษะของคุณ บอกทักษะแล้วแผนจะตรงตัวขึ้น' });
     if (h === undefined) missing.push({ id: 'hours', text: 'ยังไม่รู้เวลาว่างต่อสัปดาห์ จึงคิดไว้ไม่เกิน 2 ทาง' });
@@ -791,11 +1186,12 @@ function createServer(opts = {}) {
   }
   // Monthly range for every job listing that states a wage, from the person's free time (default 20 h/week).
   // A full-time monthly job only fits with 30+ free hours. Travel cost is not deducted (said in assumptions).
-  function jobOptions(d) {
+  function jobOptions(d, remote = false) {
     const h = hoursOf(d), hw = h === undefined ? 20 : h, skills = (d.profile && d.profile.skills) || [];
     const best = new Map();
     for (const o of opportunityValues()) {
       if (o.mapGroup !== 'job' || o.suspicious || o.money.basis !== 'listing' || typeof o.money.min !== 'number') continue;
+      if (remote && o.location.workMode !== 'remote' && !o.location.isRemote) continue;
       const unit = o.money.unit || '';
       let f, basis;
       if (/เดือน/.test(unit)) { if (hw < 30 && o.category === 'job_full') continue; f = 1; basis = 'ค่าจ้างรายเดือนตามประกาศ'; }
@@ -936,6 +1332,22 @@ function createServer(opts = {}) {
   }, { integration: true });
 
   // Demo
+  async function refreshDemoTangRat(device) {
+    const d = devices.get(device);
+    const profile = d?.demoProfile;
+    const cached = profile?.records?.tangRat;
+    if (!demoOn || !opts.demoTangRatEndpoint || !cached || profile.owner !== device) return { status: 'unavailable' };
+
+    const result = await loadDemoTangRatCard(opts.demoTangRatEndpoint, opts.fetch || fetch);
+    if (result.status === 'failed') return result;
+    if (devices.get(device) !== d || d.demoProfile !== profile || profile.records.tangRat !== cached) return { status: 'superseded' };
+
+    const { disabilityCard, asOf, expiresAt } = result.record;
+    profile.records = { ...profile.records, tangRat: { ...cached, disabilityCard, asOf, checkedAt: asOf, expiresAt } };
+    persist();
+    return { status: 'refreshed' };
+  }
+
   function selectDemoPersona(id, sources) {
     if (!Object.hasOwn(demoPersonas, id)) return {};
     if (sources === null) return { per: demoPersonas[id] };
@@ -943,7 +1355,7 @@ function createServer(opts = {}) {
     if (id !== 'gov-prefill' || selection.some(source => !govPrefillSourceIds.includes(source))) {
       return { error: E(400, 'VALIDATION', 'เลือกแหล่งข้อมูลตัวอย่างได้เฉพาะ ThaID ทางรัฐ ประกันสังคม และ D-MyTax ในโปรไฟล์ gov-prefill') };
     }
-    return { per: govPrefillPersona(ref.thaid, selection) };
+    return { per: govPrefillPersona(ref.thaid, selection, opts.demoSourceRecords) };
   }
   on('GET', '/v1/demo/personas/{id}', ({ p, q }) => {
     const { per, error } = selectDemoPersona(p.id, q.get('sources'));
@@ -957,6 +1369,7 @@ function createServer(opts = {}) {
     if (!demoOn || !per) return E(404, 'NOT_FOUND', demoOn ? 'ไม่พบผู้ใช้ตัวอย่างนี้' : 'ปิดโหมดสาธิตอยู่');
     const supportsKeepPlans = p.id === 'gov-prefill' || Object.hasOwn(taxDemoPersonas, p.id);
     const previous = q.get('keepPlans') === 'true' && supportsKeepPlans ? devices.get(device) : undefined;
+    if (devices.has(device)) cancelAssistantRequests(devices.get(device));
     devices.delete(device); const d = dev(device);
     if (previous) {
       const { tasks, events, docsReady, seq } = previous;
@@ -964,9 +1377,10 @@ function createServer(opts = {}) {
     }
     d.consents.push({ id: 'c' + d.seq++, noticeVersion: NOTICE.version, ageConfirmed: true, purposes: Object.fromEntries(purposeIds.map(id => [id, id !== 'gov'])), at: nowIso() });
     d.profile = { ...per.profile }; const g = geo.geocode(per.profile.district); if (g) { d.profile.lat = g.lat; d.profile.lng = g.lng; }
-    d.facts = { ...per.facts };
+    d.facts = { ...(per.initialAnswers || per.facts) };
+    d.demoProfile = { owner: device, checkedAt: nowIso(), identity: per.identity, records: per.records };
     per.tasks.forEach(oid => svc.createTask(d, { opportunityId: oid }));
-    return [200, { persona: p.id, label: per.label, profile: d.profile, facts: d.facts, taskCount: d.tasks.length, dataStatus: 'mock',
+    return [200, { persona: p.id, label: per.label, profile: d.profile, facts: effectiveFacts(d), taskCount: d.tasks.length, dataStatus: 'mock',
       ...(per.sources ? { identity: per.identity, sources: per.sources } : {}) }];
   });
 
@@ -1054,7 +1468,7 @@ function createServer(opts = {}) {
     }
     send(...E(404, 'NOT_FOUND', 'ไม่พบ endpoint นี้'));
   });
-  server.ports = { ai, agent, notifier, refresh, jobs, store, persist };
+  server.ports = { ai, agent, notifier, refresh, refreshDemoTangRat, jobs, store, persist };
   if (jobCatalogue) server.once('close', () => jobCatalogue.close());
   if (opts.jobs !== false) {
     server.once('listening', () => {
