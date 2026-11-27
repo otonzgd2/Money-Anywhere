@@ -8,7 +8,7 @@ const { JSDOM } = require(base);
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const errors = [];
 let openedUrl;
-const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true,
+const dom = new JSDOM(html, { url: 'https://demo.example/#home-demo', runScripts: 'dangerously', pretendToBeVisual: true,
   beforeParse(w) { w.open = url => { openedUrl = url; return null; }; w.addEventListener('error', e => errors.push(e.message)); } });
 const w = dom.window, d = w.document;
 
@@ -24,6 +24,32 @@ const ev = s => w.eval(s);
 const run = (name, fn) => { try { fn(); } catch (e) { check(name + ' threw: ' + e.message, false); } };
 
 setTimeout(() => {
+  run('Thang Rot first launch and mock assessment', () => {
+    check('demo uses the same Thang Rot name as Flutter', d.title === 'ทางรอด · DEMO');
+    ev('openStartup(true)');
+    check('logo appears before the main tabs', on('startup') && tabsHidden() && d.querySelector('#v-startup img').getAttribute('src').endsWith('/thang-rot-logo.png'));
+    ev('openNextMockSource()');
+    const expected = ['ThaID', 'ทางรัฐ', 'ประกันสังคม (SSO+)', 'D-MyTax'];
+    for (const [index, name] of expected.entries()) {
+      check('startup mock source ' + name, dlgOn() && text('dlg').includes(name) &&
+        text('dlg').includes('DEMO / MOCK') && !!d.querySelector('#dlg img'));
+      const choice = index === 0 || index === 3 ? 'y' : 'n';
+      ev('chooseMockSource(' + JSON.stringify(choice) + ')');
+    }
+    check('completing sources assesses without replacing profile answers', !dlgOn() &&
+      text('startupStatus').includes('กำลังประเมินสิทธิ์และรายได้') &&
+      ev("selectedAssessment.ageBand === '60-69' && selectedAssessment.taxWithheld && selectedAssessment.ss33 === undefined && facts.ageBand === undefined"));
+    ev("goTab('opp','all')");
+    check('opportunities displays estimated benefits and separated income', text('oppBody').includes('ผลประเมินสิทธิ์และสวัสดิการ')
+      && text('oppBody').includes('รายเดือน 600 บาท') && text('oppBody').includes('รายได้จากงานและอาชีพ'));
+    ev("openStartup(); openNextMockSource()");
+    check('returning startup restores selections without prompting again', !dlgOn() && ev("onboardingChoices === 'ynny'"));
+    ev("openStartup(true); openNextMockSource(); chooseMockSource('all'); goTab('opp','all')");
+    check('skip all does not insert persona facts or prevent browsing', on('opp') && ev('selectedAssessment === null')
+      && text('oppBody').includes('ข้อมูลยังไม่พอประเมิน') && d.querySelectorAll('.oc').length > 3);
+    ev("goTab('home')");
+  });
+
   run('shell and new-person home (S1)', () => {
     check('starts on home, new-person layout', on('home') && inner('homeBody').includes('เงินฉันอยู่ไหน?') && !inner('homeBody').includes('เงินของฉัน'));
     check('bottom bar has the app\'s 4 tabs', [...d.querySelectorAll('#tabs > button')].map(t => t.textContent.replace(/\W*[\u{1F300}-\u{1FAFF}\u2728]/u, '').trim()).join('|') === 'หน้าแรก|โอกาส|แผนของฉัน|ฉัน');
@@ -140,23 +166,45 @@ setTimeout(() => {
     ev("goTab('opp')"); const ob = () => inner('oppBody'); const n = () => d.querySelectorAll('#oppBody .oc').length;
     check('list renders cards', n() > 5);
     check('suspicious listings hidden with a count', ob().includes('ซ่อนประกาศที่น่าสงสัยไว้ 1 รายการ') && !ob().includes('โอนค่ามัดจำ'));
-    check('count line says what is real and what is demo', ob().includes('ประกาศจริงจากแหล่งภายนอก 0 รายการ · ที่เหลือเป็นตัวอย่าง (DEMO)'));
+    check('count line distinguishes sample records and curated sources', /ตัวอย่าง \d+ · ข้อมูลสาธารณะ \d+/.test(ob()));
     check('every card shows a data label', [...d.querySelectorAll('#oppBody .oc')].every(c => /DEMO \/ MOCK|เกณฑ์จากแหล่งสาธารณะ|ข้อมูลจริงจากแหล่งต้นทาง/.test(c.textContent)));
-    check('chips: skill ranking + 5 groups', d.querySelectorAll('#oppChips .chip').length === 6 && inner('oppChips').includes('🎯 ตรงทักษะของฉัน'));
+    check('opportunities has five current lanes', [...d.querySelectorAll('#oppChips button')].map(el => el.textContent).join('|')
+      === 'ทั้งหมด|สิทธิ์และสวัสดิการ|หางาน|ขายสินค้า|อื่นๆ');
+    ev("setGroup('job'); setJobFilter('job_full',true); setJobFilter('freelance',true)");
+    check('job chooser combines multiple employment types', text('oppJobs').includes('ประเภทงาน (2)')
+      && text('oppBody').includes('พนักงานทำความสะอาดสำนักงาน') && text('oppBody').includes('พิมพ์เอกสาร')
+      && !text('oppBody').includes('งานแพ็คของ รายวัน'));
+    ev("setOppDistrict('บางนา')");
+    check('district combines with employment types', d.getElementById('oppDistrict').options.length === 51
+      && n() === 1 && text('oppBody').includes('พิมพ์เอกสาร'));
+    d.querySelector('#oppBody .opp-card').click();
+    check('detail inherits selected district', on('oppd') && text('oppdBody').includes('บางนา'));
+    ev("back();");
+    check('list retains the district and job checks on return', d.getElementById('oppDistrict').value === 'บางนา'
+      && d.getElementById('filter-job_full').checked && d.getElementById('filter-freelance').checked);
+    ev('oppReset()');
     const nAll = n(); ev("setGroup('money')"); const nMoney = n(); check('group chip filters', nMoney > 0 && nMoney < nAll);
     ev("setGroup('all'); oppSearch('ภาษี')"); check('search filters', n() === 1); ev("oppSearch('')");
-    ev('toggleMap()'); const pins = d.querySelectorAll('#map .pin').length;
-    check('one floating button switches to the map', text('oppFab').includes('ดูรายการ') && !d.getElementById('map').classList.contains('hidden'));
-    check('pins only for exact locations, the rest in a chip', pins > 0 && pins < nAll && inner('map').includes('ไม่มีที่ตั้ง') && inner('map').includes('หมุดตัวอย่างเป็นที่อยู่สมมติ (DEMO)'));
-    d.querySelector('#map .pin').click(); check('tapping a pin opens the detail full screen', on('oppd') && tabsHidden());
-    ev("back(); toggleMap(); openOpp('doe_smartjob')"); const od = () => inner('oppdBody');
-    check('official service: curated label and source link', od().includes('เกณฑ์จากแหล่งสาธารณะ ยังไม่ยืนยันสิทธิ์') && od().includes('ดูประกาศต้นทาง ↗') && od().includes('＋ บันทึกไว้ในแผนของฉัน'));
+    ev('toggleMap()');
+    check('no database coordinates leaves the list visible without mock pins', text('oppBody').includes('ยังไม่มีพิกัดสำหรับตัวกรองนี้')
+      && d.getElementById('map').classList.contains('hidden') && n() === nAll);
+    ev("OPPS[0].location = {district:'บางนา',precision:'exact',coordinateSource:'database',lat:13.66,lng:100.60}; toggleMap()");
+    check('only verified database coordinates render a pin', d.querySelectorAll('#map .pin').length === 1 && text('oppFab') === 'ดูรายการ');
+    d.querySelector('#map .pin').click();
+    check('pin opens the same listing with its district', on('oppd') && tabsHidden() && ev("oppId === 'doe_smartjob' && oppDetailDistrict === 'บางนา'"));
+    ev("back(); delete OPPS[0].location; toggleMap(); openOpp('doe_smartjob')"); const od = () => inner('oppdBody');
+    check('official service shows its provenance and job details action', od().includes('เกณฑ์จากแหล่งสาธารณะ ยังไม่ยืนยันสิทธิ์') && od().includes('รายละเอียดงาน ↗') && od().includes('บันทึกไว้ในแผนของฉัน'));
     ev('reportOpp()'); check('report sheet (P10)', inner('msheet').includes('รายงานประกาศนี้') && inner('msheet').includes('ปิดรับแล้ว'));
     ev("closeModal(); sheetPick('expired')"); check('report confirmed', text('snackT').includes('ขอบคุณ ส่งรายงานแล้ว'));
     ev("openOpp('j3')"); check('mock listing labelled, no fake source link', od().includes('DEMO / MOCK') && !od().includes('ดูประกาศต้นทาง'));
-    d.querySelector('#oppdBody [onclick="openDemoApplication()"]').click();
+    d.querySelector('#oppdBody [onclick="openJobDetails()"]').click();
     check('mock job details open the demo with the listing title', openedUrl === 'job-application.html#title=' + encodeURIComponent('พนักงานทำความสะอาดสำนักงาน') && !dlgOn());
-    ev("profile=null; goTab('opp'); rankBySkill()"); check('🎯 without skills opens the profile', on('profile'));
+    ev('saveToPlan({opportunityId:oppId})');
+    check('saving changes the detail action to บันทึกแล้ว', !!d.querySelector('#oppdBody button:disabled') && od().includes('บันทึกแล้ว'));
+    ev("openOpp('unknown')"); check('missing detail shows a way back to opportunities', od().includes('ไม่พบรายการนี้หรือรายการหมดอายุแล้ว') && od().includes('กลับหน้าโอกาส'));
+    ev("setGroup('money'); openBenefit('tax_refund')");
+    check('benefit uses the same detail page without requiring consent to read', on('oppd') && !dlgOn() && od().includes('เงินคืนภาษี'));
+    ev("profile=null; goTab('opp','job'); rankBySkill()"); check('🎯 without skills opens the profile', on('profile'));
     ev("pSkill(0); pd.hours='10-20'; bump(); pSave()"); check('profile saved and back', !on('profile') && ev("profile.skills.includes('ทำอาหาร')"));
     ev('rankBySkill()'); check('🎯 sorts by skill with a reason', inner('oppBody').includes('🎯 ตรงมาก · ตรงทักษะ: ทำอาหาร'));
   });

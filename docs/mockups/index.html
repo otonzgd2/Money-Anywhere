@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Money Anywhere - Clickable Mock v3 ตรงกับแอป Flutter (DEMO / MOCK)</title>
+<title>ทางรอด · DEMO</title>
 <!--
-  Clickable mock of the Flutter app in app/lib/ (screens and popups follow docs/design/ui-states.md, ids S1-S11, P1-P12).
+  Clickable mock of the Thang Rot Flutter app. Baseline: 5938e38.
   No server and no AI are called: money rules, opportunities and the assistant run on mock data in this file.
   Test: node docs/mockups/smoke-test.js (needs jsdom). Assistant policy is synced from contracts/fixtures/assistant-policy.json by sync-policy.js.
 -->
@@ -242,13 +242,35 @@
     .phone { order:-1; height:min(780px, calc(100dvh - 20px)); width:min(380px,100%); }
     .side { width:min(380px,100%); }
   }
+  #v-startup { background:#fafafa; align-items:center; justify-content:center; padding:20px; text-align:center; }
+  #v-startup img { width:136px; height:136px; object-fit:contain; }
+  #startupStatus { margin:16px 0 0; }
+  .connect-source img { display:block; width:144px; height:60px; object-fit:contain; object-position:left center; margin:4px 0 12px; }
+  .connect-source p { margin:8px 0 0; }
+  .opp-actions { display:flex; align-items:center; justify-content:flex-end; margin-left:auto; }
+  .opp-map-toggle { border:0; background:transparent; color:#06513b; min-height:44px; font-size:.82rem; font-weight:700; padding:0 8px; cursor:pointer; }
+  .opp-controls { display:flex; align-items:start; flex-wrap:wrap; gap:6px; margin:4px 0 10px; }
+  .opp-control { padding:6px 8px; min-height:38px; border:1px solid #9fb8ae; border-radius:9px; background:#fff; color:var(--ink); font:inherit; font-size:.8rem; }
+  .opp-district { display:flex; flex-wrap:wrap; gap:4px; align-items:center; max-width:100%; font-size:.8rem; }
+  .opp-district select { max-width:100%; }
+  .opp-job-filter { min-width:128px; }
+  .opp-job-filter summary { cursor:pointer; padding:2px; }
+  .opp-job-filter label { padding:3px 0; display:flex; align-items:center; gap:6px; font-size:.8rem; }
+  .opp-job-filter input { width:auto; }
+  .opp-assessment summary { cursor:pointer; min-height:28px; font-weight:700; color:#17493a; }
+  .opp-assessment-meta { display:block; margin-top:3px; font-weight:400; }
+  .opp-assessment-pill { display:table; margin-top:4px; }
+  .opp-card { display:block; width:100%; border:0; background:transparent; color:inherit; text-align:left; padding:10px; }
+  .opp-card-sub { display:block; white-space:pre-line; font-size:.8rem; margin-top:3px; color:var(--mut); }
+  #v-opp :is(button,select,input,summary):focus-visible { outline:2px solid #174ea6; outline-offset:1px; }
 </style>
 </head>
 <body>
 
 <div class="side">
-  <h1>Money Anywhere</h1>
-  <p>Clickable mock v3 ตรงกับแอป Flutter ใน <code>app/lib</code> (26 พ.ย. 2569) ตาม <code>docs/design/ui-states.md</code> ข้อมูลทั้งหมดเป็นข้อมูลสมมติ ไม่ได้เรียก server หรือ AI จริง</p>
+  <h1>ทางรอด</h1>
+  <p>DEMO เทียบแอป Flutter รุ่น <code>5938e38</code> · 28 พ.ย. 2569 ใช้ข้อมูลตัวอย่างในไฟล์</p>
+  <button class="sbtn" type="button" onclick="openStartup(true)">ลองเปิดแอปครั้งแรก</button>
   <button class="sbtn" type="button" onclick="openPlanSamples()">ลองแผนของฉันครบ 10 หมวด</button>
   <div class="nav" id="nav"></div>
   <div class="grp">ผู้ใช้ตัวอย่าง (เหมือน ฉัน > สำหรับสาธิต)</div>
@@ -266,17 +288,23 @@
 <div class="phone"><div class="screen" id="screen">
   <div class="status"><span>9:41</span><span>5G ▮▮▮</span></div>
 
+  <div class="view" id="v-startup">
+    <img src="../../app/assets/thang-rot/thang-rot-logo.png" alt="ทางรอด">
+    <p id="startupStatus" role="status"></p>
+  </div>
+
   <!-- Tab roots: bottom bar shows -->
   <div class="view" id="v-home"><div class="body" id="homeBody" style="padding-top:12px"></div></div>
   <div class="view" id="v-opp">
-    <div class="appbar"><div class="ttl">โอกาส</div></div>
+    <div class="appbar"><div class="ttl">โอกาส</div><div class="opp-actions"><button type="button" class="opp-map-toggle" id="oppFab" onclick="toggleMap()">ดูแผนที่</button></div></div>
     <div style="padding:0 12px;flex:none">
       <div class="search"><span>🔍</span><input id="oppQ" placeholder="ค้นหา เช่น แม่บ้าน ขนม" onkeydown="if(event.key==='Enter')oppSearch(this.value)"></div>
       <div class="hscroll" id="oppChips"></div>
+      <div class="opp-controls" id="oppControls"></div>
     </div>
-    <div class="body" id="oppBody" style="padding:4px 12px 90px"></div>
+    <div class="body" id="oppBody" style="padding:4px 12px 18px"></div>
     <div id="map" class="hidden"></div>
-    <div class="fab" id="oppFab" onclick="toggleMap()"></div>
+
   </div>
   <div class="view" id="v-plans"><div class="body" id="plansBody" role="region" tabindex="-1" aria-labelledby="plansHeading"></div></div>
   <div class="view" id="v-me"><div class="appbar"><div class="ttl">ฉัน</div></div><div class="body" id="meBody" style="padding:0 10px 24px"></div></div>
@@ -291,7 +319,7 @@
   </div>
   <div class="view" id="v-quick"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">เช็คเงินที่ควรได้</div></div><div class="body" id="quickBody"></div></div>
   <div class="view" id="v-route"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">เส้นทางรับเงิน</div></div><div class="body" id="routeBody"></div></div>
-  <div class="view" id="v-oppd"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">รายละเอียด</div></div><div class="body" id="oppdBody"></div></div>
+  <div class="view" id="v-oppd"><div class="appbar"><button type="button" class="back" onclick="backFromOpportunity()" aria-label="ย้อนกลับ">←</button><div class="ttl">รายละเอียด</div></div><div class="body" id="oppdBody"></div></div>
   <div class="view" id="v-task">
     <div class="appbar"><button class="back" type="button" onclick="backFromTask()" aria-label="ย้อนกลับ">←</button><div class="ttl">รายละเอียดแผน</div><button class="act" id="taskDel" type="button" onclick="tDelete()" aria-label="ลบแผน">🗑️</button></div>
     <div class="body" id="taskBody"></div>
@@ -305,7 +333,7 @@
   <div class="view" id="v-sources"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">แหล่งข้อมูลที่เชื่อมต่อ</div></div><div class="body" id="sourcesBody"></div></div>
 
   <div class="modal" id="modal" onclick="if(event.target===this)closeModal()"><div class="msheet" id="msheet"></div></div>
-  <div class="dlgw" id="dlgw" onclick="if(event.target===this&&!dlgLock)closeDlg()"><div class="dlg" id="dlg"></div></div>
+  <div class="dlgw" id="dlgw" onclick="if(event.target===this&&!dlgLock)closeDlg()"><div class="dlg" id="dlg" role="dialog" aria-modal="true"></div></div>
   <div class="snack" id="snack"><span id="snackT"></span><u id="snackU"></u></div>
 
   <nav class="tabs" id="tabs" aria-label="เมนูหลัก">
@@ -448,8 +476,7 @@ function overview() {
 }
 
 /* ================= opportunities (shape of GET /v1/opportunities) ================= */
-const GROUP_L = { all:'ทั้งหมด', job:'งาน', skill:'ทักษะ', sell:'ขายของ', money:'เงิน/สิทธิ์' };
-const PIN_IC = { job:'💼', skill:'🛠️', sell:'🛒', money:'💰' };
+const GROUP_L = { all:'ทั้งหมด', money:'สิทธิ์และสวัสดิการ', job:'หางาน', sell:'ขายสินค้า', other:'อื่นๆ' };
 const PROVIDER = {
   official:{ name:'บริการของหน่วยงานรัฐ (จัดหางาน, ฝึกอาชีพ)', attribution:'เว็บไซต์กรมการจัดหางาน และกรมพัฒนาฝีมือแรงงาน' },
   greenhouse:{ name:'Greenhouse Job Board API (บอร์ดสาธารณะของ Agoda)', direction:'pull' },
@@ -505,7 +532,7 @@ const SNOOZE = { tomorrow:'พรุ่งนี้เช้า', in_3_days:'อ
 const OUTCOME = { received:'ได้รับแล้ว', not_received:'ยังไม่ได้รับ', rejected:'ไม่ผ่าน', other:'อื่นๆ' };
 function newTask(spec) { const t = { id:'t' + seq++, title:spec.title, steps:spec.steps, doneCount:0, status:'active', moneyId:spec.moneyId || null, opportunityId:spec.opportunityId || null, dueText:null, blockReason:null, outcome:null, hist:[] }; tasks.push(t); return t; }
 function moneyTaskSpec(id) { const m = MONEY.find(x => x.id === id); return { title:m.t, moneyId:id, steps:['เตรียมเอกสาร ' + m.docs.length + ' อย่าง', 'ยื่น: ' + m.channels[0].title, 'ติดตามผลกับหน่วยงาน', 'ได้รับเงิน (ผู้ใช้แจ้ง)'] }; }
-function oppTaskSpec(id) { const o = OPPS.find(x => x.id === id); return { title:o.title, opportunityId:id, steps:['บันทึกไว้/สนใจ', 'สมัครหรือติดต่อผู้ประกาศ', 'รอผล', 'ได้ผลลัพธ์ตามที่ตกลง'] }; }
+function oppTaskSpec(id) { const o = planOpportunity(id); return { title:o.title, opportunityId:id, steps:['บันทึกไว้/สนใจ', 'สมัครหรือติดต่อผู้ประกาศ', 'รอผล', 'ได้ผลลัพธ์ตามที่ตกลง'] }; }
 function taskEvent(t, e) {
   if (e.type === 'undo') { const prev = t.hist.pop(); if (prev) Object.assign(t, JSON.parse(prev)); return t; }
   t.hist.push(JSON.stringify({ doneCount:t.doneCount, status:t.status, blockReason:t.blockReason, dueText:t.dueText, outcome:t.outcome }));
@@ -544,9 +571,67 @@ function guardCheck(t, step) {
   return { kind:'unclear', reply:'ฉันช่วยได้เฉพาะเรื่องเงินที่ควรได้ งาน และรายได้จากทักษะ' };
 }
 
+/* Opening the mock follows Flutter startup. The provider choices are local to this page. */
+const MOCK_SOURCES = [
+  { name:'ThaID', logo:'thaid.png', detail:'อายุหรือช่วงอายุ และเขตตามทะเบียนบ้านจำลอง', facts:{ageBand:'60-69'} },
+  { name:'ทางรัฐ', logo:'thangrat.png', detail:'สถานะบัตรประจำตัวคนพิการจำลอง', facts:{disabilityCard:true} },
+  { name:'ประกันสังคม (SSO+)', logo:'sso-plus.png', detail:'มาตราผู้ประกันตนและประวัติส่งเงินสมทบจำลอง', facts:{ss33:true} },
+  { name:'D-MyTax', logo:'d-mytax.png', detail:'ปีภาษีและยอดหักภาษี ณ ที่จ่ายจำลอง', facts:{taxWithheld:true} },
+];
+const ONBOARDING_KEY = 'thang-rot-mock-onboarding-v1';
+const MOCK_BASE_FACTS = {
+  govPension:false, oldAgeGets:false, work:'ลาออกหรือหมดสัญญา',
+  wage:12000, hasUnpaid:false, kidUnder6:false, welfareCard:false,
+};
+let onboardingChoices = '';
+let selectedAssessment = null;
+let startupMessage = '';
+let startupTimer;
+function openStartup(reset = false) {
+  let saved = '';
+  try { if (!reset) saved = localStorage.getItem(ONBOARDING_KEY) || ''; } catch {}
+  onboardingChoices = /^[yn]{0,4}$/.test(saved) ? saved : '';
+  startupMessage = '';
+  stack = ['startup'];
+  go('startup');
+  clearTimeout(startupTimer);
+  startupTimer = setTimeout(openNextMockSource, 300);
+}
+function openNextMockSource() {
+  if (cur() !== 'startup') return;
+  const source = MOCK_SOURCES[onboardingChoices.length];
+  if (!source) return finishMockStartup();
+  dialog(source.name, `<div class="connect-source">
+    <img src="../../app/assets/thang-rot/${source.logo}" alt="">
+    <span class="pill">DEMO / MOCK</span><p>ใช้ข้อมูลจำลองเพื่อประเมินสิทธิ์และรายได้</p>
+    <p>${source.detail}</p></div>`,
+    [['ข้ามทั้งหมด', 'txt', "chooseMockSource('all')"], ['ข้าม', 'out', "chooseMockSource('n')"],
+     ['เชื่อมต่อข้อมูลจำลอง', 'primary', "chooseMockSource('y')"]]);
+  dlgLock = true;
+  $('dlg').setAttribute('aria-label', source.name);
+  $('dlg').querySelector('button').focus();
+}
+function chooseMockSource(choice) {
+  if (cur() !== 'startup' || onboardingChoices.length === MOCK_SOURCES.length) return;
+  onboardingChoices += choice === 'all' ? 'n'.repeat(MOCK_SOURCES.length - onboardingChoices.length) : choice;
+  try { localStorage.setItem(ONBOARDING_KEY, onboardingChoices); } catch {}
+  closeDlg();
+  openNextMockSource();
+}
+function finishMockStartup() {
+  const selected = MOCK_SOURCES.filter((_, index) => onboardingChoices[index] === 'y');
+  selectedAssessment = selected.length ? Object.assign({}, MOCK_BASE_FACTS, ...selected.map(source => source.facts)) : null;
+  startupMessage = 'กำลังประเมินสิทธิ์และรายได้';
+  bump();
+  startupTimer = setTimeout(() => {
+    if (cur() === 'startup') goTab('opp', 'all');
+  }, 220);
+}
+
 /* ================= shell: tabs, full-screen stack, sheets, dialogs, snackbar ================= */
 const ROOT = { home:0, opp:1, plans:2, me:3 };
 const RENDER = {};
+RENDER.startup = () => { $('startupStatus').textContent = startupMessage; };
 let stack = ['home'];
 const cur = () => stack[stack.length - 1];
 function show(id) {
@@ -583,7 +668,7 @@ function dialog(title, body, actions) {
     + (actions && actions.length ? '<div class="acts">' + actions.map(a => `<button class="btn ${a[1] || 'txt'}" onclick="${a[2]}">${a[0]}</button>`).join('') + '</div>' : '');
   $('dlgw').classList.add('on');
 }
-function closeDlg() { dlgLock = false; $('dlgw').classList.remove('on'); }
+function closeDlg() { dlgLock = false; $('dlg').removeAttribute('aria-label'); $('dlgw').classList.remove('on'); }
 function closeAll() { closeModal(); closeDlg(); }
 // One bottom sheet with a bold header and one row per option (P3, P4, P5, P10).
 let sheetPick = null;
@@ -1087,87 +1172,279 @@ function tOutcome() { const t = curTask(); listSheet('แจ้งผล (คุ
 function tDelete() { dialog('ลบแผนนี้?', 'ความคืบหน้าของแผนนี้จะหายไป', [['ยกเลิก', 'txt', 'closeDlg()'], ['ลบ', '', 'tDeleteYes()']]); }
 function tDeleteYes() { tasks = tasks.filter(x => x.id !== taskId); closeDlg(); back(); }
 
-/* ================= S6 opportunities tab + S6m map + S6b detail (opp_tab.dart, opp_map.dart) ================= */
-let oppGroup = 'all', oppQ = '', bySkill = false, rank = {}, mapView = false, oppId = null;
+/* /* S6 catalogue, S6m map and S6b detail. Use the same category IDs as the Flutter client. */
+const OPP_DISTRICTS = [
+      'คลองสาน', 'คลองสามวา', 'คลองเตย', 'คันนายาว', 'จตุจักร', 'จอมทอง', 'ดอนเมือง', 'ดินแดง', 'ดุสิต', 'ตลิ่งชัน',
+      'ทวีวัฒนา', 'ทุ่งครุ', 'ธนบุรี', 'บางกอกน้อย', 'บางกอกใหญ่', 'บางกะปิ', 'บางขุนเทียน', 'บางคอแหลม', 'บางซื่อ', 'บางนา',
+      'บางบอน', 'บางพลัด', 'บางรัก', 'บางเขน', 'บางแค', 'บึงกุ่ม', 'ปทุมวัน', 'ประเวศ', 'ป้อมปราบศัตรูพ่าย', 'พญาไท',
+      'พระนคร', 'พระโขนง', 'ภาษีเจริญ', 'มีนบุรี', 'ยานนาวา', 'ราชเทวี', 'ราษฎร์บูรณะ', 'ลาดกระบัง', 'ลาดพร้าว', 'วังทองหลาง',
+      'วัฒนา', 'สวนหลวง', 'สะพานสูง', 'สัมพันธวงศ์', 'สาทร', 'สายไหม', 'หนองจอก', 'หนองแขม', 'หลักสี่', 'ห้วยขวาง'
+    ];
+const GROUP_CATEGORIES = {
+  money:['welfare','refund','owed'], job:['job_full','job_part','freelance'],
+  sell:['sell'], other:['assets','grant','skill'], skill:['skill'],
+};
+const BENEFIT_CATEGORY = {old_age:'welfare', unemployment:'welfare', child_support:'welfare', disability:'welfare', tax_refund:'refund', unpaid_wages:'owed'};
+let oppGroup = 'all', oppQ = '', oppDistrict = '', bySkill = false, rank = {}, mapView = false, noPins = false;
+let oppId = null, oppMoneyId = null, oppDetailDistrict = '';
+let oppReturnScroll = null, renderedOpportunityGroup = null;
+const jobFilters = new Set();
 const FIT = { high:'ตรงมาก', good:'ตรง', fair:'พอได้' };
-function oppPage() {
-  let xs = OPPS.filter(o => (oppGroup === 'all' || o.mapGroup === oppGroup) && (!oppQ || (o.title + ' ' + o.organization).includes(oppQ)));
-  const hidden = xs.filter(o => o.suspicious).length;
-  xs = xs.filter(o => !o.suspicious).sort((a, b) => (a.distanceKm == null ? 1e9 : a.distanceKm) - (b.distanceKm == null ? 1e9 : b.distanceKm));
-  if (bySkill && nonEmpty(rank)) { const ord = Object.keys(rank); xs = [...xs.filter(o => rank[o.id]).sort((a, b) => ord.indexOf(a.id) - ord.indexOf(b.id)), ...xs.filter(o => !rank[o.id])]; }
-  return { xs, hidden };
+const oppCategory = o => planCategory({opportunityId:o.id});
+const availableOpportunity = o => !['closed','expired'].includes(o.status) && !['closed','expired'].includes(o.availability)
+  && !(Date.parse(o.expiresAt ?? o.provenance?.expiresAt) <= Date.now());
+function opportunityLocations(o) {
+  if (o.locations?.length) return o.locations;
+  if (o.location) return [o.location];
+  return o.loc ? [{text:o.loc.text, district:OPP_DISTRICTS.find(d => o.loc.text.endsWith('เขต' + d))}] : [];
 }
-function setGroup(k) { oppGroup = k; bump(); }
-function oppSearch(v) { oppQ = String(v || '').trim(); bump(); }
-function oppReset() { oppQ = ''; oppGroup = 'all'; bump(); }
-function toggleMap() { mapView = !mapView; bump(); }
-// 🎯 POST /v1/ai/rankings: AI with consent, rules otherwise. The mock always uses the rules (skill overlap, then easy to start).
+function oppPage() {
+  const categories = oppGroup === 'job' && jobFilters.size ? [...jobFilters] : GROUP_CATEGORIES[oppGroup];
+  let xs = [...OPPS, PLAN_ASSET_EXAMPLE].filter(o =>
+    availableOpportunity(o) && (!categories || categories.includes(oppCategory(o))) &&
+    (!oppQ || (o.title + ' ' + o.organization).includes(oppQ)) &&
+    (!oppDistrict || opportunityLocations(o).some(loc => (loc.districtName ?? loc.district) === oppDistrict)));
+  const hidden = xs.filter(o => o.suspicious).length;
+  xs = xs.filter(o => !o.suspicious).sort((a, b) => (a.distanceKm ?? 1e9) - (b.distanceKm ?? 1e9));
+  if (bySkill && nonEmpty(rank)) {
+    const order = Object.keys(rank);
+    xs = [...xs.filter(o => rank[o.id]).sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)), ...xs.filter(o => !rank[o.id])];
+  }
+  return {xs, hidden};
+}
+function refreshOppFilters() { noPins = false; bySkill = false; rank = {}; bump(); }
+function setGroup(k) { oppGroup = k; refreshOppFilters(); }
+function oppSearch(v) { oppQ = String(v || '').trim(); refreshOppFilters(); }
+function setOppDistrict(value) { oppDistrict = value; refreshOppFilters(); $('oppDistrict').focus(); }
+function setJobFilter(category, selected) {
+  if (selected) jobFilters.add(category);
+  else jobFilters.delete(category);
+  refreshOppFilters();
+  $('filter-' + category).focus();
+}
+function oppReset() {
+  oppQ = ''; oppDistrict = ''; jobFilters.clear(); setGroup('all');
+}
+function toggleMap() {
+  mapView = !mapView;
+  noPins = false;
+  bump();
+}
 function rankBySkill() {
   if (bySkill) { bySkill = false; rank = {}; bump(); return; }
-  if (!(profile && profile.skills && profile.skills.length)) { toast('บอกทักษะของคุณก่อน แล้วจะเรียงงานให้ตรงทักษะ'); go('profile'); return; }
-  const scored = OPPS.filter(o => !o.suspicious).map(o => { const hit = o.skills.filter(s => profile.skills.includes(s));
-    return { id:o.id, fit:hit.length ? 'high' : o.easy ? 'good' : 'fair', reason:hit.length ? 'ตรงทักษะ: ' + hit.join(', ') : o.easy ? 'เริ่มได้โดยไม่ต้องใช้ทักษะเฉพาะ' : 'ทักษะยังไม่ตรงโดยตรง', d:o.distanceKm == null ? 1e9 : o.distanceKm }; });
-  const w = { high:0, good:1, fair:2 }; scored.sort((a, b) => w[a.fit] - w[b.fit] || a.d - b.d);
-  rank = {}; scored.forEach(x => { rank[x.id] = x; }); bySkill = true; bump();
+  if (!profile?.skills?.length) { toast('บอกทักษะของคุณก่อน แล้วจะเรียงงานให้ตรงทักษะ'); go('profile'); return; }
+  const scored = oppPage().xs.map(o => {
+    const hit = (o.skills || []).filter(s => profile.skills.includes(s));
+    return {id:o.id, fit:hit.length ? 'high' : o.easy ? 'good' : 'fair',
+      reason:hit.length ? 'ตรงทักษะ: ' + hit.join(', ') : o.easy ? 'เริ่มได้โดยไม่ต้องใช้ทักษะเฉพาะ' : 'ทักษะยังไม่ตรงโดยตรง', d:o.distanceKm ?? 1e9};
+  });
+  const weight = {high:0, good:1, fair:2};
+  scored.sort((a, b) => weight[a.fit] - weight[b.fit] || a.d - b.d);
+  rank = Object.fromEntries(scored.map(item => [item.id, item]));
+  bySkill = true;
+  bump();
+}
+function renderOppControls() {
+  const selectedLane = oppGroup === 'skill' ? 'other' : oppGroup;
+  $('oppChips').innerHTML = Object.entries(GROUP_L).map(([key, label]) => {
+    const chosen = key === selectedLane;
+    return `<button type="button" class="chip${chosen ? ' on' : ''}" aria-pressed="${chosen}" onclick="setGroup('${key}')">${label}</button>`;
+  }).join('');
+  const sameDropdown = $('oppJobs')?.open;
+  let h = `<label class="opp-district">พื้นที่
+    <select id="oppDistrict" class="opp-control" onchange="setOppDistrict(this.value)">
+      <option value="">ทุกเขตในกรุงเทพฯ</option>
+      ${OPP_DISTRICTS.map(name => `<option value="${esc(name)}" ${name === oppDistrict ? 'selected' : ''}>เขต${esc(name)}</option>`).join('')}
+    </select></label>`;
+  if (oppGroup === 'job') {
+    h += `<details id="oppJobs" class="opp-control opp-job-filter" ${sameDropdown ? 'open' : ''}>
+      <summary>ประเภทงาน${jobFilters.size ? ' (' + jobFilters.size + ')' : ''}</summary>
+      ${GROUP_CATEGORIES.job.map(key => `<label><input type="checkbox" id="filter-${key}" onchange="setJobFilter('${key}',this.checked)"
+        ${jobFilters.has(key) ? 'checked' : ''}>${PLAN_CATEGORIES[key][1]}</label>`).join('')}
+    </details><button type="button" class="opp-control" aria-pressed="${bySkill}" onclick="rankBySkill()">ตรงทักษะของฉัน</button>`;
+  }
+  $('oppControls').innerHTML = h;
+}
+function assessedItems() {
+  const items = moneyItems(selectedAssessment || facts, !selectedAssessment);
+  return selectedAssessment ? items.map(item => ({...item, dataStatus:'mock'})) : items;
+}
+function benefitAmountText(item) {
+  return typeof item.amount.value === 'number' && item.status !== 'need'
+    ? `${baht(item.amount.value)} ${item.amount.unit || ''}`
+    : item.id === 'tax_refund' && item.status === 'check' ? 'ตรวจสอบยอดกับหน่วยงาน' : 'ยังไม่ทราบยอด';
+}
+function renderAssessment(xs) {
+  if (oppGroup !== 'all' && oppGroup !== 'money') return '';
+  if (offline) return '<div class="card">ยังประเมินไม่สำเร็จ <button type="button" class="btn out" onclick="toggleOffline()">ลองใหม่</button></div>';
+  const benefits = assessedItems();
+  const counted = benefits.filter(i => ['likely','verified'].includes(i.status) && typeof i.amount.value === 'number');
+  const total = kind => {
+    const amounts = counted.filter(i => i.kind === kind);
+    return amounts.length ? amounts.reduce((sum,i) => sum + i.amount.value,0).toLocaleString('th-TH') + ' บาท' : 'ยังไม่ทราบยอด';
+  };
+  const pending = benefits.filter(i => ['need','check'].includes(i.status) || (i.status === 'likely' && !Number.isFinite(i.amount.value))).length;
+  const sameLane = renderedOpportunityGroup === oppGroup;
+  const benefitsOpen = sameLane && $('oppBenefitSummary') ? $('oppBenefitSummary').open : oppGroup === 'money';
+  const incomeOpen = sameLane && $('oppIncomeSummary')?.open;
+  const entries = benefits.filter(i => !oppQ || (i.title + ' ' + i.payer).includes(oppQ)).map(i =>
+    `<button class="btn out left" type="button" data-item-id="${i.id}" onclick="openBenefit('${i.id}')">${esc(i.title)}
+      <span class="opp-card-sub">${PLAN_CATEGORIES[BENEFIT_CATEGORY[i.id]][1]} · ${STATUS_L[i.status]} · ${esc(benefitAmountText(i))}</span></button>`).join('');
+  let h = `<details class="card opp-assessment" id="oppBenefitSummary" ${benefitsOpen ? 'open' : ''}>
+    <summary>ผลประเมินสิทธิ์และสวัสดิการ
+      ${selectedAssessment ? '<span class="pill opp-assessment-pill">DEMO / MOCK</span>' : ''}
+      <span class="small opp-assessment-meta">
+        ${benefits.every(i => i.status === 'need') ? 'ข้อมูลยังไม่พอประเมิน<br>' : ''}
+        รายเดือน ${total('monthly')}<br>ครั้งเดียว ${total('once')}
+        ${pending ? '<br>ต้องตรวจต่อ ' + pending + ' รายการ' : ''}
+      </span>
+    </summary>${entries}</details>`;
+  if (oppGroup === 'all') {
+    const wages = xs.filter(o => !GROUP_CATEGORIES.money.includes(oppCategory(o)) && o.money.basis !== 'none').slice(0,3);
+    h += `<details class="card opp-assessment" id="oppIncomeSummary" ${incomeOpen ? 'open' : ''}>
+      <summary>รายได้จากงานและอาชีพ<span class="small opp-assessment-meta">${wages.length ? 'ดูค่าตอบแทนตามประกาศ' : 'ยังไม่มีข้อมูลรายได้'}</span></summary>
+      ${wages.map(o => `<button class="btn out left" type="button" onclick="openOpp('${o.id}')">${esc(o.title)}
+        <span class="opp-card-sub">${esc(oppMoney(o))} · ${dataLabel(o.dataStatus)}</span></button>`).join('')}</details>`;
+  }
+  return h;
+}
+function pinsFor(xs) {
+  return xs.flatMap(o => o.dataStatus === 'mock' ? [] : opportunityLocations(o).filter(loc =>
+    loc.precision === 'exact' && loc.coordinateSource === 'database' && loc.isRemote !== true && loc.workMode !== 'remote' &&
+    !['remote','service','service_area','district'].includes(loc.areaType) &&
+    Number.isFinite(loc.lat) && Math.abs(loc.lat) <= 90 &&
+    Number.isFinite(loc.lng) && Math.abs(loc.lng) <= 180 &&
+    (!oppDistrict || (loc.districtName ?? loc.district) === oppDistrict)).map(loc => ({o, loc})));
 }
 RENDER.opp = () => {
-  const { xs, hidden } = oppPage();
+  const {xs, hidden} = oppPage();
   $('oppQ').value = oppQ;
-  $('oppChips').innerHTML = chipHtml('🎯 ตรงทักษะของฉัน', bySkill, 'rankBySkill()') + Object.keys(GROUP_L).map(k => chipHtml(GROUP_L[k], oppGroup === k, `setGroup('${k}')`)).join('');
-  $('oppFab').textContent = mapView ? '📋 ดูรายการ' : '🗺️ ดูแผนที่';
-  $('oppBody').classList.toggle('hidden', mapView); $('map').classList.toggle('hidden', !mapView);
-  if (mapView) { drawMap(xs); return; }
-  const live = xs.filter(o => o.dataStatus === 'live').length;
-  let h = offline ? offlineCard() : '';
-  if (xs.length) h += `<div class="small">${xs.length} รายการ · ประกาศจริงจากแหล่งภายนอก ${live} รายการ · ที่เหลือเป็นตัวอย่าง (DEMO)</div>`;
-  else h += '<p><b>ไม่พบรายการ</b></p><button class="btn out" onclick="oppReset()">ล้างคำค้นและดูทุกหมวด</button>';
-  h += xs.map(o => '<div class="card tile oc">' + lt('', `<b>${esc(o.title)}</b>`, [esc(o.organization), esc(oppMoney(o)) + (o.distanceKm != null ? ` · ${o.distanceKm.toFixed(1)} กม.` : ''), dataLabel(o.dataStatus)]
-    .concat(rank[o.id] && bySkill ? [`🎯 ${FIT[rank[o.id].fit]} · ${esc(rank[o.id].reason)}`] : []).join('\n'), `openOpp('${o.id}')`, true) + '</div>').join('');
-  if (hidden) h += `<p class="small" style="padding:0 8px">ซ่อนประกาศที่น่าสงสัยไว้ ${hidden} รายการ</p>`;
-  $('oppBody').innerHTML = h;
-};
-// Pins only for items with an exact location; the rest stay in the list (chip "ไม่มีที่ตั้ง N รายการ").
-function drawMap(xs) {
-  const el = $('map'), w = el.clientWidth || 330, hgt = el.clientHeight || 460, scale = Math.min(w, hgt) / 2 / 8;
-  const pinned = xs.filter(o => o.loc), unpinned = xs.length - pinned.length;
-  let h = '<svg viewBox="0 0 100 100" preserveAspectRatio="none"><rect width="100" height="100" fill="#e9efe8"/><path d="M-5 70 C 20 60, 30 85, 55 62 S 90 40, 105 48" stroke="#a9d3ee" stroke-width="7" fill="none"/>'
-    + '<g stroke="#fff" stroke-width="1.6" fill="none"><path d="M0 30 L100 22"/><path d="M20 0 L35 100"/><path d="M0 85 L100 78"/><path d="M62 0 L70 100"/><path d="M0 50 L100 55"/></g><circle cx="22" cy="20" r="6" fill="#cfe7c8"/><circle cx="78" cy="78" r="7" fill="#cfe7c8"/></svg>';
-  h += pinned.map(o => `<div class="pin" title="${esc(o.title)}" style="left:${w / 2 + o.loc.d[0] * scale}px;top:${hgt / 2 + o.loc.d[1] * scale}px" onclick="openOpp('${o.id}')">${PIN_IC[o.mapGroup] || '📍'}</div>`).join('');
-  h += '<div class="mapchips">' + (unpinned > 0 ? `<span class="chip" onclick="toggleMap()">📋 ไม่มีที่ตั้ง ${unpinned} รายการ ดูในรายการ</span>` : '')
-    + (!pinned.length ? '<span class="chip static">ไม่มีรายการที่ปักหมุดได้ในหมวดนี้</span>' : '') + '<span class="chip static">หมุดตัวอย่างเป็นที่อยู่สมมติ (DEMO)</span></div>';
-  h += '<div class="osm">ภาพแผนที่จำลอง · แอปจริงใช้ OpenStreetMap contributors</div>';
-  el.innerHTML = h;
-}
-function openOpp(id) { oppId = id; go('oppd'); }
-function hasJobSource(o) {
-  if (!o.url || o.dataStatus === 'mock' || o.linkStatus === 'broken') return false;
-  try {
-    const url = new URL(o.url);
-    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
-      && !/(?:^|\.)example\.(?:org|com|net)$|\.example$/.test(url.hostname);
-  } catch {
-    return false;
+  renderOppControls();
+  if (mapView) {
+    const pins = pinsFor(xs);
+    if (pins.length) drawMap(pins);
+    else { mapView = false; noPins = true; }
   }
+  $('oppFab').textContent = mapView ? 'ดูรายการ' : 'ดูแผนที่';
+  $('oppBody').classList.toggle('hidden', mapView);
+  $('map').classList.toggle('hidden', !mapView);
+  if (mapView) return;
+  const counts = [`${xs.length} รายการ`];
+  for (const [status, label] of [['mock','ตัวอย่าง'],['curated','ข้อมูลสาธารณะ'],['live','ประกาศจริง']]) {
+    const count = xs.filter(item => item.dataStatus === status).length;
+    if (count) counts.push(`${label} ${count}`);
+  }
+  let h = offline ? offlineCard() : '';
+  if (noPins) h += '<p role="status">ยังไม่มีพิกัดสำหรับตัวกรองนี้</p>';
+  h += renderAssessment(xs);
+  if (xs.length) h += `<div class="small">${counts.join(' · ')}</div>`;
+  else h += '<p><b>ไม่พบรายการตรงตัวกรอง</b></p><button class="btn out" onclick="oppReset()">ล้างตัวกรอง</button>';
+  h += xs.map(o => {
+    const category = PLAN_CATEGORIES[oppCategory(o)]?.[1];
+    const details = [o.organization, oppMoney(o), category, dataLabel(o.dataStatus)].filter(Boolean);
+    if (rank[o.id] && bySkill) details.push('🎯 ' + FIT[rank[o.id].fit] + ' · ' + rank[o.id].reason);
+    return `<div class="card tile oc"><button type="button" class="lt opp-card" data-item-id="${o.id}" onclick="openOpp('${o.id}')">
+      <b>${esc(o.title)}</b><span class="opp-card-sub">${esc(details.join('\n'))}</span></button></div>`;
+  }).join('');
+  if (hidden) h += `<p class="small">ซ่อนประกาศที่น่าสงสัยไว้ ${hidden} รายการ</p>`;
+  $('oppBody').innerHTML = h;
+  renderedOpportunityGroup = oppGroup;
+  if (oppReturnScroll != null) {
+    $('oppBody').scrollTop = oppReturnScroll;
+    oppReturnScroll = null;
+  }
+};
+function drawMap(pins) {
+  const latitudes = pins.map(pin => pin.loc.lat), longitudes = pins.map(pin => pin.loc.lng);
+  const minLat = Math.min(...latitudes), minLng = Math.min(...longitudes);
+  const latSpan = Math.max(Math.max(...latitudes) - minLat,.001), lngSpan = Math.max(Math.max(...longitudes) - minLng,.001);
+  $('map').innerHTML = pins.map(({o,loc}) => `<button type="button" class="pin" title="${esc(o.title)}" aria-label="${esc(o.title)}"
+    data-id="${esc(o.id)}" data-district="${esc(loc.districtName ?? loc.district)}"
+    style="left:${pins.length === 1 ? 50 : 14 + 72 * (loc.lng - minLng) / lngSpan}%;top:${pins.length === 1 ? 50 : 86 - 72 * (loc.lat - minLat) / latSpan}%">📍</button>`).join('')
+    + '<div class="osm">มุมมองแผนที่ DEMO</div>';
+  $('map').querySelectorAll('[data-id]').forEach(pin => {
+    pin.onclick = () => openOpp(pin.dataset.id, pin.dataset.district || oppDistrict);
+  });
 }
-function openDemoApplication(title = OPPS.find(o => o.id === oppId)?.title) {
+function rememberOpportunityList() {
+  if (cur() === 'opp' && !mapView) oppReturnScroll = $('oppBody').scrollTop;
+}
+function openOpp(id, district = oppDistrict) {
+  rememberOpportunityList();
+  oppId = id; oppMoneyId = null; oppDetailDistrict = district; go('oppd');
+  $('oppDetailHeading')?.focus();
+}
+function openBenefit(id) {
+  rememberOpportunityList();
+  oppId = null; oppMoneyId = id; oppDetailDistrict = ''; go('oppd');
+  $('oppDetailHeading')?.focus();
+}
+function backFromOpportunity() {
+  back();
+  if (cur() !== 'opp') return;
+  const list = mapView ? $('map').querySelectorAll('[data-id]') : $('oppBody').querySelectorAll('[data-item-id]');
+  [...list].find(item => (item.dataset.itemId ?? item.dataset.id) === (oppMoneyId ?? oppId))?.focus({preventScroll:true});
+}
+function hasJobSource(o) {
+  if (!o?.url || o.dataStatus === 'mock' || o.linkStatus === 'broken') return false;
+  const url = usablePlanWebUrl(o.url);
+  return url && !/(?:^|\.)example\.(?:org|com|net)$|\.example$/.test(new URL(url).hostname);
+}
+function openDemoApplication(title = planOpportunity(oppId)?.title) {
   const fragment = title ? '#title=' + encodeURIComponent(title) : '';
   openExternal('job-application.html' + fragment, '', null);
 }
-function openExtOpp() { const o = OPPS.find(x => x.id === oppId); openExternal(o.url, o.title, { opportunityId:o.id }); }
-function reportOpp() { listSheet('รายงานประกาศนี้', { suspicious:'น่าสงสัย / มิจฉาชีพ', wrong_info:'ข้อมูลผิด', expired:'ปิดรับแล้ว', other:'อื่นๆ' }, () => toast('ขอบคุณ ส่งรายงานแล้ว')); }
+function openExtOpp() {
+  const o = planOpportunity(oppId);
+  const url = usablePlanWebUrl(o?.url);
+  if (url) openExternal(url, o.title, {opportunityId:o.id});
+}
+function openJobDetails() {
+  if (hasJobSource(planOpportunity(oppId))) openExtOpp();
+  else openDemoApplication();
+}
+function reportOpp() {
+  listSheet('รายงานประกาศนี้', {suspicious:'น่าสงสัย / มิจฉาชีพ', wrong_info:'ข้อมูลผิด', expired:'ปิดรับแล้ว', other:'อื่นๆ'}, () => toast('ขอบคุณ ส่งรายงานแล้ว'));
+}
+function detailSave(refKey, id) {
+  const saved = tasks.some(task => task[refKey] === id);
+  return saved ? '<button class="btn ton" disabled>บันทึกแล้ว</button>'
+    : `<button class="btn" type="button" onclick="saveToPlan({${refKey}:${refKey === 'moneyId' ? 'oppMoneyId' : 'oppId'}})">บันทึกไว้ในแผนของฉัน</button>`;
+}
 RENDER.oppd = () => {
-  const o = OPPS.find(x => x.id === oppId) || OPPS[0]; oppId = o.id;
-  let h = `<h2 class="h" style="font-size:21px">${esc(o.title)}</h2>` + (o.organization ? `<div>${esc(o.organization)}</div>` : '')
-    + `<div class="chips">${staticChip(GROUP_L[o.mapGroup])}${staticChip(dataLabel(o.dataStatus))}</div><div style="font-size:16px;font-weight:800;margin-top:8px">${esc(oppMoney(o))}</div>`
-    + (o.loc ? `<div>📍 ${esc(o.loc.text)}</div>` : '') + '<div class="hr"></div>';
-  if (o.conditions.length) h += '<b>เงื่อนไข</b>' + o.conditions.map(c => `<div>• ${esc(c)}</div>`).join('') + '<div style="height:8px"></div>';
-  h += `<div class="small">แหล่งข้อมูล: ${esc(o.attribution)}${o.ageDays != null ? ` · อัปเดต ${o.ageDays} วันก่อน` : ''}</div><div style="height:10px"></div>`;
-  if (o.mapGroup === 'job') {
-    if (hasJobSource(o)) h += '<button class="btn out" onclick="openExtOpp()">ดูประกาศต้นทาง ↗</button>';
-    h += '<button class="btn out" onclick="openDemoApplication()">สมัครงานจำลอง ↗</button>';
-  } else if (o.url) h += '<button class="btn out" onclick="openExtOpp()">ดูประกาศต้นทาง ↗</button>';
-  h += '<button class="btn" onclick="saveToPlan({opportunityId:oppId})">＋ บันทึกไว้ในแผนของฉัน</button><button class="btn txt" onclick="reportOpp()">รายงานประกาศนี้</button>'
-    + '<p class="small">แอปไม่รับประกันว่าจะได้งานหรือรายได้ ตรวจรายละเอียดกับผู้ประกาศก่อนสมัคร อย่าโอนเงินก่อนเริ่มงาน</p>';
+  const o = oppMoneyId ? null : planOpportunity(oppId);
+  const benefit = oppMoneyId ? assessedItems().find(i => i.id === oppMoneyId) : null;
+  if ((!o && !benefit) || (o && !availableOpportunity(o))) {
+    $('oppdBody').innerHTML = '<p role="status">ไม่พบรายการนี้หรือรายการหมดอายุแล้ว</p><button class="btn out" onclick="goTab(\'opp\')">กลับหน้าโอกาส</button>';
+    return;
+  }
+  if (benefit) {
+    const programme = MONEY.find(i => i.id === benefit.id);
+    const [,label,layout] = PLAN_CATEGORIES[BENEFIT_CATEGORY[benefit.id]];
+    $('oppdBody').innerHTML = planHeading({title:benefit.title}, {label,layout,owner:benefit.payer,value:benefitAmountText(benefit),dataStatus:benefit.dataStatus}, 'oppDetailHeading')
+      + planSection('สิทธิ์และสวัสดิการ', `<p>${STATUS_L[benefit.status]}</p>`)
+      + planSection('เงื่อนไข', planBullets(benefit.reasons.map(reason => reason.text)))
+      + planSection('เอกสารที่ต้องเตรียม', planBullets(programme.docs))
+      + planSection('ช่องทางติดต่อ', planBullets(programme.channels.map(item => item.title)))
+      + planSection('แหล่งข้อมูล', '<p>' + esc(dataLabel(benefit.dataStatus)) + '</p>' + planBullets(programme.src))
+      + detailSave('moneyId', benefit.id);
+    return;
+  }
+  const [,label,layout] = PLAN_CATEGORIES[oppCategory(o)] || [];
+  const locations = opportunityLocations(o).filter(loc => !oppDetailDistrict || (loc.districtName ?? loc.district) === oppDetailDistrict);
+  const areas = locations.flatMap(loc => [loc.address ?? loc.text ?? loc.districtName ?? loc.district, loc.travelInfo]);
+  const notes = [
+    ...(o.conditions || []),
+    ...(o.contacts || []).map(c => typeof c === 'string' ? c : c.label),
+  ];
+  let h = planHeading({title:o.title}, {label,layout,owner:o.organization,value:oppMoney(o),dataStatus:o.dataStatus}, 'oppDetailHeading');
+  if (o.description || PLAN_DETAILS[o.id]?.summary) h += planSection('รายละเอียด', `<p>${esc(o.description || PLAN_DETAILS[o.id].summary)}</p>`);
+  h += planSection('เงื่อนไขและข้อมูลติดต่อ', planBullets(notes));
+  h += planSection('พื้นที่', planBullets(areas));
+  h += planSection('แหล่งข้อมูล', `<p>${esc(dataLabel(o.dataStatus))}</p><p class="small">${esc(o.attribution)}${o.ageDays != null ? ' · อัปเดต ' + o.ageDays + ' วันก่อน' : ''}</p>`);
+  if (o.mapGroup === 'job') h += '<button class="btn out" onclick="openJobDetails()">รายละเอียดงาน ↗</button>';
+  else if (usablePlanWebUrl(o.url)) h += '<button class="btn out" onclick="openExtOpp()">ดูประกาศต้นทาง ↗</button>';
+  h += detailSave('opportunityId', o.id) + '<button class="btn txt" onclick="reportOpp()">รายงานประกาศนี้</button>';
   $('oppdBody').innerHTML = h;
 };
 
@@ -1491,7 +1768,13 @@ function toggleOffline() { offline = !offline; sideLabels(); bump(); }
     const b = document.createElement('button'); b.textContent = label; b.dataset.id = id; b.onclick = () => navGo(id); nav.appendChild(b);
   });
   $('persona').innerHTML = '<option value="">ผู้ใช้ใหม่ (ล้างข้อมูล)</option>' + Object.keys(PERSONAS).map(id => `<option value="${id}">${id} · ${PERSONAS[id].label}</option>`).join('');
-  sideLabels(); if (location.hash === '#plan-demo') openPlanSamples(); else go('home');
+  sideLabels();
+  const target = new URLSearchParams(location.search);
+  const itemId = target.get('opportunityId');
+  if (itemId) { goTab('opp', 'all'); openOpp(itemId, target.get('district') || ''); }
+  else if (location.hash === '#plan-demo') openPlanSamples();
+  else if (location.hash === '#home-demo') go('home');
+  else openStartup();
 })();
 </script>
 </body>
