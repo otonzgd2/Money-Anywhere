@@ -1,0 +1,52 @@
+{
+  "dataStatus": "synthetic",
+  "description": "Money Anywhere example for comparing guided chat questions. Source records are illustrative shapes, not agency API schemas.",
+  "initialAnswers": {
+    "govPension": false,
+    "oldAgeGets": false,
+    "work": "ลาออกหรือหมดสัญญา",
+    "wage": 12000,
+    "hasUnpaid": false,
+    "kidUnder6": false,
+    "welfareCard": false,
+    "taxWithheld": false
+  },
+  "sourceRecords": {
+    "thaid": {
+      "source": "DOPA ThaID",
+      "input": "Existing synthetic identity returned by Money Anywhere's mock callback",
+      "derivedFact": "ageBand",
+      "publicReference": "https://www.bora.dopa.go.th/app-thaid/"
+    },
+    "tangRat": {
+      "source": "DGA Citizen Portal",
+      "datasetOwner": "Department of Empowerment of Persons with Disabilities",
+      "asOf": "2026-11-27",
+      "disabilityCard": {
+        "status": "active"
+      },
+      "publicReference": "https://www.dga.or.th/document-sharing/dga-news/143066/"
+    },
+    "socialSecurity": {
+      "source": "Social Security Office",
+      "asOf": "2026-11-27",
+      "coverageSectionAtExit": 33,
+      "contributionHistory": {
+        "windowMonthsBeforeExit": 15,
+        "complete": true,
+        "paidMonths": 8
+      },
+      "publicReference": "https://eself.sso.go.th/assets/File/SSOeSelfUserManual.pdf"
+    },
+    "dMyTax": {
+      "source": "Revenue Department D-MyTax",
+      "asOf": "2026-11-27",
+      "taxYear": 2026,
+      "withholdingSummary": {
+        "complete": true,
+        "amountTHB": 1250
+      },
+      "publicReference": "https://www.rd.go.th/63908.html"
+    }
+  }
+}

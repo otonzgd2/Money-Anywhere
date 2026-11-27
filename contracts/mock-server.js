@@ -20,6 +20,7 @@ const { execSync } = require('child_process');
 const { URL } = require('url');
 const { createAi } = require('./adapters/ai');
 const { createAgent } = require('./adapters/agent');
+const { taxDemoPersonas } = require('./adapters/demo-tax');
 const sources = require('./adapters/sources');
 const { createGeocoder } = require('./adapters/geocoder');
 const { createNotifier } = require('./adapters/notifier');
@@ -49,6 +50,7 @@ function createServer(opts = {}) {
   const NOTICE = ref.privacyNotice;
   const govOn = opts.govConnected !== undefined ? opts.govConnected : process.env.GOV_CONNECTED === '1';
   const demoOn = opts.demo !== undefined ? opts.demo : process.env.DEMO_MODE !== '0';
+  const demoPersonas = { ...ref.demoPersonas, ...taxDemoPersonas };
   const ai = opts.ai || createAi(opts.aiOptions || {});
   const agent = opts.agent || createAgent(opts.aiOptions || {});
   const geo = createGeocoder(ref.taxonomies.districts);
@@ -309,8 +311,8 @@ function createServer(opts = {}) {
     store: store.kind, storeLayout: LAYOUT, retention: { days: retentionDays, mode: retentionMode }, notifier: notifier.kind, aiDailyLimit, jobs: jobs.state }], { public: true });
   on('GET', '/v1/app-config', ({ req }) => {
     const cfg = readJson('app-config.sample.json');
-    cfg.featureFlags = { ...cfg.featureFlags, govConnected: govOn }; cfg.noticeVersion = NOTICE.version;
-    const tag = '"' + cfg.configVersion + '-' + NOTICE.version + (govOn ? '-gov' : '') + '"';
+    cfg.featureFlags = { ...cfg.featureFlags, govConnected: govOn, demo: demoOn }; cfg.noticeVersion = NOTICE.version;
+    const tag = '"' + cfg.configVersion + '-' + NOTICE.version + (govOn ? '-gov' : '') + (demoOn ? '-demo' : '') + '"';
     return req.headers['if-none-match'] === tag ? [304] : [200, cfg, { ETag: tag, 'Cache-Control': 'no-cache' }];
   }, { public: true });
   on('GET', '/v1/taxonomies', () => [200, { ...ref.taxonomies, facts: ref.facts }], { public: true });
@@ -687,7 +689,7 @@ function createServer(opts = {}) {
 
   // Demo
   on('POST', '/v1/demo/personas/{id}', ({ device, p }) => {
-    const per = ref.demoPersonas[p.id];
+    const per = Object.hasOwn(demoPersonas, p.id) && demoPersonas[p.id];
     if (!demoOn || !per) return E(404, 'NOT_FOUND', demoOn ? 'ไม่พบผู้ใช้ตัวอย่างนี้' : 'ปิดโหมดสาธิตอยู่');
     devices.delete(device); const d = dev(device);
     d.consents.push({ id: 'c' + d.seq++, noticeVersion: NOTICE.version, ageConfirmed: true, purposes: Object.fromEntries(purposeIds.map(id => [id, id !== 'gov'])), at: nowIso() });

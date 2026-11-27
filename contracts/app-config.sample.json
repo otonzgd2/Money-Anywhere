@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-11-28.1",
+  "configVersion": "2026-11-28.2",
   "minAppVersion": "0.1.0",
-  "featureFlags": { "moneyMap": true, "aiChat": true, "aiAssistant": true, "liveSources": true, "govConnected": false },
+  "featureFlags": { "moneyMap": true, "aiChat": true, "aiAssistant": true, "liveSources": true, "govConnected": false, "demo": true },
 
   "tabs": [
     { "id": "home", "label": "หน้าแรก", "icon": "home", "route": "home", "activeFor": ["money", "money.route", "assistant"] },
@@ -151,6 +151,10 @@
           { "type": "nav_row", "label": "วิธีใช้แอป", "onTap": { "route": "help" } },
           { "type": "nav_row", "label": "รู้ทันมิจฉาชีพ", "onTap": { "route": "help.scam" } },
           { "type": "nav_row", "label": "แหล่งข้อมูลที่ใช้", "onTap": { "route": "sources" } }
+        ] },
+        { "type": "settings_group", "id": "demo.dmytax", "label": "D-MyTax (DEMO / MOCK)", "flag": "demo", "items": [
+          { "type": "nav_row", "label": "ก่อนเติม D-MyTax", "sub": "ลองแชตเมื่อยังไม่มีข้อมูลภาษีหัก ณ ที่จ่าย", "onTap": { "action": "demo.load", "params": { "id": "dmytax-before" }, "then": { "route": "assistant" } } },
+          { "type": "nav_row", "label": "หลังเติม D-MyTax", "sub": "ลองแชตโดยใช้ข้อมูลภาษีปี 2569 จำลอง", "onTap": { "action": "demo.load", "params": { "id": "dmytax-after" }, "then": { "route": "assistant" } } }
         ] }
       ]
     },

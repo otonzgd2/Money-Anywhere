@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'chat.dart';
 import 'common.dart';
 import 'income_plan_screen.dart';
 import 'profile_screen.dart';
@@ -16,9 +17,13 @@ class MeTab extends StatefulWidget {
   State<MeTab> createState() => _MeTabState();
 }
 
+typedef _TaxDemoCase = ({String label, String subtitle, String path});
+
 class _MeTabState extends State<MeTab> {
   Map<String, bool>? purposes;
   int history = 0;
+  List<_TaxDemoCase> taxDemoCases = const [];
+  bool openingTaxDemo = false;
   List<Map<String, dynamic>> memory = [];
   ApiException? error;
   bool loaded = false;
@@ -46,8 +51,10 @@ class _MeTabState extends State<MeTab> {
       final s = await api.get('/v1/me/settings');
       widget.app.largeText.value = s['largeText'] == true;
       gov = await govState(api);
+      final config = await api.get('/v1/app-config').onError<ApiException>((_, _) => <String, dynamic>{});
       if (!mounted) return;
       setState(() {
+        taxDemoCases = _taxDemoCases(config);
         purposes = cur == null ? null : (cur['purposes'] as Map).map((k, v) => MapEntry('$k', v == true));
         history = ((c['items'] as List?) ?? const []).length;
         memory = (m['items'] as List).cast<Map<String, dynamic>>();
@@ -147,6 +154,54 @@ class _MeTabState extends State<MeTab> {
     }
   }
 
+  List<_TaxDemoCase> _taxDemoCases(Map<String, dynamic> config) {
+    if (config case {
+      'featureFlags': {'demo': true},
+      'routes': {'me': {'sections': final List sections}},
+      'actions': {'demo.load': {'path': final String path}},
+    }) {
+      for (final section in sections) {
+        if (section case {'id': 'demo.dmytax', 'items': final List items}) {
+          return [
+            for (final item in items)
+              if (item case {
+                'label': final String label,
+                'sub': final String subtitle,
+                'onTap': {'action': 'demo.load', 'params': {'id': final String id}},
+              })
+                (label: label, subtitle: subtitle, path: path.replaceAll('{id}', Uri.encodeComponent(id))),
+          ];
+        }
+      }
+    }
+    return const [];
+  }
+
+  Future<void> _openTaxDemo(_TaxDemoCase scenario) async {
+    if (openingTaxDemo) return;
+    setState(() => openingTaxDemo = true);
+    final demoApi = api.forDemo('dmytax');
+    try {
+      final loaded = await demoApi.post(scenario.path);
+      if (!mounted) return;
+      if (loaded['dataStatus'] != 'mock') {
+        toast(context, 'โหลดข้อมูล D-MyTax จำลองไม่ได้');
+        return;
+      }
+      final session = ChatSession();
+      await Navigator.of(context).push<void>(MaterialPageRoute(builder: (_) => ChatScreen(
+        api: demoApi,
+        session: session,
+        title: 'D-MyTax · DEMO / MOCK',
+      )));
+    } on ApiException catch (e) {
+      if (mounted) toast(context, e.message);
+    } finally {
+      demoApi.close();
+      if (mounted) setState(() => openingTaxDemo = false);
+    }
+  }
+
   void _info(String title, String text) => showDialog<void>(
         context: context,
         builder: (_) => AlertDialog(title: Text(title), content: Text(text), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('เข้าใจแล้ว'))]),
@@ -225,6 +280,15 @@ class _MeTabState extends State<MeTab> {
           onTap: () => _info('สัญญาณเตือน', '• ให้โอนเงินก่อน ค่ามัดจำ ค่าธรรมเนียม\n• ขอเลขบัตร รหัสผ่าน OTP ทางแชท\n• รายได้สูงผิดปกติ งานง่ายเกินจริง\n• เงินกู้คือหนี้ ไม่ใช่รายได้\nสงสัยโทรสายด่วนตำรวจไซเบอร์ 1441'),
         ),
         _head('สำหรับสาธิต (DEMO)'),
+        for (final scenario in taxDemoCases)
+          ListTile(
+            leading: const Icon(Icons.receipt_long),
+            title: Text(scenario.label),
+            subtitle: Text(scenario.subtitle),
+            trailing: const Icon(Icons.chevron_right),
+            enabled: !openingTaxDemo,
+            onTap: () => _openTaxDemo(scenario),
+          ),
         for (final p in const [
           ['p1', 'สมชาย 65 ปี ยังไม่ได้เบี้ยผู้สูงอายุ'],
           ['p2', 'สุดา 28 ปี ถูกเลิกจ้าง หางาน'],

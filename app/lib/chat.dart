@@ -5,9 +5,10 @@ import 'api.dart';
 /// One-click AI: pressing the home button records consent (core + ai, stated on the button) and starts a
 /// guided conversation. Every message is checked by the server policy before any AI call.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.api, required this.session});
+  const ChatScreen({super.key, required this.api, required this.session, this.title});
   final Api api;
   final ChatSession session;
+  final String? title;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -83,7 +84,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _start() async {
     try {
       await widget.api.consent(ai: true);
+      if (!mounted) return;
       final c = await widget.api.post('/v1/ai/conversations', {'mode': 'guided'});
+      if (!mounted) return;
       conversationId = c['conversationId'] as String;
       setState(() {
         msgs.add(_Msg(false, '${c['greeting']}', status: 'guarded'));
@@ -91,7 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
         busy = false;
       });
     } on ApiException catch (e) {
-      setState(() { error = e.message; busy = false; });
+      if (mounted) setState(() { error = e.message; busy = false; });
     }
   }
 
@@ -103,6 +106,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollDown();
     try {
       final r = await widget.api.post('/v1/ai/conversations/$conversationId/messages', {'text': t});
+      if (!mounted) return;
       final guard = (r['guard'] as Map?)?['kind'] as String?;
       setState(() {
         msgs.add(_Msg(false, '${r['reply']}', status: r['aiStatus'] as String?, guard: guard,
@@ -111,6 +115,7 @@ class _ChatScreenState extends State<ChatScreen> {
         busy = false;
       });
     } on ApiException catch (e) {
+      if (!mounted) return;
       if (e.status == 404) {
         // The server restarted and forgot this conversation: start a new one (answers already saved are not asked again).
         s.reset();
@@ -126,8 +131,8 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _decide(Map<String, dynamic> a, bool yes) async {
     try {
       await widget.api.post('/v1/ai/conversations/$conversationId/actions/${a['id']}', {'decision': yes ? 'confirm' : 'reject'});
-      setState(() => decided.add(a['id'] as String));
       if (!mounted) return;
+      setState(() => decided.add(a['id'] as String));
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(yes ? 'ทำแล้ว: ${a['label']}' : 'ยกเลิกแล้ว ไม่ได้เปลี่ยนอะไร')));
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -142,7 +147,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('ให้ AI หาเงินให้ฉัน')),
+      appBar: AppBar(title: Text(widget.title ?? 'ให้ AI หาเงินให้ฉัน')),
       body: SafeArea(
         child: Column(children: [
           if (error != null) Padding(padding: const EdgeInsets.all(16), child: Text(error!, style: const TextStyle(color: Colors.red))),

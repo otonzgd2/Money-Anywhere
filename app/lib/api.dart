@@ -49,6 +49,13 @@ class Api {
       : baseUrl = baseUrl ?? _Local.read('server') ?? apiBaseUrl,
         deviceId = _loadDeviceId();
 
+  Api._forDevice(this.baseUrl, this.deviceId);
+
+  /// Use a separate profile for demos that replace the selected profile's data.
+  Api forDemo(String name) => Api._forDevice(baseUrl, '$deviceId-demo-$name');
+
+  void close() => _http.close();
+
   /// Server address. Can be changed in the app (ฉัน > server) when USB is unplugged and Wi-Fi is used instead.
   String baseUrl;
 
