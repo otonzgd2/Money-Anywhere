@@ -812,6 +812,18 @@ function createServer(opts = {}) {
       if (!fs.existsSync(f)) return send(404, { code: 'NOT_FOUND', message: 'ยังไม่ได้สร้างเอกสาร รัน npm run docs', status: 404, retryable: false });
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); return res.end(fs.readFileSync(f));
     }
+    const contactReport = /^\/docs\/sources\/(thai-senior-benefits-2026-11-27\.(html|md))$/.exec(u.pathname);
+    if (req.method === 'GET' && contactReport) {
+      const [, name, extension] = contactReport;
+      let report;
+      try {
+        report = await fs.promises.readFile(path.join(DIR, '..', 'docs', 'product', 'sources', name));
+      } catch (error) {
+        return error.code === 'ENOENT' ? send(...E(404, 'NOT_FOUND', 'ไม่พบไฟล์รายงานในโปรเจกต์')) : send(...E(500, 'INTERNAL', 'เปิดไฟล์รายงานไม่ได้'));
+      }
+      res.writeHead(200, { 'Content-Type': extension === 'html' ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8', 'Referrer-Policy': 'no-referrer' });
+      return res.end(report);
+    }
     let raw = ''; for await (const c of req) raw += c;
     let body; try { body = raw ? JSON.parse(raw) : undefined; } catch { return send(...E(400, 'VALIDATION', 'JSON ไม่ถูกต้อง')); }
     for (const r of R) {

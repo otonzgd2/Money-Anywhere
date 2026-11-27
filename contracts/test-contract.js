@@ -129,6 +129,24 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const docs = await call('patchMoneyRoute', { params: { id: 'unemployment' }, body: { documentsReady: [0, 1, 2] }, expect: 200 });
   check('documents ticked', docs.data.documents.every(d => d.ready));
   check('every money route lists dated sources', docs.data.sources.length > 0 && docs.data.sources.every(s => /^https:\/\//.test(s.url) && /^\d{4}-\d{2}-\d{2}$/.test(s.checkedAt)));
+  const reportPath = '/docs/sources/thai-senior-benefits-2026-11-27';
+  const htmlReport = await fetch(base + reportPath + '.html');
+  const mdReport = await fetch(base + reportPath + '.md');
+  const reportBytes = Buffer.from(await htmlReport.arrayBuffer());
+  const markdownBytes = Buffer.from(await mdReport.arrayBuffer());
+  const reportDir = path.join(__dirname, '..', 'docs', 'product', 'sources');
+  check('contact HTML and its Markdown link serve the original report files', htmlReport.ok && mdReport.ok
+    && /text\/html/.test(htmlReport.headers.get('content-type')) && /text\/plain/.test(mdReport.headers.get('content-type'))
+    && reportBytes.equals(fs.readFileSync(path.join(reportDir, 'thai-senior-benefits-2026-11-27.html')))
+    && markdownBytes.equals(fs.readFileSync(path.join(reportDir, 'thai-senior-benefits-2026-11-27.md'))));
+  const reportRow = reportBytes.toString('utf8').match(/<tr id="item-1"[^>]*>([\s\S]*?)<\/tr>/)?.[1] || '';
+  for (const [id, guideId] of [['old_age', '8386002e-d892-4975-ad48-7f06332310a8'], ['disability', '31d48bd3-6f27-4ffb-9063-03b2e2093083']]) {
+    const url = 'https://gov.bangkok.go.th/ServiceDetail?id=' + guideId;
+    const route = (await call('getMoneyRoute', { params: { id }, expect: 200 })).data;
+    check(id + ' opens the contact report row that links to the official guide',
+      route.contactGuide === reportPath + '.html#item-1' && reportRow.includes(url) && route.sources.some(s => s.url === url)
+      && route.channels[0].title.includes('ตามทะเบียนบ้าน'));
+  }
   const claim = await call('createTask', { body: { moneyId: 'unemployment' }, expect: 201 });
   check('starting a claim creates steps and skips the ready documents step', claim.data.moneyId === 'unemployment' && claim.data.doneCount === 1 && claim.data.steps.length === 4);
   const owed = await call('getMoneyRoute', { params: { id: 'unpaid_wages' } });

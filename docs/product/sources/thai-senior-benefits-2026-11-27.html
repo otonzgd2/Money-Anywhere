@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>สิทธิและสวัสดิการผู้สูงอายุในประเทศไทย</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f3f7f9;
+      --surface: #fff;
+      --ink: #142d3a;
+      --muted: #425967;
+      --line: #d4e0e6;
+      --accent: #0b597d;
+      --amount: #eff8f0;
+      --amount-ink: #20503b;
+      font-family: "Leelawadee UI", Tahoma, system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; color: var(--ink); background: var(--paper); }
+    a { color: var(--accent); text-underline-offset: .18em; }
+    :focus-visible { outline: 3px solid #1274a2; outline-offset: 2px; }
+    .shell { width: min(100% - 2rem, 94rem); margin-inline: auto; }
+    .masthead { padding: clamp(1.35rem, 4vw, 2.7rem) 0; background: #103e53; color: #fff; }
+    .masthead .date { margin: 0 0 .2rem; color: #e0eef4; font-weight: 700; }
+    h1 { margin: 0; font-size: clamp(1.6rem, 4.1vw, 2.65rem); line-height: 1.24; }
+    main { padding: 1rem 0 1.7rem; }
+    .controls {
+      display: grid;
+      grid-template-columns: minmax(10rem, 2fr) repeat(2, minmax(0, 1fr)) auto;
+      gap: .7rem; align-items: end; padding: .8rem;
+      background: var(--surface); border: 1px solid var(--line); border-radius: .7rem;
+    }
+    .control { display: grid; min-width: 0; gap: .2rem; }
+    label { font-weight: 700; }
+    input, select, button {
+      width: 100%; min-height: 2.75rem; padding: .35rem .55rem;
+      border: 1px solid #859eac; border-radius: .4rem;
+      background: var(--surface); color: var(--ink); font: inherit;
+    }
+    button { cursor: pointer; color: var(--accent); font-weight: 700; }
+    button:hover { background: #eaf5f8; }
+    .table-header { display: flex; flex-wrap: wrap; gap: .2rem 1rem; align-items: baseline; margin-top: 1.05rem; }
+    h2 { margin: 0; font-size: clamp(1.05rem, 2.7vw, 1.35rem); line-height: 1.4; }
+    .result-count { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .table-help { margin: .25rem 0 .7rem; color: var(--muted); }
+    .table-scroll { max-height: 73vh; overflow: auto; border: 1px solid var(--line); border-radius: .6rem; background: var(--surface); }
+    table { width: 100%; min-width: var(--table-width, 182.1rem); border-spacing: 0; table-layout: fixed; }
+    col.col-number { width: var(--number-width, 3.1rem); }
+    col.col-agency { width: var(--agency-width, 12rem); }
+    col.col-amount { width: var(--amount-width, 13rem); }
+    col.col-benefit { width: var(--benefit-width, 18rem); }
+    col.col-kind { width: 10rem; }
+    col.col-scope { width: 15rem; }
+    col.col-eligibility { width: 22rem; }
+    col.col-method { width: 18rem; }
+    col.col-contact { width: 15rem; }
+    col.col-documents { width: 19rem; }
+    col.col-notes { width: 19rem; }
+    col.col-sources { width: 17rem; }
+    th, td { padding: .66rem .75rem; text-align: start; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+    thead th { position: sticky; top: 0; z-index: 2; background: #e4eef3; color: var(--ink); }
+    tr > .number { position: sticky; left: 0; text-align: center; padding-inline: .15rem; font-variant-numeric: tabular-nums; }
+    thead .number { z-index: 3; }
+    tbody tr { --row: var(--surface); }
+    tbody tr:nth-child(even) { --row: #f7fafb; }
+    tbody tr:hover { --row: #edf4f7; }
+    tbody th, tbody td { background: var(--row); }
+    tbody .number { z-index: 1; color: var(--accent); }
+    tbody .benefit { font-weight: 700; }
+    thead .amount { background: #dcefe0; }
+    tbody .amount { background: var(--amount); color: var(--amount-ink); font-weight: 700; }
+    td + td { border-inline-start: 1px solid #e2e9ed; }
+    .sources ul { margin: 0; padding-inline-start: 1.05rem; }
+    .sources li + li { margin-top: .3rem; }
+    .empty { padding: .7rem; border: 1px dashed #859eac; border-radius: .5rem; }
+    .related { margin: .9rem 0 0; }
+    @media (max-width: 48rem) {
+      .shell { width: calc(100% - 1.1rem); }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .control.search { grid-column: 1 / -1; }
+      .controls button { width: auto; justify-self: start; }
+    }
+    @media (max-width: 30rem) {
+      .table-scroll { --number-width: 2.45rem; --benefit-width: 7.8rem; --agency-width: 18rem; --amount-width: 9.1rem; --table-width: 173.35rem; max-height: 62vh; }
+      th, td { padding-inline: .45rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="shell">
+      <p class="date">ข้อมูล ณ 27 พฤศจิกายน 2569</p>
+      <h1>สิทธิและสวัสดิการผู้สูงอายุในประเทศไทย</h1>
+    </div>
+  </header>
+  <main class="shell">
+    <form class="controls" id="filters" role="search" aria-label="ค้นและกรองรายการสิทธิ" hidden>
+      <div class="control search">
+        <label for="query">ค้นหาสิทธิหรือหน่วยงาน</label>
+        <input id="query" type="search" placeholder="เช่น เบี้ยยังชีพ บัตรทอง 1330">
+      </div>
+      <div class="control">
+        <label for="kind">ประเภทหน่วยงาน</label>
+        <select id="kind">
+          <option value="">ทุกประเภท</option>
+          <option value="state">รัฐและรัฐวิสาหกิจ</option>
+          <option value="private">เอกชน</option>
+          <option value="mixed">รัฐและเอกชนร่วมกัน</option>
+          <option value="charity">องค์กรสาธารณกุศล</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="scope">พื้นที่ใช้สิทธิ</label>
+        <select id="scope">
+          <option value="">ทุกพื้นที่</option>
+          <option value="nationwide">ทั่วประเทศ</option>
+          <option value="local">เฉพาะพื้นที่หรือสาขา</option>
+        </select>
+      </div>
+      <button type="reset">ล้างตัวกรอง</button>
+    </form>
+    <section aria-labelledby="table-heading">
+      <div class="table-header">
+        <h2 id="table-heading">ตารางเทียบหน่วยงานกับสิทธิผู้สูงอายุ</h2>
+        <p class="result-count" id="result-count" role="status">แสดง 52 จาก 52 รายการ</p>
+      </div>
+      <p class="table-help" id="table-help">ยอดเงินอยู่ในคอลัมน์ที่ 3 เลื่อนตารางไปทางขวาเพื่อดูคุณสมบัติ วิธีรับสิทธิ เอกสาร และที่มาของข้อมูล</p>
+      <p id="empty" class="empty" hidden>ไม่พบรายการตรงกับคำค้นหรือตัวกรอง</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-labelledby="table-heading" aria-describedby="table-help">
+        <table>
+          <colgroup>
+            <col class="col-number">
+            <col class="col-benefit">
+            <col class="col-amount">
+            <col class="col-agency">
+            <col class="col-kind">
+            <col class="col-scope">
+            <col class="col-eligibility">
+            <col class="col-method">
+            <col class="col-contact">
+            <col class="col-documents">
+            <col class="col-notes">
+            <col class="col-sources">
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col" class="number">ลำดับ</th>
+              <th scope="col" class="benefit">ชื่อสิทธิหรือบริการ</th>
+              <th scope="col" class="amount">ยอดเงิน / ค่าใช้จ่าย</th>
+              <th scope="col" class="agency">หน่วยงานหรือผู้ให้บริการ</th>
+              <th scope="col" class="kind">ประเภทหน่วยงาน</th>
+              <th scope="col" class="scope">พื้นที่ใช้สิทธิ</th>
+              <th scope="col" class="eligibility">คุณสมบัติผู้มีสิทธิ</th>
+              <th scope="col" class="method">วิธีรับสิทธิ</th>
+              <th scope="col" class="contact">ช่องทางติดต่อ</th>
+              <th scope="col" class="documents">เอกสารที่ต้องใช้</th>
+              <th scope="col" class="notes">รายละเอียดเพิ่มเติม</th>
+              <th scope="col" class="sources">ที่มาของข้อมูล</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="item-1" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">1</th>
+              <td class="benefit">ยืนยันสิทธิเบี้ยยังชีพผู้สูงอายุ ขึ้นทะเบียนรับเบี้ยความพิการ</td>
+              <td class="amount">เบี้ยยังชีพ 600/700/800/1,000 บาทต่อเดือน ตามช่วงอายุ 60–69/70–79/80–89/90 ปีขึ้นไป เบี้ยความพิการผู้ใหญ่ 800 บาทต่อเดือน เพิ่ม 200 บาทเมื่อเข้าเกณฑ์สวัสดิการแห่งรัฐ</td>
+              <td class="agency"><strong>อบต. เทศบาล สำนักงานเขต และเมืองพัทยา</strong></td>
+              <td class="kind">รัฐ (ท้องถิ่น)</td>
+              <td class="scope">ทั่วประเทศ · ยืนยันกับท้องถิ่นตามทะเบียนบ้าน</td>
+              <td class="eligibility">เบี้ยยังชีพ: คนไทยอายุ 60 ปีขึ้นไป มีชื่อในทะเบียนบ้านท้องถิ่นและเข้าเกณฑ์ เบี้ยความพิการ: มีบัตรคนพิการและเข้าเกณฑ์ของท้องถิ่น</td>
+              <td class="method">ยืนยันสิทธิหรือขึ้นทะเบียนครั้งแรก เมื่ออนุมัติจึงจ่ายตามงวด หากย้ายทะเบียนบ้านให้ติดต่อท้องถิ่นใหม่</td>
+              <td class="contact">ฝ่ายสวัสดิการ อบต. เทศบาล สำนักงานเขต หรือเมืองพัทยาตามทะเบียนบ้าน</td>
+              <td class="documents">บัตรประชาชน ทะเบียนบ้าน สมุดบัญชีเมื่อรับโอน บัตรคนพิการสำหรับเบี้ยความพิการ และหนังสือมอบอำนาจกับหลักฐานผู้ยื่นแทนถ้ามี</td>
+              <td class="notes"><strong>ตรวจสิทธิและรับแจ้งเตือน</strong> ทางรัฐมีเมนูเช็กเบี้ยทั้งสองประเภท หากจะยืนยันสิทธิครั้งแรกหรือแจ้งย้ายทะเบียนบ้าน ให้ติดต่อท้องถิ่นตามทะเบียนบ้าน</td>
+              <td class="sources"><ul><li><a href="https://www.dga.or.th/document-sharing/dga-channel/101204/">คู่มือเช็กเบี้ยทางรัฐ</a></li><li><a href="https://gov.bangkok.go.th/ServiceDetail?id=8386002e-d892-4975-ad48-7f06332310a8">คู่มือเบี้ยยังชีพ</a></li><li><a href="https://gov.bangkok.go.th/ServiceDetail?id=31d48bd3-6f27-4ffb-9063-03b2e2093083">คู่มือเบี้ยความพิการ</a></li><li><a href="https://narathiwat.prd.go.th/th/content/category/detail/id/9/iid/561754">อัตราเงินและสิทธิเดือนพฤศจิกายน 2569</a></li></ul></td>
+            </tr>
+            <tr id="item-2" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">2</th>
+              <td class="benefit">ข้อมูลสิทธิและสถานะการโอนเงินสวัสดิการจากหลายหน่วยงาน</td>
+              <td class="amount">แสดงยอดของสิทธิที่ได้รับจริง บริการนี้เป็นช่องตรวจข้อมูล</td>
+              <td class="agency"><strong>กรมบัญชีกลาง</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ตรวจข้อมูลสวัสดิการออนไลน์</td>
+              <td class="eligibility">ผู้มีรายการสวัสดิการในระบบกลาง เกณฑ์อายุขึ้นกับสิทธิที่กำลังตรวจ</td>
+              <td class="method">เข้าสู่ระบบและเปิด e-Social Welfare เพื่อดูข้อมูลที่มี ระบบแสดงสถานะการจ่ายของสิทธิเดิม</td>
+              <td class="contact">แอปทางรัฐ เมนูตรวจสอบสิทธิสวัสดิการสังคมและสวัสดิการแห่งรัฐ</td>
+              <td class="documents">บัญชีทางรัฐที่ยืนยันตัวตนสำหรับดูข้อมูลส่วนบุคคล</td>
+              <td class="notes"><strong>ตรวจสิทธิและติดตามการจ่าย</strong> ค้น “ตรวจสอบสิทธิสวัสดิการสังคม และสวัสดิการแห่งรัฐ” หรือ e-Social Welfare เพื่อดูข้อมูลเดือนล่าสุด เช่น วันที่โอน จำนวนเงิน และสถานะการโอน</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/thangrath-e-social-welfare/">คู่มือ e-Social Welfare</a></li></ul></td>
+            </tr>
+            <tr id="item-3" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">3</th>
+              <td class="benefit">ผลคุณสมบัติการลงทะเบียนบัตรสวัสดิการแห่งรัฐ</td>
+              <td class="amount">พ.ย. 2569: ซื้อสินค้า 300 บาทต่อเดือน ค่าเดินทาง 750 บาทต่อเดือน ส่วนลดก๊าซ 80 บาทต่อ 3 เดือนตามรอบ รวมทั้งค่าน้ำ ค่าไฟ และเงินเพิ่มความพิการตามเกณฑ์</td>
+              <td class="agency"><strong>กระทรวงการคลัง</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ตามรอบโครงการ</td>
+              <td class="eligibility">คนไทยอายุ 18 ปีขึ้นไป ณ วันปิดรับลงทะเบียน รายได้ไม่เกิน 100,000 บาทต่อคนต่อปี และผ่านเกณฑ์ทรัพย์สิน วงเงินสินเชื่อ และเงื่อนไขรอบ 2569</td>
+              <td class="method">รอบลงทะเบียนปิดแล้ว ตรวจผลก่อน ผู้ผ่านรายใหม่ที่ระบบแจ้งให้ยืนยันตัวตนต้องทำ e-KYC ผู้มีสิทธิเดิมที่ยืนยันแล้วให้ดูสถานะในระบบ</td>
+              <td class="contact">ทางรัฐหรือเว็บโครงการเพื่อตรวจผล กรุงไทยหรือเป๋าตังเพื่อยืนยันตัวตนถึง 12 มกราคม 2570 สำหรับผู้ที่ต้องยืนยัน</td>
+              <td class="documents">บัตรประชาชนตัวจริงสำหรับ e-KYC ที่ธนาคาร หรือทำตามขั้นตอนยืนยันในเป๋าตัง</td>
+              <td class="notes"><strong>ตรวจผลการลงทะเบียน</strong> ค้น “ตรวจสอบผลการลงทะเบียนเพื่อสวัสดิการแห่งรัฐ” ผู้ผ่านเกณฑ์รอบ 2569 ที่ต้องยืนยันตัวตนทำได้ที่กรุงไทยหรือเป๋าตังถึง <strong>12 มกราคม 2570</strong></td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrath-check-registration-welfare-mof-69/">บริการทางรัฐ</a></li><li><a href="https://www.mof.go.th/news/116855/">ประกาศกระทรวงการคลัง</a></li><li><a href="https://welfare.mof.go.th/">เกณฑ์สมัครโครงการปี 2569</a></li><li><a href="https://narathiwat.prd.go.th/th/content/category/detail/id/9/iid/561754">วงเงินเดือนพฤศจิกายน 2569</a></li></ul></td>
+            </tr>
+            <tr id="item-4" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">4</th>
+              <td class="benefit">เงินชราภาพของผู้ประกันตนที่เข้าเกณฑ์</td>
+              <td class="amount">บำนาญรายเดือนหรือบำเหน็จเงินก้อนตามประวัติสมทบและเกณฑ์ของมาตรานั้น</td>
+              <td class="agency"><strong>สำนักงานประกันสังคม (สปส.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ตามเงื่อนไขผู้ประกันตน</td>
+              <td class="eligibility">ม.33/39 อายุ 55 ปีขึ้นไปและสิ้นสุดความเป็นผู้ประกันตน ส่งครบ 180 เดือนเข้าหลักบำนาญ ส่งไม่ครบตรวจบำเหน็จ ม.40 ใช้เกณฑ์ชราภาพแยกตามทางเลือก</td>
+              <td class="method">ยื่นขอประโยชน์ทดแทนกรณีชราภาพ รอสำนักงานประกันสังคมพิจารณา</td>
+              <td class="contact">สำนักงานประกันสังคม ทางรัฐเมนูงานบริการสำนักงานประกันสังคม หรือ SSO e-Self Service</td>
+              <td class="documents">แบบ สปส. 2-01 หรือแบบของมาตราที่เกี่ยวข้อง บัตรประชาชน และหลักฐานบัญชีธนาคารเมื่อรับโอน ตามช่องทางยื่น</td>
+              <td class="notes"><strong>ยื่นคำขอ</strong> เมนู “งานบริการสำนักงานประกันสังคม” รองรับขอประโยชน์ทดแทนกรณีชราภาพ รวมถึงช่องทางเฉพาะของมาตรา 40 ซึ่งใช้เกณฑ์ของมาตรา 40 ติดต่อสำนักงานประกันสังคมได้อีกทาง</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/thangrath-17-sso/">คู่มือบริการประกันสังคมบนทางรัฐ</a></li><li><a href="https://www.sso.go.th/wpr/main/service/%E0%B8%81%E0%B8%AD%E0%B8%87%E0%B8%97%E0%B8%B8%E0%B8%99%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%81%E0%B8%B1%E0%B8%99%E0%B8%AA%E0%B8%B1%E0%B8%87%E0%B8%84%E0%B8%A1_detail_detail_1_125_695/235_235">หลักเกณฑ์และเอกสารชราภาพ</a></li><li><a href="https://eself.sso.go.th/assets/File/SSOeSelfUserManual.pdf">คู่มือ SSO e-Self Service</a></li></ul></td>
+            </tr>
+            <tr id="item-5" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">5</th>
+              <td class="benefit">บัตรทอง หน่วยบริการ และบริการสุขภาพตามสิทธิ</td>
+              <td class="amount">บริการสุขภาพตามสิทธิ ไม่มีเงินจ่ายให้ผู้ขอผ่านเมนูตรวจสิทธิ</td>
+              <td class="agency"><strong>สำนักงานหลักประกันสุขภาพแห่งชาติ (สปสช.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ใช้หน่วยบริการตามสิทธิหรือที่เข้าร่วม</td>
+              <td class="eligibility">ผู้มีสิทธิบัตรทอง ส่วนฟันเทียมและบริการดูแลที่บ้านขึ้นกับข้อบ่งชี้หรือผลประเมินภาวะพึ่งพิง เกณฑ์อายุขึ้นกับบริการ</td>
+              <td class="method">ตรวจสิทธิและเข้าหน่วยบริการ สำหรับฟันเทียมหรือการดูแลที่บ้านให้ขอประเมินก่อนเริ่มบริการ</td>
+              <td class="contact">สปสช. 1330 หน่วยบริการประจำ รพ.สต. หรือเมนูสิทธิการรักษาพยาบาลในทางรัฐ</td>
+              <td class="documents">บัตรประชาชนหรือการยืนยันตัวตนที่หน่วยบริการรองรับ นำข้อมูลรักษาเดิมถ้าทีมประเมินขอ</td>
+              <td class="notes"><strong>ตรวจและจัดการสิทธิ</strong> ดูสิทธิรักษาและประวัติสุขภาพ ค้นหาหรือเปลี่ยนหน่วยบริการ สำหรับฟันเทียมหรือการดูแลระยะยาวที่บ้าน ติดต่อหน่วยบริการใกล้บ้านเพื่อประเมิน หรือโทร <strong>1330</strong></td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/check-healthcare-entitlements/">บริการสิทธิรักษาพยาบาล</a></li><li><a href="https://media.nhso.go.th/assets/portals/1/files/UC_69_final.pdf">คู่มือสิทธิบัตรทอง</a></li><li><a href="https://stream.nhso.go.th/assets/portals/1/files/11%20Factsheet%20LTC%202566%E2%80%932569.pdf">ข้อมูลดูแลระยะยาวที่บ้าน</a></li></ul></td>
+            </tr>
+            <tr id="item-6" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">6</th>
+              <td class="benefit">ช่วยเหลือผู้สูงอายุในภาวะยากลำบาก ผู้ถูกทอดทิ้ง หรือผู้ถูกทำร้าย</td>
+              <td class="amount">เงินสงเคราะห์หรือความช่วยเหลือตามประเภทและผลประเมิน ยอดต่างกันตามโครงการ</td>
+              <td class="agency"><strong>กระทรวง พม. และ พมจ.</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ผ่าน 1300 หรือ พมจ. ในพื้นที่</td>
+              <td class="eligibility">ผู้สูงอายุ 60 ปีขึ้นไปที่เดือดร้อน ถูกทอดทิ้ง ขาดผู้ดูแล ถูกทำร้าย หรืออยู่ในภาวะยากลำบากตามการประเมิน ช่องแจ้งเหตุสังคมใช้ได้ทุกวัย</td>
+              <td class="method">แจ้งเหตุหรือขอรับความช่วยเหลือด้วยตนเองหรือให้คนอื่นแจ้งแทน นักสังคมสงเคราะห์ประเมินเป็นรายกรณี</td>
+              <td class="contact">ศูนย์ช่วยเหลือสังคม 1300 พมจ. หรือเมนูแจ้งเหตุปัญหาสังคมในทางรัฐ</td>
+              <td class="documents">เมื่อแจ้งเหตุให้เตรียมที่อยู่ จุดเกิดเหตุ และข้อมูลติดต่อ เมื่อยื่นขอเงิน เจ้าหน้าที่อาจขอบัตรประชาชน ทะเบียนบ้าน หลักฐานบัญชี และหลักฐานสถานการณ์</td>
+              <td class="notes"><strong>ตรวจสิทธิ ติดตามเงินอุดหนุน และแจ้งเหตุ</strong> ค้น “รับแจ้งเตือนสิทธิ พม.” หรือ “แจ้งเหตุปัญหาสังคม (1300)” ตามเรื่องที่ต้องการความช่วยเหลือ ติดต่อ พมจ. หรือโทร <strong>1300</strong> ได้โดยตรง</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrat-society-tracking/">แจ้งเตือนสิทธิ พม.</a></li><li><a href="https://www.thangrath.go.th/thangrath-end-the-violence/">แจ้งเหตุปัญหาสังคม</a></li><li><a href="https://www.dop.go.th/download/knowledge/th1765168351-2619_0.pdf">คู่มือสงเคราะห์ในภาวะยากลำบาก</a></li></ul></td>
+            </tr>
+            <tr id="item-7" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">7</th>
+              <td class="benefit">เงินกู้ประกอบอาชีพ การปรับบ้าน เงินสงเคราะห์ค่าจัดการศพ และงานส่งเสริมผู้สูงอายุ</td>
+              <td class="amount">กู้รายบุคคลสูงสุด 30,000 บาท หรือกลุ่มตั้งแต่ 5 คนสูงสุด 100,000 บาท ปรับบ้านสูงสุด 60,000 บาทต่อหลัง ค่าศพ 3,000 บาท เงินโครงการตามที่อนุมัติ</td>
+              <td class="agency"><strong>กรมกิจการผู้สูงอายุ (ผส.) และกองทุนผู้สูงอายุ</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · การปรับบ้านขึ้นกับพื้นที่และงบโครงการ</td>
+              <td class="eligibility">กู้ทุนและคลังปัญญา: คนไทย 60 ปีขึ้นไปตามเกณฑ์ ปรับบ้าน: คนไทย 60 ปีขึ้นไป บ้านไม่ปลอดภัยและเข้าเกณฑ์รายได้ ค่าศพ: ผู้จัดการศพยื่นแทนผู้เสียชีวิตอายุ 60 ปีขึ้นไปที่เข้าเกณฑ์รายได้น้อย เงินสนับสนุนโครงการ: ชมรมหรือองค์กรที่เข้าเกณฑ์</td>
+              <td class="method">แต่ละเรื่องต้องยื่นแยก กู้ทุนและปรับบ้านต้องผ่านการพิจารณา ค่าศพยื่นภายใน 6 เดือนนับจากวันออกใบมรณบัตร คลังปัญญาต้องขึ้นทะเบียน</td>
+              <td class="contact">กองทุนผู้สูงอายุสำหรับกู้หรือเสนอโครงการ พมจ. หรือสำนักงานเขตสำหรับปรับบ้านและค่าศพ ค้นเมนูของกรมกิจการผู้สูงอายุในทางรัฐ</td>
+              <td class="documents">กู้: บัตรประชาชน ทะเบียนบ้าน หลักฐานประกอบอาชีพและผู้ค้ำตามแบบ ปรับบ้าน: บัตรประชาชน ทะเบียนบ้านและหลักฐานเกี่ยวกับบ้าน ค่าศพ: ใบมรณบัตร แบบ ศผส.01 บัตรผู้ยื่น และหลักฐานสวัสดิการหรือแบบรับรองตามกรณี</td>
+              <td class="notes"><strong>ค้นบริการ</strong> พบรายการกู้ทุนประกอบอาชีพ ขึ้นทะเบียนคลังปัญญาสำหรับอายุ 60 ปีขึ้นไป และเงินสนับสนุนโครงการสำหรับชมรมหรือองค์กร สอบถามการยื่นกู้กับกองทุนผู้สูงอายุ ส่วนปรับบ้านและค่าจัดการศพให้ติดต่อ พมจ. หรือสำนักงานเขตตามเงื่อนไขของแต่ละเรื่อง</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrath-elderly-business-loan/">บริการกู้ทุน</a></li><li><a href="https://www.thangrath.go.th/feature/thangrath-registration-senior-knowledge-repository/">ขึ้นทะเบียนคลังปัญญา</a></li><li><a href="https://www.thangrath.go.th/feature/thangrath-elderly-fund-support/">กองทุนสนับสนุนโครงการ</a></li><li><a href="https://www.dop.go.th/thai/service_information/1/15">ช่องทางยื่นคำขอของกรม</a></li><li><a href="https://info.go.th/procedure/9aac3015-52ff-4f66-ae57-4efb1a32361a/view">คู่มือและเอกสารขอกู้</a></li><li><a href="https://chiangrai.prd.go.th/th/content/category/detail/id/9/iid/559991">เอกสารซ่อมบ้าน</a></li><li><a href="https://www.dop.go.th/th/topic/view=870">หลักฐานขอค่าจัดการศพ</a></li></ul></td>
+            </tr>
+            <tr id="item-8" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">8</th>
+              <td class="benefit">บัตรประจำตัวคนพิการและกองทุนคนพิการ</td>
+              <td class="amount">บริการบัตรและตรวจหนี้ ยอดหนี้ขึ้นกับสัญญา การขอเบี้ยความพิการดูรายการ 1</td>
+              <td class="agency"><strong>กรมส่งเสริมและพัฒนาคุณภาพชีวิตคนพิการ (พก.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ติดต่อศูนย์บริการคนพิการหรือท้องถิ่น</td>
+              <td class="eligibility">คนไทยที่มีความพิการตามเกณฑ์การออกบัตร ผู้มีบัตรอายุ 60 ปีขึ้นไปใช้บัตรตลอดชีวิตตามคู่มือ เมนูตรวจหนี้ต้องเป็นผู้กู้เดิม</td>
+              <td class="method">ทำบัตรครั้งแรกต้องยื่นคำขอ เมื่อมีบัตรแล้วจึงดูบัตรดิจิทัลได้ ผู้กู้เดิมเปิดดูและชำระหนี้ด้วยตนเอง</td>
+              <td class="contact">ศูนย์บริการคนพิการจังหวัดหรือจุดออกบัตร ทางรัฐเมนูดูบัตรประจำตัวคนพิการหรือชำระเงินกู้กองทุน</td>
+              <td class="documents">ทำบัตร: บัตรประชาชน ทะเบียนบ้าน เอกสารรับรองความพิการเมื่อเกณฑ์กำหนด และหลักฐานผู้ยื่นแทนถ้ามี ดูบัตรออนไลน์: บัญชีทางรัฐที่ยืนยันตัวตน</td>
+              <td class="notes"><strong>ดูบัตร ตรวจสิทธิ และจัดการเงินกู้เดิม</strong> ดูข้อมูลบัตรและวันหมดอายุ ตรวจยอดหนี้และชำระเงินกู้กองทุนคนพิการ ผู้ต้องการทำบัตรครั้งแรกติดต่อศูนย์บริการคนพิการ ส่วนการขอเบี้ยให้ยื่นกับท้องถิ่น</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrat-disabled-person-id-card/">บริการดูบัตรคนพิการ</a></li><li><a href="https://www.thangrath.go.th/thangrath-loan-contract-details-for-disabled-persons/">บริการดูสัญญาและชำระเงินกู้</a></li><li><a href="https://info.go.th/procedure/94e56d15-b4a6-49d7-be20-a424a3525798/view">คู่มือขอมีบัตรประจำตัวคนพิการ</a></li></ul></td>
+            </tr>
+            <tr id="item-9" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">9</th>
+              <td class="benefit"><strong>สิทธิภาษีของผู้สูงอายุ</strong> อายุ 65 ปีขึ้นไปยกเว้นเงินได้ส่วนที่ไม่เกิน 190,000 บาทตามเกณฑ์ <strong>สิทธิภาษีของลูกหลาน</strong> ผู้มีเงินได้อาจหักค่าอุปการะบิดามารดาคนละ 30,000 บาท เมื่อบิดามารดาอายุ 60 ปีขึ้นไปและเงินได้พึงประเมินไม่เกิน 30,000 บาทต่อปีตามเงื่อนไข</td>
+              <td class="amount">ยกเว้นเงินได้ผู้สูงอายุไม่เกิน 190,000 บาทต่อปี และลดหย่อนอุปการะบิดามารดาคนละ 30,000 บาท เป็นสิทธิภาษี</td>
+              <td class="agency"><strong>กรมสรรพากร</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ใช้เมื่อยื่นแบบภาษี</td>
+              <td class="eligibility">ผู้มีเงินได้ที่เป็นผู้อยู่ในไทยตามเกณฑ์และอายุ 65 ปีขึ้นไปในปีภาษี บุตรที่อุปการะบิดามารดาอายุ 60 ปีขึ้นไปซึ่งมีเงินได้ไม่เกิน 30,000 บาทต่อคนต่อปี ตรวจเงื่อนไขสิทธิของบุตรแต่ละคน</td>
+              <td class="method">เลือกใช้สิทธิในแบบ ภ.ง.ด. คราวยื่นภาษี การลดหย่อนบิดามารดาต้องให้บิดามารดารับรองผู้ใช้สิทธิ</td>
+              <td class="contact">กรมสรรพากรหรือระบบยื่นแบบภาษีเงินได้บุคคลธรรมดา</td>
+              <td class="documents">แบบยื่นภาษีและข้อมูลเงินได้ เก็บหลักฐานอายุ และหนังสือรับรองการอุปการะเลี้ยงดูบิดามารดา ล.ย.03 เมื่อใช้ค่าลดหย่อน</td>
+              <td class="notes"><strong>ช่องทางตรง</strong> ใช้สิทธิเมื่อยื่นแบบภาษีเงินได้</td>
+              <td class="sources"><ul><li><a href="https://www.rd.go.th/38533.html">เงื่อนไขผู้มีเงินได้อายุ 65 ปีขึ้นไป</a></li><li><a href="https://www.rd.go.th/60056.html">เกณฑ์ค่าอุปการะบิดามารดา</a></li><li><a href="https://www.rd.go.th/fileadmin/tax_pdf/pit/2568/Ins90_241268.pdf">คู่มือยื่นภาษีของกรมสรรพากร</a></li></ul></td>
+            </tr>
+            <tr id="item-10" data-kind="state" data-scope="local">
+              <th scope="row" class="number">10</th>
+              <td class="benefit"><strong>สวัสดิการชุมชน</strong> เช่น การช่วยเหลือเมื่อเจ็บป่วยหรือเสียชีวิต ขึ้นอยู่กับระเบียบและสถานะสมาชิกของกองทุนในพื้นที่</td>
+              <td class="amount">ขึ้นกับกองทุนและประเภทสวัสดิการของพื้นที่</td>
+              <td class="agency"><strong>สถาบันพัฒนาองค์กรชุมชน (พอช.)</strong></td>
+              <td class="kind">รัฐ (องค์การมหาชน)</td>
+              <td class="scope">เฉพาะพื้นที่ · ตามกองทุนชุมชนที่ดำเนินการ แม้ค้นข้อมูลได้ทั่วประเทศ</td>
+              <td class="eligibility">สมาชิกหรือกลุ่มที่กองทุนสวัสดิการชุมชนกำหนด อายุ ระยะเวลาสมาชิก และเหตุขอรับขึ้นกับข้อบังคับของแต่ละพื้นที่</td>
+              <td class="method">ค้นกองทุนก่อน สมัครหรือยื่นขอรับสวัสดิการกับกองทุนในพื้นที่ตามข้อบังคับ</td>
+              <td class="contact">เมนูตรวจสอบสวัสดิการชุมชนในทางรัฐ หรือคณะกรรมการกองทุนในพื้นที่</td>
+              <td class="documents">สอบถามกองทุนท้องถิ่นเรื่องหลักฐานสมาชิกและหลักฐานการเจ็บป่วยหรือเสียชีวิตตามกรณี</td>
+              <td class="notes"><strong>ค้นข้อมูลกองทุน</strong> ค้น “ตรวจสอบสวัสดิการชุมชน” แล้วติดต่อกองทุนในตำบล เทศบาล หรือเขตเพื่อสอบถามการสมัครและขอรับสวัสดิการ</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrat-community-welfare/">บริการทางรัฐ</a></li><li><a href="https://web.codi.or.th/faq/20190425-844/">คำถามที่พบบ่อยของ พอช.</a></li></ul></td>
+            </tr>
+            <tr id="item-11" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">11</th>
+              <td class="benefit"><strong>เงินหลังเกษียณของสมาชิก</strong> เมื่ออายุครบ 60 ปี ตรวจประเภทและจำนวนเงินตามยอดออมและเกณฑ์ของกองทุน</td>
+              <td class="amount">บำนาญหรือเงินดำรงชีพรายเดือนตามยอดสะสมและหลักเกณฑ์</td>
+              <td class="agency"><strong>กองทุนการออมแห่งชาติ (กอช.)</strong></td>
+              <td class="kind">รัฐ (กองทุนตามกฎหมาย)</td>
+              <td class="scope">ทั่วประเทศ · สำหรับสมาชิกที่เข้าเกณฑ์</td>
+              <td class="eligibility">สมาชิก กอช. ที่อายุครบ 60 ปีบริบูรณ์ ตรวจประเภทเงินตามยอดสะสมและเกณฑ์ของกองทุน</td>
+              <td class="method">กอช. แจ้งล่วงหน้าให้สมาชิกยื่นขอรับบำนาญหรือเงินดำรงชีพ หากไม่ได้รับหนังสือให้ติดต่อกองทุนหรือจุดบริการ</td>
+              <td class="contact">กอช. แอป กอช. เมนูจัดการเงินออม กอช. ในทางรัฐ หรือจุดบริการที่กองทุนประกาศ</td>
+              <td class="documents">ใช้แบบและหลักฐานตามหนังสือแจ้งอายุครบ 60 ปี เตรียมบัตรประชาชนและข้อมูลบัญชีรับเงินตามที่กองทุนระบุ</td>
+              <td class="notes"><strong>ตรวจสิทธิและคำนวณบำนาญ</strong> ค้น “จัดการเงินออม กอช.” หน้าบริการระบุช่องทางสมัครและส่งเงินออมสำหรับผู้เข้าเกณฑ์ด้วย</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrat-nsf/">บริการทางรัฐ</a></li><li><a href="https://www.nsf.or.th/node/785">รายละเอียดบำนาญ กอช.</a></li><li><a href="https://www.nsf.or.th/th/content/%E0%B8%84%E0%B8%B3%E0%B8%96%E0%B8%B2%E0%B8%A1%E0%B8%97%E0%B8%B5%E0%B9%88%E0%B8%9E%E0%B8%9A%E0%B8%9A%E0%B9%88%E0%B8%AD%E0%B8%A2-faq">คำถามพบบ่อยเรื่องการรับเงินและหนังสือแจ้ง</a></li></ul></td>
+            </tr>
+            <tr id="item-12" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">12</th>
+              <td class="benefit"><strong>เงินออมของสมาชิก กบข.</strong> เช่น ยอดสะสม เงินสมทบ และผลตอบแทน</td>
+              <td class="amount">แสดงยอดสะสม สมทบ และผลตอบแทนรายบุคคล เมนูตรวจยอดไม่จ่ายเงิน</td>
+              <td class="agency"><strong>กองทุนบำเหน็จบำนาญข้าราชการ (กบข.)</strong></td>
+              <td class="kind">รัฐ (กองทุนตามกฎหมาย)</td>
+              <td class="scope">ทั่วประเทศ · สำหรับสมาชิก กบข.</td>
+              <td class="eligibility">สมาชิก กบข. ที่ต้องการตรวจยอดของตน หน้าบริการตรวจยอดใช้สมาชิกภาพเป็นเกณฑ์</td>
+              <td class="method">เข้าสู่ระบบเพื่อดูยอด หากจะขอรับเงินเมื่อสิ้นสมาชิกภาพให้ดำเนินการตามช่องทางของ กบข. แยกจากเมนูนี้</td>
+              <td class="contact">ทางรัฐเมนูตรวจสอบยอดเงิน กบข. หรือ กบข.</td>
+              <td class="documents">บัญชีที่ยืนยันตัวตนสำหรับตรวจยอด หากขอถอนให้ตรวจเอกสารกับ กบข. ตามเหตุสิ้นสมาชิกภาพ</td>
+              <td class="notes"><strong>ตรวจยอด</strong> ค้น “ตรวจสอบยอดเงิน กบข.”</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrat-my-gpf/">บริการทางรัฐ</a></li></ul></td>
+            </tr>
+            <tr id="item-13" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">13</th>
+              <td class="benefit"><strong>หางานสำหรับคนไทยอายุ 60 ปีขึ้นไป</strong> ระบบไทยมีงานทำมีทางเลือกสำหรับผู้สูงอายุ</td>
+              <td class="amount">ค้นและสมัครผ่านระบบรัฐฟรี ค่าจ้างขึ้นกับตำแหน่ง</td>
+              <td class="agency"><strong>กรมการจัดหางาน</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ตำแหน่งงานขึ้นกับพื้นที่และนายจ้าง</td>
+              <td class="eligibility">คนไทยอายุ 60 ปีขึ้นไปสำหรับประเภทผู้หางานสูงอายุ คุณสมบัติงานขึ้นกับประกาศนายจ้าง</td>
+              <td class="method">ค้นงาน สมัครบัญชีและยื่นสมัครงานตามตำแหน่ง นายจ้างเป็นผู้คัดเลือก</td>
+              <td class="contact">กรมการจัดหางาน 1506 กด 2 สำนักงานจัดหางานจังหวัด หรือไทยมีงานทำ</td>
+              <td class="documents">ข้อมูลบัตรประชาชนและข้อมูลติดต่อสำหรับสมัครบัญชี ประวัติและเอกสารอื่นตามตำแหน่ง</td>
+              <td class="notes"><strong>ค้นงานและเข้าช่องทางสมัครงาน</strong> ค้น “ค้นหางานทำ” สอบถามกรมการจัดหางาน โทร <strong>1506 กด 2</strong></td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrat-smart-job/">บริการทางรัฐ</a></li><li><a href="https://xn--72c5abh2bf8icw0m9d.doe.go.th/web/employee/intro?t=2">เงื่อนไขสำหรับผู้สูงอายุ</a></li><li><a href="https://xn--72c5abh2bf8icw0m9d.doe.go.th/web/JSK/Employee/register">สายด่วนและหน้าลงทะเบียน</a></li></ul></td>
+            </tr>
+            <tr id="item-14" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">14</th>
+              <td class="benefit"><strong>หนังสือแสดงเจตนาด้านสุขภาพในวาระสุดท้าย</strong> สำหรับผู้ที่ต้องการบันทึกความประสงค์เรื่องการรักษาล่วงหน้าตามมาตรา 12</td>
+              <td class="amount">หนังสือแสดงเจตนา ไม่มีเงินจ่าย</td>
+              <td class="agency"><strong>สำนักงานคณะกรรมการสุขภาพแห่งชาติ (สช.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ทำหนังสือแสดงเจตนาออนไลน์</td>
+              <td class="eligibility">ผู้ต้องการทำหนังสือแสดงเจตนาด้วยตนเองตามมาตรา 12 หน้าบริการไม่ได้เจาะจงอายุผู้สูงอายุ</td>
+              <td class="method">เข้า e-Living Will เพื่อจัดทำหรือเรียกดูหนังสือด้วยตนเอง แล้วแจ้งผู้เกี่ยวข้องตามความประสงค์</td>
+              <td class="contact">สำนักงานคณะกรรมการสุขภาพแห่งชาติ ระบบ e-Living Will หรือเมนูในทางรัฐ</td>
+              <td class="documents">ยืนยันตัวตนตามระบบออนไลน์ ใช้ข้อมูลผู้เกี่ยวข้องหากเลือกบันทึกไว้ ไม่มีรายการเอกสารที่ต้องนำมายื่นในหน้าบริการทางรัฐ</td>
+              <td class="notes"><strong>จัดทำหรือดูเอกสาร</strong> ค้น “จัดการหนังสือแสดงเจตนาบริการสาธารณสุขในวาระสุดท้ายของชีวิต” หรือ e-Living Will</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrath-e-living-will/">บริการทางรัฐ</a></li><li><a href="https://www.nationalhealth.or.th/elivingwill">คำอธิบายและขั้นตอนของ สช.</a></li></ul></td>
+            </tr>
+            <tr id="item-15" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">15</th>
+              <td class="benefit"><strong>เอกสารทะเบียนราษฎร</strong> ใช้ประกอบการยื่นคำขอสิทธิที่ต้องใช้เอกสารทะเบียนบ้าน</td>
+              <td class="amount">คัดเอกสารที่รองรับออนไลน์ฟรีตามประกาศ ไม่มีเงินจ่าย</td>
+              <td class="agency"><strong>กรมการปกครอง</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · คัดเอกสารทะเบียนราษฎรของตนตามที่ระบบรองรับ</td>
+              <td class="eligibility">เจ้าของข้อมูลทะเบียนราษฎรที่ยืนยันตัวตนได้ หน้าบริการไม่ได้เจาะจงอายุผู้สูงอายุ</td>
+              <td class="method">เลือกคัดรับรองด้วยตนเอง ยืนยันตัวตน แล้วดาวน์โหลดเอกสารที่ระบบรองรับ</td>
+              <td class="contact">กรมการปกครองผ่านจัดการงานทะเบียนราษฎรในทางรัฐ หรือติดต่อสำนักทะเบียน</td>
+              <td class="documents">การยืนยันตัวตนของเจ้าของข้อมูลตามที่ระบบกำหนด ไม่มีเอกสารกระดาษสำหรับขั้นตอนออนไลน์ที่ระบุ</td>
+              <td class="notes"><strong>คัดรับรองเอกสารของตัวเอง</strong> ค้น “จัดการงานทะเบียนราษฎร” แล้วเลือก “การคัดรับรองด้วยตนเอง”</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/thangrath-civil-registration-certified-copy/">วิธีคัดรับรองเอกสารบนทางรัฐ</a></li><li><a href="https://www.thangrath.go.th/thangrath-lost-documents-free-request/">คู่มือขอเอกสารฟรีออนไลน์</a></li></ul></td>
+            </tr>
+            <tr id="item-16" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">16</th>
+              <td class="benefit"><strong>ร้องทุกข์เรื่องสินค้าและบริการ</strong> เช่น ถูกเอาเปรียบจากการซื้อสินค้า</td>
+              <td class="amount">ไม่มีเงินจ่ายอัตโนมัติ การคืนเงินหรือชดเชยขึ้นกับผลเรื่องร้องทุกข์</td>
+              <td class="agency"><strong>สำนักงานคณะกรรมการคุ้มครองผู้บริโภค (สคบ.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ยื่นเรื่องร้องทุกข์ออนไลน์</td>
+              <td class="eligibility">ผู้บริโภคที่มีปัญหาจากสินค้าและบริการ ใช้สถานะผู้ร้องในเรื่องเป็นเกณฑ์</td>
+              <td class="method">ยื่นร้องทุกข์พร้อมหลักฐาน แล้วติดตามผล เจ้าหน้าที่พิจารณาหรือส่งต่อหน่วยงานที่รับผิดชอบ</td>
+              <td class="contact">สคบ. 1166 เว็บไซต์ร้องทุกข์ หรือ OCPB Connect ในทางรัฐ</td>
+              <td class="documents">ข้อมูลผู้ร้องและผู้ขาย หลักฐานซื้อขาย เช่น ใบเสร็จ สัญญา หรือภาพสนทนา หนังสือมอบอำนาจเมื่อให้ผู้อื่นดำเนินการ</td>
+              <td class="notes"><strong>ยื่นและติดตามเรื่องร้องทุกข์</strong> ค้น “รับเรื่องร้องทุกข์ผู้บริโภค” เพื่อกรอกข้อมูลและแนบหลักฐานผ่าน OCPB Connect</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/thangrath-ocpb-connect/">คู่มือร้องทุกข์บนทางรัฐ</a></li><li><a href="https://www.ocpb.go.th/faqs.php">หลักฐานและช่องทางร้องทุกข์</a></li><li><a href="https://complaint.ocpb.go.th/complaint/new">ระบบยื่นร้องทุกข์โดยตรง</a></li></ul></td>
+            </tr>
+            <tr id="item-17" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">17</th>
+              <td class="benefit"><strong>ไกล่เกลี่ยข้อพิพาท</strong> สำหรับเรื่องทางแพ่งหรืออาญาที่เข้าเงื่อนไขกฎหมาย</td>
+              <td class="amount">ไม่มีเงินจ่ายตามอัตรา ผลชำระหรือชดใช้ขึ้นกับข้อตกลง</td>
+              <td class="agency"><strong>กรมคุ้มครองสิทธิและเสรีภาพ</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · สำหรับข้อพิพาทที่เข้าเกณฑ์</td>
+              <td class="eligibility">ผู้เป็นคู่กรณีในข้อพิพาทแพ่งหรืออาญาที่กฎหมายให้ไกล่เกลี่ยได้ ใช้ประเภทข้อพิพาทเป็นเกณฑ์</td>
+              <td class="method">ยื่นคำขอไกล่เกลี่ยออนไลน์หรือผ่านหน่วยงาน กระบวนการขึ้นกับเงื่อนไขและความสมัครใจของคู่กรณี</td>
+              <td class="contact">กรมคุ้มครองสิทธิและเสรีภาพ หรือเมนูไกล่เกลี่ยข้อพิพาทออนไลน์ในทางรัฐ</td>
+              <td class="documents">ข้อมูลยืนยันตัวตน รายละเอียดคู่กรณี ข้อเท็จจริงและเอกสาร เช่น สัญญาหรือหลักฐานหนี้ตามประเภทข้อพิพาท</td>
+              <td class="notes"><strong>ยื่นคำขอ</strong> ค้น “ไกล่เกลี่ยข้อพิพาทออนไลน์”</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/feature/thangrath-online-mediation/">บริการทางรัฐ</a></li></ul></td>
+            </tr>
+            <tr id="item-18" data-kind="state" data-scope="local">
+              <th scope="row" class="number">18</th>
+              <td class="benefit"><strong>เยียวยาผู้ประสบอุทกภัยปี 2569</strong> ผู้สูงอายุที่ได้รับผลกระทบขอได้ตามพื้นที่ ช่วงเกิดเหตุ และเกณฑ์ของโครงการ</td>
+              <td class="amount">5,000 หรือ 9,000 บาทต่อครัวเรือนที่เข้าเกณฑ์ ตามรูปแบบและผลกระทบของอุทกภัยในมาตรการฤดูฝนที่อ้างถึง</td>
+              <td class="agency"><strong>กรมป้องกันและบรรเทาสาธารณภัย (ปภ.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">เฉพาะพื้นที่ · พื้นที่ประสบภัยที่โครงการกำหนด ตามรอบ</td>
+              <td class="eligibility">ครัวเรือนที่อยู่อาศัยประจำได้รับผลกระทบในพื้นที่และช่วงที่ประกาศ รอบฤดูฝนที่อ้างถึงนับเหตุ 15 พฤษภาคม–30 กันยายน 2569 ใช้สถานะผู้ประสบภัยเป็นเกณฑ์</td>
+              <td class="method">ยื่นคำขอตามรอบผ่านทางรัฐหรือท้องถิ่น ให้เจ้าหน้าที่ตรวจและรับรองก่อนโอนตามโครงการ</td>
+              <td class="contact">ปภ. ผ่านเว็บโครงการ อบต. เทศบาล หรือสำนักงานเขตที่เกิดเหตุ</td>
+              <td class="documents">ข้อมูลบัตรประชาชน ที่อยู่และข้อมูลความเสียหาย อาจต้องแสดงสัญญาเช่าหรือหนังสือรับรองการอยู่อาศัยตามกรณี พร้อมเพย์เลขบัตรประชาชนตามเงื่อนไขโอน</td>
+              <td class="notes"><strong>ยื่นคำขอตามรอบที่ยังเปิด</strong> ค้น “ยื่นขอรับเงินเยียวยาผู้ประสบภัยตามมติ ครม.” ตรวจรอบและพื้นที่กับ ปภ. หรือสอบถาม อบต. เทศบาล หรือสำนักงานเขตที่เกิดเหตุหากลงทะเบียนออนไลน์ไม่ได้</td>
+              <td class="sources"><ul><li><a href="https://www.thangrath.go.th/thangrath-flood-relief-69-miniapp-guide/">คู่มือทางรัฐ</a></li><li><a href="https://relief.disaster.go.th/">ตรวจรายละเอียดโครงการกับ ปภ.</a></li><li><a href="https://www.thaigov.go.th/th/news/169722">ช่องทางช่วยลงทะเบียนสำหรับผู้สูงอายุ</a></li><li><a href="https://www.thaigov.go.th/th/news/170290">อัตราเยียวยาตามรูปแบบผลกระทบ</a></li></ul></td>
+            </tr>
+            <tr id="item-19" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">19</th>
+              <td class="benefit">วัคซีนไข้หวัดใหญ่ตามฤดูกาลสำหรับกลุ่มเสี่ยง</td>
+              <td class="amount">วัคซีนตามโครงการสำหรับผู้เข้าเกณฑ์ ไม่มีเงินจ่าย</td>
+              <td class="agency"><strong>กรมควบคุมโรค ร่วมกับ สปสช. และหน่วยบริการ</strong></td>
+              <td class="kind">รัฐ (ร่วมกับหน่วยบริการ)</td>
+              <td class="scope">ทั่วประเทศ · ตามรอบให้บริการและวัคซีนของแต่ละหน่วย</td>
+              <td class="eligibility">ผู้มีอายุ 65 ปีขึ้นไป หรืออยู่ในกลุ่มเสี่ยงอื่นตามประกาศวัคซีนประจำปี</td>
+              <td class="method">สอบถามหรือนัดหน่วยบริการให้คัดกรองและรับวัคซีนตามรอบและจำนวนคงเหลือ</td>
+              <td class="contact">รพ.สต. โรงพยาบาล หน่วยบริการที่ร่วมโครงการ หรือ สปสช. 1330</td>
+              <td class="documents">บัตรประชาชน และแจ้งโรคประจำตัวหรือประวัติแพ้วัคซีนเพื่อคัดกรองตามที่เจ้าหน้าที่สอบถาม</td>
+              <td class="notes">ผู้มีอายุ 65 ปีขึ้นไปเป็นกลุ่มเป้าหมาย สอบถามหน่วยบริการเรื่องช่วงให้บริการและวัคซีนคงเหลือ</td>
+              <td class="sources"><ul><li><a href="https://www.ddc.moph.go.th/dvb/publishinfodetail.php?deptcode=&amp;publish=18060">แนวทางปี 2569</a></li><li><a href="https://ddc.moph.go.th/pagecontent.php?page=1602">เกณฑ์กลุ่มเสี่ยง</a></li></ul></td>
+            </tr>
+            <tr id="item-20" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">20</th>
+              <td class="benefit">ประเมินสุขภาพใจเบื้องต้นผ่าน Mental Health Check-In</td>
+              <td class="amount">ประเมินออนไลน์ฟรี ไม่มีเงินจ่าย</td>
+              <td class="agency"><strong>กรมสุขภาพจิต</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · แบบประเมินสุขภาพใจออนไลน์</td>
+              <td class="eligibility">ประชาชนทั่วไป หน้าบริการมีแบบประเมินสำหรับกลุ่มผู้สูงอายุและกลุ่มอื่นตามระบบ</td>
+              <td class="method">เปิด Mental Health Check-In แล้วตอบแบบประเมินด้วยตนเองหรือให้ผู้ดูแลช่วยอ่าน ผลเบื้องต้นแสดงเมื่อทำเสร็จ</td>
+              <td class="contact">กรมสุขภาพจิต เว็บไซต์ Mental Health Check-In หรือสายด่วน 1323</td>
+              <td class="documents">ข้อมูลที่แบบประเมินขอ หน้าบริการไม่ได้กำหนดให้ยื่นเอกสารกระดาษเพื่อทำแบบประเมิน</td>
+              <td class="notes">ประชาชนใช้เครื่องมือคัดกรองออนไลน์ได้ ผู้สูงอายุที่ต้องการความช่วยเหลือในการประเมินติดต่อหน่วยบริการสุขภาพใกล้บ้าน</td>
+              <td class="sources"><ul><li><a href="https://checkin.dmh.go.th/">บริการกรมสุขภาพจิต</a></li><li><a href="https://checkin.dmh.go.th/contact">ช่องทางสายด่วนกรมสุขภาพจิต</a></li></ul></td>
+            </tr>
+            <tr id="item-21" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">21</th>
+              <td class="benefit">การแพทย์ฉุกเฉินและการคุ้มครองสิทธิผู้ป่วยฉุกเฉินวิกฤต UCEP</td>
+              <td class="amount">คุ้มครองค่ารักษาฉุกเฉินตามเกณฑ์จนพ้นวิกฤตและย้ายได้อย่างปลอดภัย ภายในระยะคุ้มครองไม่เกิน 72 ชั่วโมงตามหลักเกณฑ์</td>
+              <td class="agency"><strong>สถาบันการแพทย์ฉุกเฉินแห่งชาติ (สพฉ.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ใช้ตามเกณฑ์ฉุกเฉินวิกฤต</td>
+              <td class="eligibility">ผู้ป่วยทุกวัยที่หน่วยรักษาคัดแยกว่าเข้าข่ายฉุกเฉินวิกฤตตามเกณฑ์ UCEP</td>
+              <td class="method">โทร 1669 หรือเข้ารับการช่วยเหลือฉุกเฉิน ให้โรงพยาบาลประเมินและดำเนินการสิทธิ ไม่ต้องสมัครล่วงหน้า</td>
+              <td class="contact">1669 หรือห้องฉุกเฉินโรงพยาบาลที่รับผู้ป่วย</td>
+              <td class="documents">แจ้งอาการ จุดเกิดเหตุ และเบอร์ติดต่อทันที แสดงบัตรประชาชนหรือข้อมูลผู้ป่วยเมื่อทำได้</td>
+              <td class="notes">เมื่อเกิดเหตุฉุกเฉิน โทร <strong>1669</strong> ผู้ที่โรงพยาบาลคัดแยกเข้าเกณฑ์ฉุกเฉินวิกฤตใช้สิทธิ UCEP ตามหลักเกณฑ์</td>
+              <td class="sources"><ul><li><a href="https://www.niems.go.th/th/Upload/File/256104091000232914_EtLeXFtU5mKNUd49.pdf">แนวทาง สพฉ.</a></li><li><a href="https://emsdispute.niems.go.th/">ช่องทางร้องเรียน UCEP</a></li></ul></td>
+            </tr>
+            <tr id="item-22" data-kind="state" data-scope="local">
+              <th scope="row" class="number">22</th>
+              <td class="benefit">ที่พักและการสงเคราะห์สำหรับผู้สูงอายุที่ขาดที่พึ่ง</td>
+              <td class="amount">ที่พักและบริการสงเคราะห์ตามเกณฑ์ ไม่มีเงินจ่ายเป็นอัตรารายเดือนในบริการนี้</td>
+              <td class="agency"><strong>ศูนย์พัฒนาการจัดสวัสดิการสังคมผู้สูงอายุ (ศพส.)</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">เฉพาะศูนย์ · ตามผลประเมินและความพร้อมของศูนย์</td>
+              <td class="eligibility">ผู้สูงอายุ 60 ปีขึ้นไปที่ยากจน ขาดที่พึ่ง หรือขาดผู้ดูแล เข้ารับบริการตามผลประเมินและความพร้อมของศูนย์</td>
+              <td class="method">ยื่นขอหรือให้ท้องถิ่น/พมจ. ส่งต่อ นักสังคมสงเคราะห์ตรวจข้อเท็จจริงก่อนรับเข้าศูนย์</td>
+              <td class="contact">ศพส. ในพื้นที่ พมจ. หรือ 1300</td>
+              <td class="documents">สำเนาบัตรประชาชน ทะเบียนบ้าน ภาพถ่าย และเอกสารสำคัญของผู้สูงอายุถ้ามี ศูนย์อาจขอข้อมูลสุขภาพตามการประเมิน</td>
+              <td class="notes">ผู้สูงอายุที่ยากจน ขาดผู้ดูแล หรือถูกทอดทิ้ง ติดต่อ <strong>1300 พมจ. หรือ ศพส.</strong> ให้ประเมินตามเกณฑ์และความพร้อมของศูนย์ เช่น บ้านบางแคในกรุงเทพฯ</td>
+              <td class="sources"><ul><li><a href="https://dop.go.th/th/know/15/943">คู่มือขอรับบริการ ศพส.</a></li><li><a href="https://banbangkhae.dop.go.th/th">ศพส. บ้านบางแค</a></li><li><a href="https://www.dop.go.th/download/knowledge/th1648095768-1179_0.pdf">รายละเอียดเอกสารตามคู่มือศูนย์</a></li></ul></td>
+            </tr>
+            <tr id="item-23" data-kind="state" data-scope="local">
+              <th scope="row" class="number">23</th>
+              <td class="benefit">ศูนย์บริการทางสังคม กิจกรรมเรียนรู้และนันทนาการ เช่น ศูนย์ผู้สูงอายุดินแดง</td>
+              <td class="amount">เป็นบริการและกิจกรรม ค่าธรรมเนียมให้ยืนยันกับศูนย์ตามประเภทบริการ</td>
+              <td class="agency"><strong>กรุงเทพมหานคร</strong></td>
+              <td class="kind">รัฐ (ท้องถิ่น)</td>
+              <td class="scope">เฉพาะพื้นที่ · กรุงเทพฯ ตามศูนย์และคุณสมบัติสมาชิก</td>
+              <td class="eligibility">ตัวอย่างศูนย์ดินแดง สมาชิกสามัญอายุ 60 ปีขึ้นไป สมาชิกสมทบอายุ 55–59 ปี ตามเงื่อนไขศูนย์</td>
+              <td class="method">สมัครสมาชิกหรือสอบถามรอบกิจกรรมกับศูนย์ก่อนเข้าร่วม</td>
+              <td class="contact">ศูนย์บริการผู้สูงอายุดินแดงหรือฝ่ายพัฒนาชุมชนสำนักงานเขต</td>
+              <td class="documents">เตรียมบัตรประชาชนเพื่อตรวจอายุ และสอบถามใบสมัครกับหลักฐานเพิ่มเติมของศูนย์</td>
+              <td class="notes">ศูนย์ดินแดงมีสมาชิกสามัญอายุ 60 ปีขึ้นไป และสมาชิกสมทบอายุ 55–59 ปีตามเงื่อนไข ติดต่อศูนย์หรือฝ่ายพัฒนาชุมชนของสำนักงานเขต</td>
+              <td class="sources"><ul><li><a href="https://webportal.bangkok.go.th/user_files/356/1705551080623be3389877f2.17275348.pdf">คู่มือศูนย์ผู้สูงอายุดินแดง</a></li></ul></td>
+            </tr>
+            <tr id="item-24" data-kind="state" data-scope="local">
+              <th scope="row" class="number">24</th>
+              <td class="benefit">กิจกรรมเรียนรู้ด้านสุขภาพ อาชีพ ภูมิปัญญา และการเข้าสังคม</td>
+              <td class="amount">กิจกรรมการเรียนรู้ ค่าใช้จ่ายถ้ามีขึ้นกับท้องถิ่น</td>
+              <td class="agency"><strong>อบต. และเทศบาลที่จัดโรงเรียนผู้สูงอายุ</strong></td>
+              <td class="kind">รัฐ (ท้องถิ่น)</td>
+              <td class="scope">เฉพาะพื้นที่ · ท้องถิ่นที่จัดโรงเรียนและเปิดรับ</td>
+              <td class="eligibility">ผู้สูงอายุที่ผ่านเกณฑ์ของโรงเรียนหรือท้องถิ่นที่สมัคร ให้ตรวจอายุขั้นต่ำและที่อยู่ตามประกาศรายพื้นที่</td>
+              <td class="method">สมัครหรือแจ้งความประสงค์ในรอบที่เปิด รับเข้าเรียนตามจำนวนที่ท้องถิ่นประกาศ</td>
+              <td class="contact">อบต. เทศบาล หรือโรงเรียนผู้สูงอายุในพื้นที่</td>
+              <td class="documents">เอกสารตามประกาศของโรงเรียน เตรียมบัตรประชาชนและข้อมูลทะเบียนบ้านเพื่อสอบถามการสมัคร</td>
+              <td class="notes">รูปแบบและรอบรับสมัครขึ้นกับท้องถิ่น เช่น เทศบาลตำบลฟ้าหยาด จ.ยโสธร มีประกาศรับผู้เรียนปี 2569 ให้สอบถามโครงการและรอบถัดไปที่เทศบาลหรือ อบต. ในพื้นที่</td>
+              <td class="sources"><ul><li><a href="https://www.dop.go.th/thai/news/1/6263">หลักเกณฑ์โรงเรียนผู้สูงอายุปี 2569</a></li><li><a href="https://www.fayardmun.go.th/news-320.html">ตัวอย่างประกาศท้องถิ่น</a></li></ul></td>
+            </tr>
+            <tr id="item-25" data-kind="state" data-scope="local">
+              <th scope="row" class="number">25</th>
+              <td class="benefit">หลักสูตรฝึกอาชีพและทักษะ บางรุ่นเปิดเฉพาะผู้สูงอายุ</td>
+              <td class="amount">ค่าอบรมขึ้นกับหลักสูตรและประกาศ ไม่มีเงินสงเคราะห์ในขั้นตอนสมัคร</td>
+              <td class="agency"><strong>กรมพัฒนาฝีมือแรงงาน</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">เฉพาะพื้นที่หรือรุ่น · ตามประกาศของศูนย์ฝึกแต่ละแห่ง</td>
+              <td class="eligibility">ตามหลักสูตร ตัวอย่างรุ่นเฉพาะผู้สูงอายุกำหนดอายุ 60 ปีขึ้นไป แต่ละรุ่นมีคุณสมบัติของตน</td>
+              <td class="method">สมัครตามประกาศหรือผ่านระบบฝึกอบรม รอผลคัดเลือกและรายละเอียดวันเรียน</td>
+              <td class="contact">สำนักงานพัฒนาฝีมือแรงงานจังหวัด หรือระบบสมัครฝึกอบรมของกรม</td>
+              <td class="documents">ใบสมัครและข้อมูลบัตรประชาชน หลักฐานอาชีพหรือคุณวุฒิเมื่อประกาศหลักสูตรกำหนด</td>
+              <td class="notes">ตรวจอายุ พื้นที่ วันรับสมัคร และค่าใช้จ่ายของแต่ละรุ่นกับสถาบันหรือสำนักงานพัฒนาฝีมือแรงงานจังหวัด</td>
+              <td class="sources"><ul><li><a href="https://www.dsd.go.th/DSD/Activity/ShowDetails/109570?category_id=3">ตัวอย่างรอบผู้มีอายุ 60 ปีขึ้นไป</a></li><li><a href="https://dsd.go.th/DSD/EserviceWebRegister/Train">ระบบค้นและสมัครฝึกอบรม</a></li></ul></td>
+            </tr>
+            <tr id="item-26" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">26</th>
+              <td class="benefit"><strong>บรรเทาค่าไฟ</strong> ตามเกณฑ์สวัสดิการแห่งรัฐ <strong>ขอผ่อนผันการงดจ่ายไฟ</strong> ตามคำประกาศของ กฟภ. สำหรับกลุ่มเปราะบาง เช่น ผู้สูงอายุ ผู้ป่วยติดเตียง หรือผู้ที่จำเป็นต้องใช้ไฟกับอุปกรณ์รักษาพยาบาล</td>
+              <td class="amount">รอบ พ.ย. 2569 ช่วยค่าไฟไม่เกิน 315 บาทต่อครัวเรือนต่อเดือนตามเกณฑ์ หากเกินจ่ายเองทั้งหมด การผ่อนผันไม่ใช่การยกหนี้</td>
+              <td class="agency"><strong>การไฟฟ้านครหลวง (กฟน.) / การไฟฟ้าส่วนภูมิภาค (กฟภ.)</strong></td>
+              <td class="kind">รัฐวิสาหกิจ</td>
+              <td class="scope">ทั่วประเทศ · ค่าไฟใช้ตามเขตของการไฟฟ้า ส่วนผ่อนผันในแถวนี้อ้างเกณฑ์ กฟภ.</td>
+              <td class="eligibility">ลดค่าไฟ: ผู้มีสิทธิสวัสดิการแห่งรัฐที่ลงทะเบียนกับผู้ให้บริการ ผ่อนผันงดจ่ายไฟ: ผู้ใช้ไฟกลุ่มเปราะบาง เช่น ผู้สูงอายุหรือผู้ที่ต้องใช้ไฟกับอุปกรณ์แพทย์ตามคำประกาศ กฟภ.</td>
+              <td class="method">ส่วนลดต้องลงทะเบียนผูกสิทธิกับผู้ใช้ไฟก่อน ผ่อนผันต้องยื่นหนังสือระบุเหตุผลให้ กฟภ. พิจารณา</td>
+              <td class="contact">กฟน. e-Service หรือ กฟภ. สาขาที่ออกบิล สำหรับผ่อนผันติดต่อ กฟภ. ในพื้นที่</td>
+              <td class="documents">บัตรประชาชนและข้อมูลเลขผู้ใช้ไฟจากใบแจ้งค่าไฟ สำหรับผ่อนผันใช้หนังสือระบุเหตุผลและความจำเป็น พร้อมหลักฐานที่เจ้าหน้าที่ขอ</td>
+              <td class="notes">เรื่องส่วนลดให้ติดต่อการไฟฟ้าที่ออกใบแจ้งหนี้ กฟน. รับผิดชอบกรุงเทพฯ นนทบุรี และสมุทรปราการ เรื่องผ่อนผันยื่นหนังสือระบุเหตุผลและความจำเป็นกับ กฟภ. ในพื้นที่</td>
+              <td class="sources"><ul><li><a href="https://narathiwat.prd.go.th/th/content/category/detail/id/9/iid/561754">มาตรการค่าไฟเดือนพฤศจิกายน 2569</a></li><li><a href="https://eservice.mea.or.th/">ระบบลงทะเบียน กฟน.</a></li><li><a href="https://www.pea.co.th/disclosure/customer-rights">คำประกาศสิทธิผู้ใช้ไฟฟ้า กฟภ.</a></li><li><a href="https://www.pea.co.th/contact-us">ติดต่อ กฟภ.</a></li></ul></td>
+            </tr>
+            <tr id="item-27" data-kind="state" data-scope="local">
+              <th scope="row" class="number">27</th>
+              <td class="benefit">บรรเทาค่าน้ำประปาตามโครงการสวัสดิการแห่งรัฐ</td>
+              <td class="amount">ช่วยค่าน้ำไม่เกิน 100 บาทต่อครัวเรือนต่อเดือนตามเกณฑ์ เดือนที่ค่าน้ำเกินเพดานที่กำหนดให้ตรวจว่าคิดค่าใช้จ่ายอย่างไร</td>
+              <td class="agency"><strong>การประปานครหลวง (กปน.) / การประปาส่วนภูมิภาค (กปภ.)</strong></td>
+              <td class="kind">รัฐวิสาหกิจ</td>
+              <td class="scope">เฉพาะพื้นที่ · ผู้ใช้น้ำในเขตบริการ กปน. หรือ กปภ.</td>
+              <td class="eligibility">ผู้ผ่านโครงการสวัสดิการแห่งรัฐและเข้าเกณฑ์ของ กปน. หรือ กปภ. ใช้สิทธิในครัวเรือนตามหลักเกณฑ์</td>
+              <td class="method">ลงทะเบียนผูกสิทธิกับผู้ให้บริการน้ำก่อน ระบบนำส่วนลดไปใช้กับบิลเมื่อเข้าเงื่อนไข</td>
+              <td class="contact">สาขา กปน. หรือ กปภ. ที่ออกใบแจ้งค่าน้ำ หรือระบบลงทะเบียนของการประปา</td>
+              <td class="documents">บัตรประชาชนและเลขผู้ใช้น้ำหรือข้อมูลจากใบแจ้งค่าน้ำ ยืนยันตัวตนตามที่ระบบกำหนด</td>
+              <td class="notes">ผู้ผ่านโครงการยืนยันการใช้สิทธิกับการประปาที่ออกใบแจ้งค่าน้ำตามเงื่อนไข ตรวจชื่อผู้ให้บริการที่ใบแจ้งหนี้หรือสอบถามสาขา</td>
+              <td class="sources"><ul><li><a href="https://www.mwa.co.th/mwa19072569/">ประกาศ กปน. รอบ 2569</a></li><li><a href="https://www.pwa.co.th/news/view/135392">ประกาศ กปภ. รอบ 2569</a></li><li><a href="https://www.pwa.co.th/news/view/135011">วงเงินค่าน้ำและขั้นตอนลงทะเบียน กปภ.</a></li></ul></td>
+            </tr>
+            <tr id="item-28" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">28</th>
+              <td class="benefit">สินเชื่อที่อยู่อาศัยสำหรับผู้สูงอายุแบบจำนองย้อนกลับ</td>
+              <td class="amount">เงินกู้ตามราคาประเมินและเงื่อนไขของธนาคาร มีดอกเบี้ยและค่าใช้จ่ายตามสัญญา</td>
+              <td class="agency"><strong>ธนาคารออมสิน</strong></td>
+              <td class="kind">รัฐวิสาหกิจ</td>
+              <td class="scope">ทั่วประเทศ · ยื่นที่สาขาออมสินในจังหวัดที่หลักประกันตั้งอยู่</td>
+              <td class="eligibility">คนไทยอายุ 60–80 ปี มีกรรมสิทธิ์บ้านหรือห้องชุดปลอดภาระเป็นที่อยู่หลักและเข้าเกณฑ์หลักประกัน คู่สมรสมีเงื่อนไขร่วม</td>
+              <td class="method">ยื่นขอสินเชื่อที่ออมสินในจังหวัดที่หลักประกันตั้งอยู่ รอประเมินและอนุมัติก่อนทำสัญญา</td>
+              <td class="contact">ธนาคารออมสินสาขาในจังหวัดที่หลักประกันตั้งอยู่</td>
+              <td class="documents">บัตรประชาชน ทะเบียนบ้าน เอกสารกรรมสิทธิ์หลักประกัน และเอกสารคู่สมรสหรือทะเบียนสมรสตามกรณี</td>
+              <td class="notes">ผู้กู้สัญชาติไทยอายุ 60–80 ปีที่มีบ้านหรือห้องชุดเป็นหลักประกันตามเงื่อนไข สอบถามสาขาออมสินเรื่องการประเมิน ดอกเบี้ย และการชำระคืน รายการนี้เป็นสินเชื่อมีหลักประกัน</td>
+              <td class="sources"><ul><li><a href="https://www.gsb.or.th/personals/reverse-mortgage/">เงื่อนไขและเอกสารข้อมูลผลิตภัณฑ์</a></li></ul></td>
+            </tr>
+            <tr id="item-29" data-kind="mixed" data-scope="nationwide">
+              <th scope="row" class="number">29</th>
+              <td class="benefit">ช่องทางขอปรับโครงสร้างหนี้และมาตรการช่วยลูกหนี้ เช่น ปิดหนี้ไว ไปต่อได้</td>
+              <td class="amount">100,000 บาทเป็นเพดานหนี้ตามเกณฑ์โครงการ ไม่ใช่วงเงินช่วยเหลือ ผลลดหนี้หรือค่างวดตามแผนที่อนุมัติ</td>
+              <td class="agency"><strong>ธนาคารแห่งประเทศไทย (ธปท.) และเจ้าหนี้ที่ร่วมโครงการ</strong></td>
+              <td class="kind">รัฐ + ผู้ให้บริการการเงินที่เข้าร่วม</td>
+              <td class="scope">ทั่วประเทศ · เฉพาะหนี้และเจ้าหนี้ที่เข้าเงื่อนไข</td>
+              <td class="eligibility">ลูกหนี้ตามประเภทหนี้และเจ้าหนี้ที่เข้าเกณฑ์ ตัวอย่างปิดหนี้ไว ไปต่อได้ ใช้เกณฑ์หนี้เสียรวมไม่เกิน 100,000 บาทตามวันอ้างอิงของโครงการ</td>
+              <td class="method">ลงทะเบียนแสดงความจำนง หรือติดต่อเจ้าหนี้เพื่อขอแผนชำระ เจ้าหนี้หรือผู้ดำเนินโครงการตรวจคุณสมบัติ</td>
+              <td class="contact">ธปท. ผ่านหน้าโครงการหรือเจ้าหนี้ที่เข้าร่วมโครงการ</td>
+              <td class="documents">ข้อมูลยืนยันตัวตนและข้อมูลบัญชีหนี้ เตรียมข้อมูลรายได้และภาระรายจ่ายเมื่อขอปรับโครงสร้างหนี้</td>
+              <td class="notes">ผู้สูงอายุที่มีหนี้ใช้ช่องทางทั่วไปตามประเภทหนี้และเกณฑ์โครงการ ติดต่อเจ้าหนี้หรือใช้ช่องทางของ ธปท.</td>
+              <td class="sources"><ul><li><a href="https://www.bot.or.th/th/faqs/faqs-15.html">หลักเกณฑ์โครงการ</a></li><li><a href="https://www.bot.or.th/th/satang-story/managing-debt/my-debt-restructuring.html">ข้อมูลการปรับโครงสร้างหนี้</a></li><li><a href="https://www.bot.or.th/th/cleardebt.html">หน้าโครงการปิดหนี้ไว ไปต่อได้</a></li></ul></td>
+            </tr>
+            <tr id="item-30" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">30</th>
+              <td class="benefit">ช่วยเหลือค่าใช้จ่ายในการดำเนินคดีหรือขอปล่อยชั่วคราวตามเกณฑ์</td>
+              <td class="amount">ค่าทนาย ค่าใช้จ่ายในคดี หรือหลักประกันปล่อยชั่วคราวตามรายการและจำนวนที่อนุมัติ</td>
+              <td class="agency"><strong>สำนักงานกองทุนยุติธรรม / สำนักงานยุติธรรมจังหวัด</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ติดต่อกองทุนหรือสำนักงานยุติธรรมจังหวัด</td>
+              <td class="eligibility">ผู้มีปัญหาทางคดีที่เข้าเกณฑ์ของกองทุน พิจารณาคดี ฐานะ และความจำเป็นตามประเภทความช่วยเหลือ</td>
+              <td class="method">ยื่นคำขอต่อสำนักงานกองทุนยุติธรรมหรือสำนักงานยุติธรรมจังหวัด รอการพิจารณา</td>
+              <td class="contact">สำนักงานยุติธรรมจังหวัดหรือสำนักงานกองทุนยุติธรรม</td>
+              <td class="documents">แบบคำขอ บัตรประชาชน เอกสารเกี่ยวกับคดี และหลักฐานฐานะหรือรายได้ตามที่เจ้าหน้าที่ขอ</td>
+              <td class="notes">ผู้เดือดร้อนที่เข้าเงื่อนไขยื่นคำขอเพื่อให้กองทุนพิจารณา ติดต่อสำนักงานยุติธรรมจังหวัดหรือสำนักงานกองทุนยุติธรรม</td>
+              <td class="sources"><ul><li><a href="https://jfo.moj.go.th/page/people.php">ช่องทางประชาชนของกองทุน</a></li><li><a href="https://jfo.moj.go.th/files/files_download/20200708758876974.pdf">คู่มือพิจารณาความช่วยเหลือ</a></li></ul></td>
+            </tr>
+            <tr id="item-31" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">31</th>
+              <td class="benefit">ปรึกษากฎหมายและขอความช่วยเหลือทางกฎหมาย เช่น สอบถามเรื่องมรดก</td>
+              <td class="amount">บริการปรึกษากฎหมาย ไม่มีเงินจ่าย</td>
+              <td class="agency"><strong>สำนักงานอัยการสูงสุด</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ติดต่อสำนักงานอัยการในพื้นที่หรือใช้บริการออนไลน์</td>
+              <td class="eligibility">ประชาชนที่ต้องการคำปรึกษาหรือความช่วยเหลือทางกฎหมาย หน้าบริการไม่ได้เจาะจงอายุผู้สูงอายุ</td>
+              <td class="method">ติดต่อขอคำปรึกษาที่สำนักงาน หรือสมัครเข้าใช้ระบบอัยการช่วยได้</td>
+              <td class="contact">สำนักงานอัยการคุ้มครองสิทธิและช่วยเหลือทางกฎหมายในพื้นที่ หรือระบบอัยการช่วยได้</td>
+              <td class="documents">บัตรประชาชนหรือข้อมูลยืนยันตัวตนสำหรับสมัคร พร้อมเอกสารเกี่ยวข้อง เช่น พินัยกรรมหรือเอกสารทรัพย์สินตามเรื่อง</td>
+              <td class="notes">ประชาชนติดต่อสำนักงานอัยการคุ้มครองสิทธิและช่วยเหลือทางกฎหมายในพื้นที่ หรือช่องทาง “อัยการช่วยได้”</td>
+              <td class="sources"><ul><li><a href="https://www.ago.go.th/services/">บริการสำนักงานอัยการสูงสุด</a></li></ul></td>
+            </tr>
+            <tr id="item-32" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">32</th>
+              <td class="benefit">ไกล่เกลี่ยข้อพิพาทหรือเจรจาหนี้หลังศาลมีคำพิพากษา</td>
+              <td class="amount">ไม่มีเงินจ่าย ผลลดภาระหรือการชำระขึ้นกับข้อตกลง</td>
+              <td class="agency"><strong>กรมบังคับคดี</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ติดต่อสำนักงานบังคับคดีที่รับผิดชอบคดี</td>
+              <td class="eligibility">ลูกหนี้หรือเจ้าหนี้ในคดีที่ศาลพิพากษาแล้ว ใช้สถานะคู่กรณีและคดีเป็นเกณฑ์</td>
+              <td class="method">ยื่นคำร้องขอไกล่เกลี่ยต่อสำนักงานบังคับคดีที่รับผิดชอบ เจ้าหน้าที่ประสานคู่กรณี</td>
+              <td class="contact">สำนักงานบังคับคดีที่ดูแลสำนวน</td>
+              <td class="documents">บัตรประชาชน ข้อมูลคดีหรือสำเนาคำพิพากษา เอกสารหนี้ และหนังสือมอบอำนาจถ้ามี</td>
+              <td class="notes">ลูกหนี้หรือเจ้าหนี้ในชั้นบังคับคดีติดต่อสำนักงานบังคับคดีที่รับผิดชอบเรื่องเพื่อยื่นคำร้อง</td>
+              <td class="sources"><ul><li><a href="https://www.led.go.th/news/view/111943">ตัวอย่างและขอบเขตการไกล่เกลี่ย</a></li><li><a href="https://www.led.go.th/dbases/pdf/ART-WORK-PDF-%E0%B9%84%E0%B8%81%E0%B8%A5%E0%B9%88%E0%B9%80%E0%B8%81%E0%B8%A5%E0%B8%B5%E0%B9%88%E0%B8%A2.pdf">หลักฐานยื่นไกล่เกลี่ยชั้นบังคับคดี</a></li></ul></td>
+            </tr>
+            <tr id="item-33" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">33</th>
+              <td class="benefit">ประสานระงับธุรกรรมเมื่อถูกหลอกโอนเงินออนไลน์</td>
+              <td class="amount">ไม่มีเงินจ่ายอัตโนมัติ การติดตามเงินขึ้นกับผลดำเนินการ</td>
+              <td class="agency"><strong>กระทรวงดิจิทัลเพื่อเศรษฐกิจและสังคม / ศูนย์ AOC</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · โทร 1441</td>
+              <td class="eligibility">ผู้เสียหายจากการหลอกโอนเงินออนไลน์ ใช้ข้อมูลเหตุและธุรกรรมเป็นเกณฑ์</td>
+              <td class="method">โทร 1441 เพื่อให้ประสานระงับธุรกรรมและทำตามขั้นตอนแจ้งเหตุหรือแจ้งความ</td>
+              <td class="contact">ศูนย์ AOC 1441</td>
+              <td class="documents">เตรียมสลิป วันเวลาและยอดโอน เลขบัญชีปลายทาง ข้อมูลติดต่อผู้เสียหาย และหลักฐานสนทนาถ้ามี</td>
+              <td class="notes">ผู้เสียหายโทร <strong>1441</strong> และเตรียมข้อมูลธุรกรรมตามที่เจ้าหน้าที่ขอ</td>
+              <td class="sources"><ul><li><a href="https://mdes.go.th/storage/contents/file/0ECnkvRBv1F8juJAuuKJxayc2OzVSZfyj8bE5pKB.pdf">ขั้นตอนขอความช่วยเหลือกรณีถูกหลอกโอนเงิน</a></li></ul></td>
+            </tr>
+            <tr id="item-34" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">34</th>
+              <td class="benefit">รับเรื่องร้องเรียนเกี่ยวกับบริษัท ตัวแทน หรือนายหน้าประกันภัย</td>
+              <td class="amount">ไม่มีเงินจ่ายจากการยื่นร้องเรียน ผลค่าสินไหมขึ้นกับกรมธรรม์และการพิจารณา</td>
+              <td class="agency"><strong>สำนักงาน คปภ.</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · ติดต่อสำนักงานหรือยื่นร้องเรียนออนไลน์</td>
+              <td class="eligibility">ผู้เอาประกัน ผู้รับผลประโยชน์ หรือผู้มีสิทธิร้องเรียนเกี่ยวกับบริษัท ตัวแทน หรือนายหน้าประกันภัย</td>
+              <td class="method">ยื่นร้องเรียนที่สำนักงาน คปภ. หรือช่องทางออนไลน์ แล้วติดตามผล</td>
+              <td class="contact">สำนักงาน คปภ. หรือระบบ PPMS</td>
+              <td class="documents">บัตรประชาชนหรือข้อมูลยืนยันตัวตน กรมธรรม์ หลักฐานคำขอสินไหมหรือหนังสือโต้ตอบ และหนังสือมอบอำนาจถ้ามี</td>
+              <td class="notes">ผู้เอาประกัน ผู้รับผลประโยชน์ หรือผู้มีสิทธิร้องเรียน ยื่นเรื่องพร้อมเอกสารกรมธรรม์ผ่านสำนักงานหรือระบบร้องเรียนของ คปภ.</td>
+              <td class="sources"><ul><li><a href="https://complaintportal.oic.or.th/">ระบบร้องเรียน คปภ.</a></li></ul></td>
+            </tr>
+            <tr id="item-35" data-kind="state" data-scope="local">
+              <th scope="row" class="number">35</th>
+              <td class="benefit">ส่วนลดค่าโดยสารผู้สูงอายุตามประเภทและเงื่อนไขรถโดยสาร</td>
+              <td class="amount">ลด 50% ตามประเภทบริการและหลักเกณฑ์อัตราค่าโดยสาร</td>
+              <td class="agency"><strong>ขสมก.</strong></td>
+              <td class="kind">รัฐวิสาหกิจ</td>
+              <td class="scope">เฉพาะเส้นทาง · รถ ขสมก. ที่เข้าเงื่อนไข</td>
+              <td class="eligibility">ผู้มีอายุ 60 ปีขึ้นไปที่เดินทางกับรถ ขสมก. ประเภทที่ให้ส่วนลด</td>
+              <td class="method">แจ้งพนักงานเก็บค่าโดยสารและแสดงบัตรก่อนจ่ายในแต่ละครั้ง</td>
+              <td class="contact">พนักงานเก็บค่าโดยสาร ขสมก. บนสายที่ใช้</td>
+              <td class="documents">บัตรประชาชนสำหรับยืนยันอายุ</td>
+              <td class="notes">ผู้มีอายุ 60 ปีขึ้นไปแจ้งพนักงานเก็บค่าโดยสารก่อนจ่ายและแสดงบัตรประชาชน คู่มือกรมการขนส่งทางบกระบุการลดครึ่งราคาสำหรับประเภทที่กำหนด</td>
+              <td class="sources"><ul><li><a href="https://www.bmta.co.th/sites/default/files/files/about-us/manualforbusoperations.pdf">คู่มือปฏิบัติงาน ขสมก.</a></li><li><a href="https://safedrivedlt.com/wp-content/uploads/2025/10/Accessibility-Bus-Guide_DLT.pdf">คู่มือกรมการขนส่งทางบก</a></li></ul></td>
+            </tr>
+            <tr id="item-36" data-kind="mixed" data-scope="local">
+              <th scope="row" class="number">36</th>
+              <td class="benefit">ตั๋วประเภทผู้สูงอายุของ MRT ตามสายที่ให้บริการ อัตราลด 50% ตามเกณฑ์</td>
+              <td class="amount">ส่วนลด 50% ตามประเภทตั๋วและเงื่อนไขผู้ให้บริการ</td>
+              <td class="agency"><strong>BEM / รฟม.</strong></td>
+              <td class="kind">เอกชน (BEM) + รัฐวิสาหกิจ (รฟม.)</td>
+              <td class="scope">เฉพาะเส้นทาง · MRT สายสีน้ำเงินหรือสีม่วงตามเงื่อนไข</td>
+              <td class="eligibility">ผู้สูงอายุ 60 ปีขึ้นไปตามเกณฑ์บัตรและสาย MRT ที่ใช้</td>
+              <td class="method">ขอซื้อตั๋วประเภทผู้สูงอายุหรือออกบัตรที่รองรับที่สถานี หลังมีบัตรแล้วระบบคิดราคาตามประเภทบัตร</td>
+              <td class="contact">ห้องออกบัตร MRT สายสีน้ำเงินหรือสายสีม่วง</td>
+              <td class="documents">บัตรประชาชน และบัตรโดยสารผู้สูงอายุที่รองรับเมื่อใช้ผ่านประตู</td>
+              <td class="notes">ติดต่อเจ้าหน้าที่สถานีสายสีน้ำเงินหรือสายสีม่วง พร้อมบัตรประชาชนหรือบัตรผู้สูงอายุที่ระบบรองรับ</td>
+              <td class="sources"><ul><li><a href="https://metro.bemplc.co.th/FAQs-Card">คำถามค่าตั๋ว BEM</a></li><li><a href="https://www.mrta.co.th/th/news-release/30756">ข้อมูลบัตรผู้สูงอายุจาก รฟม.</a></li></ul></td>
+            </tr>
+            <tr id="item-37" data-kind="private" data-scope="local">
+              <th scope="row" class="number">37</th>
+              <td class="benefit">บัตร Senior Rabbit และค่าโดยสารตามประเภทบัตร</td>
+              <td class="amount">ค่าโดยสารตามตาราง Senior Rabbit และเส้นทาง ตรวจค่าธรรมเนียมออกบัตรกับสถานี</td>
+              <td class="agency"><strong>BTS</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะเส้นทาง · สถานีและเส้นทาง BTS ที่รองรับ</td>
+              <td class="eligibility">คนไทยอายุ 60 ปีขึ้นไปที่ใช้ Senior Rabbit ในระบบ BTS ตามเงื่อนไข</td>
+              <td class="method">ยื่นขอออกบัตรผู้สูงอายุที่สถานี เติมเงินก่อนใช้ ระบบหักตามอัตราของบัตรและเส้นทาง</td>
+              <td class="contact">ห้องจำหน่ายบัตร BTS ที่รองรับ</td>
+              <td class="documents">บัตรประชาชนตัวจริงของผู้ใช้บัตร</td>
+              <td class="notes">คนไทยอายุ 60 ปีขึ้นไปแสดงบัตรประชาชนที่ห้องจำหน่ายบัตร สอบถามราคาตามเส้นทางที่จะใช้</td>
+              <td class="sources"><ul><li><a href="https://www.bts.co.th/tickets/ticket-conditions.html">เงื่อนไขการออกบัตร BTS</a></li><li><a href="https://btsapp1.bts.co.th/website/tickets/ticket-rabbit-issuing.html">เงื่อนไขการเติมเงิน</a></li></ul></td>
+            </tr>
+            <tr id="item-38" data-kind="private" data-scope="local">
+              <th scope="row" class="number">38</th>
+              <td class="benefit">ค่าโดยสารผู้สูงอายุครึ่งหนึ่งตามเงื่อนไขตั๋ว</td>
+              <td class="amount">ค่าโดยสารครึ่งหนึ่งตามประกาศของสายสีเหลือง</td>
+              <td class="agency"><strong>EBM รถไฟฟ้าสายสีเหลือง</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะเส้นทาง · MRT สายสีเหลือง</td>
+              <td class="eligibility">คนไทยอายุ 60 ปีบริบูรณ์ขึ้นไปที่เดินทางรถไฟฟ้าสายสีเหลือง</td>
+              <td class="method">แสดงบัตรประชาชนเพื่อขอตั๋วประเภทผู้สูงอายุ หรือใช้ Senior Rabbit ที่ออกตามเงื่อนไข</td>
+              <td class="contact">ห้องจำหน่ายตั๋วรถไฟฟ้าสายสีเหลือง EBM</td>
+              <td class="documents">บัตรประชาชนตัวจริง และ Senior Rabbit ถ้าเลือกใช้บัตรประเภทนั้น</td>
+              <td class="notes">คนไทยอายุ 60 ปีขึ้นไปแสดงบัตรประชาชน สอบถามการใช้ตั๋วเที่ยวเดียวหรือ Senior Rabbit ที่สถานี</td>
+              <td class="sources"><ul><li><a href="https://ebm.co.th/th/ticket-conditions/">เงื่อนไขสายสีเหลือง</a></li></ul></td>
+            </tr>
+            <tr id="item-39" data-kind="private" data-scope="local">
+              <th scope="row" class="number">39</th>
+              <td class="benefit">ตารางค่าโดยสารผู้สูงอายุเมื่อใช้ Senior Rabbit</td>
+              <td class="amount">ค่าโดยสารตามตารางผู้สูงอายุของสายสีชมพูและประเภทตั๋ว</td>
+              <td class="agency"><strong>NBM รถไฟฟ้าสายสีชมพู</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะเส้นทาง · MRT สายสีชมพู</td>
+              <td class="eligibility">คนไทยอายุ 60 ปีบริบูรณ์ขึ้นไปตามเงื่อนไขตั๋วและ Senior Rabbit ของสายสีชมพู</td>
+              <td class="method">ขอตั๋วประเภทผู้สูงอายุที่สถานีหรือใช้ Senior Rabbit ที่รองรับ ระบบใช้ตารางราคาตามประเภทตั๋ว</td>
+              <td class="contact">ห้องจำหน่ายตั๋วรถไฟฟ้าสายสีชมพู NBM</td>
+              <td class="documents">บัตรประชาชนตัวจริง และ Senior Rabbit ถ้าใช้บัตรประเภทนั้น</td>
+              <td class="notes">แสดงบัตรประชาชนและสอบถามสถานีเรื่องบัตรและอัตราของช่วงที่จะเดินทาง</td>
+              <td class="sources"><ul><li><a href="https://www.nbm.co.th/cms-pk/WareHouse/RabbitCardPDF/1905250928262_fare_matrix_%E0%B8%8A%E0%B8%A1%E0%B8%9E%E0%B8%B9_SENIOR_EFF.17June25.pdf">ตารางค่าโดยสาร Senior Rabbit สายสีชมพู</a></li><li><a href="https://www.nbm.co.th/th/ticket-conditions/">เงื่อนไขตั๋วรถไฟฟ้าสายสีชมพู</a></li></ul></td>
+            </tr>
+            <tr id="item-40" data-kind="state" data-scope="local">
+              <th scope="row" class="number">40</th>
+              <td class="benefit">อัตราค่าโดยสารประเภทผู้สูงอายุ</td>
+              <td class="amount">ตามตารางผู้สูงอายุของผู้เดินรถที่เผยแพร่ ประมาณ 6–21 บาทตามสถานีต้นทางและปลายทาง</td>
+              <td class="agency"><strong>ผู้ให้บริการรถไฟฟ้าชานเมืองสายสีแดง (SRTET)</strong></td>
+              <td class="kind">รัฐวิสาหกิจ</td>
+              <td class="scope">เฉพาะเส้นทาง · รถไฟฟ้าชานเมืองสายสีแดง</td>
+              <td class="eligibility">คนไทยอายุ 60 ปีบริบูรณ์ขึ้นไป ตามเกณฑ์ตั๋วรถไฟฟ้าสายสีแดง</td>
+              <td class="method">ขอซื้อตั๋วประเภทผู้สูงอายุที่สถานีหรือใช้บัตรที่ผู้เดินรถรองรับตามเงื่อนไข</td>
+              <td class="contact">ห้องจำหน่ายตั๋วหรือเจ้าหน้าที่สถานีรถไฟฟ้าสายสีแดง</td>
+              <td class="documents">บัตรประชาชนเพื่อยืนยันอายุ และบัตรโดยสารตามเงื่อนไขเมื่อเลือกใช้</td>
+              <td class="notes">ใช้ตารางอัตราของสายสีแดงและสอบถามเจ้าหน้าที่สถานีก่อนเดินทาง พร้อมบัตรประชาชน</td>
+              <td class="sources"><ul><li><a href="https://www.srtet.co.th/th/fare-information">ตารางค่าโดยสารสายสีแดง</a></li><li><a href="https://www.mot.go.th/transportnews/85">เงื่อนไขอายุและส่วนลดจากกระทรวงคมนาคม</a></li></ul></td>
+            </tr>
+            <tr id="item-41" data-kind="state" data-scope="local">
+              <th scope="row" class="number">41</th>
+              <td class="benefit">สิ่งอำนวยความสะดวกสำหรับผู้สูงอายุหรือผู้ใช้รถเข็น และช่องตรวจคนเข้าเมืองพิเศษบางสนามบิน</td>
+              <td class="amount">สิ่งอำนวยความสะดวก ไม่มีเงินจ่าย ตรวจค่าใช้จ่ายหากใช้บริการเสริม</td>
+              <td class="agency"><strong>ท่าอากาศยานไทย (AOT)</strong></td>
+              <td class="kind">รัฐวิสาหกิจ</td>
+              <td class="scope">เฉพาะสนามบิน · สิ่งอำนวยความสะดวกและเกณฑ์ของแต่ละสนามบิน</td>
+              <td class="eligibility">ผู้สูงอายุหรือผู้ใช้รถเข็นตามบริการของสนามบิน ตัวอย่าง Priority Lane ขาเข้าดอนเมืองระบุอายุมากกว่า 70 ปี</td>
+              <td class="method">ขอใช้บริการหรือแสดงสิทธิที่จุดให้บริการของสนามบิน แจ้งสายการบินล่วงหน้าถ้าต้องการให้ช่วยในการเดินทาง</td>
+              <td class="contact">จุดประชาสัมพันธ์หรือเจ้าหน้าที่สนามบิน AOT ที่เดินทางผ่าน</td>
+              <td class="documents">เอกสารเดินทางสำหรับตรวจอายุและเที่ยวบิน เช่น หนังสือเดินทางหรือบัตรโดยสาร ตามจุดที่ขอใช้</td>
+              <td class="notes">สอบถามจุดบริการของสนามบิน เกณฑ์ต่างกันตามจุด เช่น คู่มือขาเข้าดอนเมืองระบุช่อง Priority Lane สำหรับผู้มีอายุมากกว่า 70 ปี</td>
+              <td class="sources"><ul><li><a href="https://donmueang.airportthai.co.th/service/airport-guide/detail/ArrivalProcedure_DMK">คู่มือขาเข้าดอนเมือง</a></li><li><a href="https://suvarnabhumi.airportthai.co.th/service/airport-guide/detail/Facilities_for_Disabilities_Elderly">สิ่งอำนวยความสะดวกสุวรรณภูมิ</a></li></ul></td>
+            </tr>
+            <tr id="item-42" data-kind="private" data-scope="local">
+              <th scope="row" class="number">42</th>
+              <td class="benefit">บริการช่วยเหลือผู้โดยสารที่เดินไม่สะดวก เช่น การขอรถเข็น</td>
+              <td class="amount">การบินไทยระบุบริการรถเข็นตามเงื่อนไขโดยไม่คิดค่าใช้จ่าย ตรวจเงื่อนไขของเที่ยวบินและสายการบินที่ออกตั๋ว</td>
+              <td class="agency"><strong>การบินไทย / บางกอกแอร์เวย์ส</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะเที่ยวบินหรือสนามบิน · ตามเงื่อนไขของสายการบินที่ออกตั๋ว</td>
+              <td class="eligibility">ผู้โดยสารที่เดินไม่สะดวกหรือจำเป็นต้องใช้รถเข็น ใช้ความจำเป็นในการช่วยเหลือตามเงื่อนไขสายการบิน</td>
+              <td class="method">แจ้งขอรถเข็นตอนจองหรือก่อนเดินทาง การบินไทยระบุแจ้งล่วงหน้าอย่างน้อย 48 ชั่วโมง ให้เช็กกำหนดของบางกอกแอร์เวย์สแยก</td>
+              <td class="contact">ติดต่อแผนกสำรองที่นั่งหรือจุดบริการพิเศษของสายการบิน</td>
+              <td class="documents">รหัสการจองหรือบัตรโดยสารและข้อมูลความช่วยเหลือที่ต้องการ แบบรับรองแพทย์เมื่อสายการบินกำหนดจากภาวะสุขภาพ</td>
+              <td class="notes">ติดต่อสายการบินที่ออกตั๋วตั้งแต่จองหรือก่อนเดินทางเพื่อยืนยันขั้นตอนตามสนามบินและเที่ยวบิน</td>
+              <td class="sources"><ul><li><a href="https://www.thaiairways.com/th-th/content/special-assistance/traveling-with-a-wheelchair/">การบินไทย</a></li><li><a href="https://www.bangkokair.com/tha/faqs">บางกอกแอร์เวย์ส</a></li></ul></td>
+            </tr>
+            <tr id="item-43" data-kind="state" data-scope="nationwide">
+              <th scope="row" class="number">43</th>
+              <td class="benefit">ยกเว้นค่าบริการผ่านเข้าอุทยานแห่งชาติ</td>
+              <td class="amount">ยกเว้นค่าผ่านเข้าอุทยาน ค่าพาหนะและบริการอื่นตามประกาศพื้นที่</td>
+              <td class="agency"><strong>กรมอุทยานแห่งชาติ สัตว์ป่า และพันธุ์พืช</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">ทั่วประเทศ · จุดผ่านเข้าอุทยานแห่งชาติตามเกณฑ์</td>
+              <td class="eligibility">คนไทยอายุ 60 ปีบริบูรณ์ขึ้นไปที่เข้าชมอุทยานแห่งชาติ</td>
+              <td class="method">แสดงบัตรประชาชนก่อนผ่านด่านหรือจุดจำหน่ายบัตรเพื่อขอยกเว้นค่าผ่านเข้า</td>
+              <td class="contact">ด่านหรือจุดจำหน่ายบัตรของอุทยานแห่งชาติ</td>
+              <td class="documents">บัตรประชาชนเพื่อยืนยันสัญชาติและอายุ</td>
+              <td class="notes">คนไทยอายุ 60 ปีบริบูรณ์ขึ้นไปแสดงบัตรประชาชนที่ด่าน ค่าเดินทางหรือบริการเสริมขึ้นกับสถานที่</td>
+              <td class="sources"><ul><li><a href="https://www.dnp.go.th/parkdoc/reservation_manual.pdf">คู่มือกรมอุทยานฯ</a></li></ul></td>
+            </tr>
+            <tr id="item-44" data-kind="state" data-scope="local">
+              <th scope="row" class="number">44</th>
+              <td class="benefit">ตัวอย่างสวนสัตว์อุบลราชธานีให้ผู้มีอายุ 60 ปีขึ้นไปเข้าฟรี</td>
+              <td class="amount">ค่าเข้าชมฟรีที่สวนสัตว์อุบลราชธานีตามประกาศ บริการเสริมคิดตามอัตราของสถานที่</td>
+              <td class="agency"><strong>องค์การสวนสัตว์แห่งประเทศไทย</strong></td>
+              <td class="kind">รัฐ</td>
+              <td class="scope">เฉพาะสถานที่ · สวนสัตว์ที่ประกาศสิทธิ เช่น อุบลราชธานี</td>
+              <td class="eligibility">สวนสัตว์อุบลราชธานีระบุอายุ 60 ปีขึ้นไป สวนสัตว์แห่งอื่นให้ใช้เกณฑ์ของสถานที่นั้น</td>
+              <td class="method">แสดงบัตรที่จุดจำหน่ายตั๋วก่อนเข้า</td>
+              <td class="contact">จุดจำหน่ายตั๋วสวนสัตว์อุบลราชธานีหรือสวนสัตว์ที่จะเข้าชม</td>
+              <td class="documents">บัตรประชาชนหรือหลักฐานที่สถานที่กำหนดสำหรับยืนยันอายุ</td>
+              <td class="notes">แสดงบัตรที่จุดจำหน่ายตั๋วและตรวจราคาที่เว็บไซต์ของสวนสัตว์แต่ละแห่ง</td>
+              <td class="sources"><ul><li><a href="https://ubon.zoothailand.org/ewt_news.php?n_id=3273">สวนสัตว์อุบลราชธานี</a></li><li><a href="https://korat.zoothailand.org/ewt_news.php?nid=173">สวนสัตว์นครราชสีมา</a></li></ul></td>
+            </tr>
+            <tr id="item-45" data-kind="state" data-scope="local">
+              <th scope="row" class="number">45</th>
+              <td class="benefit">ผู้มีอายุ 60 ปีขึ้นไปลดค่าเข้าชม 50% ตามประกาศ</td>
+              <td class="amount">ลด 50% ตามประกาศอัตราค่าบริการ ตรวจราคาตามประเภทบัตร</td>
+              <td class="agency"><strong>เชียงใหม่ไนท์ซาฟารี</strong></td>
+              <td class="kind">รัฐ (องค์การมหาชน)</td>
+              <td class="scope">เฉพาะสถานที่ · เชียงใหม่ไนท์ซาฟารี</td>
+              <td class="eligibility">อายุ 60 ปีขึ้นไปตามประเภทบัตรที่เชียงใหม่ไนท์ซาฟารีประกาศ</td>
+              <td class="method">แสดงบัตรประชาชนและซื้อตั๋วที่จุดจำหน่ายของสถานที่</td>
+              <td class="contact">จุดจำหน่ายตั๋วเชียงใหม่ไนท์ซาฟารี</td>
+              <td class="documents">บัตรประชาชนตัวจริง</td>
+              <td class="notes">แสดงบัตรประชาชนและซื้อที่จุดจำหน่ายบัตรตามเงื่อนไขของสถานที่</td>
+              <td class="sources"><ul><li><a href="https://chiangmainightsafari.com/th/promotion/ticket-price/">อัตราค่าบริการจากเชียงใหม่ไนท์ซาฟารี</a></li></ul></td>
+            </tr>
+            <tr id="item-46" data-kind="private" data-scope="nationwide">
+              <th scope="row" class="number">46</th>
+              <td class="benefit">ใช้สิทธิบัตรทองกับบริการตามประเภทหน่วยที่ขึ้นทะเบียน เช่น ปรึกษาอาการเจ็บป่วยเล็กน้อย ทันตกรรมพื้นฐาน กายภาพบำบัด หรือพยาบาล</td>
+              <td class="amount">บริการในขอบเขตสิทธิบัตรทอง ไม่มีเงินจ่ายให้ผู้ใช้สิทธิ</td>
+              <td class="agency"><strong>ร้านยาและคลินิกเอกชนที่เข้าร่วมกับ สปสช.</strong></td>
+              <td class="kind">เอกชน (ให้บริการตามสิทธิรัฐ)</td>
+              <td class="scope">ทั่วประเทศในเครือข่าย สปสช. · ใช้เฉพาะร้านยาและคลินิกที่เข้าร่วม</td>
+              <td class="eligibility">ผู้มีสิทธิบัตรทองที่ต้องการบริการซึ่งอยู่ในขอบเขตของร้านยาหรือคลินิกที่เข้าร่วม ใช้สิทธิรักษาและประเภทบริการเป็นเกณฑ์</td>
+              <td class="method">ตรวจว่าหน่วยเข้าร่วมแล้วแสดงบัตรประชาชนให้หน่วยบริการตรวจสิทธิก่อนรับบริการ</td>
+              <td class="contact">สปสช. 1330 ร้านยา หรือคลินิกที่ร่วมโครงการ</td>
+              <td class="documents">บัตรประชาชน แสดงข้อมูลการรักษาเดิมเมื่อหน่วยบริการขอตามประเภทบริการ</td>
+              <td class="notes">ผู้มีสิทธิบัตรทองใช้บัตรประชาชน และถาม <strong>1330</strong> หรือหน่วยบริการก่อนเดินทางว่าจุดนั้นเข้าร่วมและให้บริการประเภทใด</td>
+              <td class="sources"><ul><li><a href="https://pscd.prd.go.th/th/content/category/detail/id/39/iid/462843">รายละเอียดหน่วยบริการนวัตกรรมปี 2569</a></li></ul></td>
+            </tr>
+            <tr id="item-47" data-kind="charity" data-scope="local">
+              <th scope="row" class="number">47</th>
+              <td class="benefit">โครงการช่วยกลุ่มเปราะบาง เช่น เยี่ยมบ้านผู้สูงอายุและผู้ป่วยติดเตียงตามพื้นที่</td>
+              <td class="amount">เยี่ยมบ้านหรือช่วยเหลือตามโครงการ ยอดและรูปแบบขึ้นกับแต่ละกิจกรรม</td>
+              <td class="agency"><strong>สภากาชาดไทย / สถานีกาชาดในพื้นที่</strong></td>
+              <td class="kind">องค์กรสาธารณกุศล</td>
+              <td class="scope">เฉพาะพื้นที่ · ตามโครงการของสถานีกาชาดในพื้นที่</td>
+              <td class="eligibility">ผู้สูงอายุ ผู้ป่วยติดเตียง หรือกลุ่มเปราะบางในพื้นที่โครงการที่สถานีกาชาดคัดกรอง เกณฑ์อายุขึ้นกับกิจกรรม</td>
+              <td class="method">สอบถามให้สถานีกาชาดประเมิน หรือรับการคัดกรองจากการลงพื้นที่ของโครงการ</td>
+              <td class="contact">สถานีกาชาดหรือหน่วยงานสภากาชาดไทยที่ดูแลพื้นที่</td>
+              <td class="documents">เอกสารขึ้นกับโครงการ เตรียมที่อยู่ ข้อมูลติดต่อ และรายละเอียดความช่วยเหลือที่ต้องการ</td>
+              <td class="notes">ติดต่อสถานีกาชาดที่ดูแลพื้นที่เพื่อสอบถามการคัดกรองกลุ่มเป้าหมายและรอบลงพื้นที่</td>
+              <td class="sources"><ul><li><a href="https://rtrc.redcross.or.th/ewt/rtrc_web/news_view.php?n_id=7014">ตัวอย่างการเยี่ยมบ้านที่ภาษีเจริญ เดือนพฤศจิกายน 2569</a></li></ul></td>
+            </tr>
+            <tr id="item-48" data-kind="private" data-scope="local">
+              <th scope="row" class="number">48</th>
+              <td class="benefit"><strong>แพ็กเกจตรวจสุขภาพแบบชำระเงิน</strong> เช่น Longevity Female Check-up</td>
+              <td class="amount">ราคาที่หน้าแพ็กเกจแสดง ณ วันที่ตรวจ 31,000 บาท ถึง 13 ธันวาคม 2569 สำหรับโปรที่ระบุ ให้เช็กราคาก่อนซื้อ</td>
+              <td class="agency"><strong>โรงพยาบาลกรุงเทพ สำนักงานใหญ่</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะสาขา · โรงพยาบาลกรุงเทพ สำนักงานใหญ่</td>
+              <td class="eligibility">ผู้หญิงอายุ 60 ปีขึ้นไป สำหรับชุดตรวจ Longevity Female Check-up ที่โรงพยาบาลกรุงเทพสำนักงานใหญ่</td>
+              <td class="method">ซื้อตามเงื่อนไขและนัดหมายกับโรงพยาบาล ภายในรอบของราคาโปรที่เลือก</td>
+              <td class="contact">โรงพยาบาลกรุงเทพ สำนักงานใหญ่ ผ่านหน้าแพ็กเกจหรือศูนย์ตรวจสุขภาพ</td>
+              <td class="documents">เตรียมหลักฐานนัดหรือการชำระเงินและบัตรยืนยันตัวตนตามที่โรงพยาบาลแจ้ง</td>
+              <td class="notes">หน้าที่ตรวจพบแสดงราคาโปร 31,000 บาทพร้อมคูปองติดตามสุขภาพ โดยระบุวันสิ้นสุด 13 ธันวาคม 2569 ราคาและวันใช้บริการให้ยืนยันกับโรงพยาบาลก่อนชำระ</td>
+              <td class="sources"><ul><li><a href="https://www.bangkokhospital.com/th/bangkok/package/longevity-female-check-up-program">เงื่อนไขแพ็กเกจ</a></li></ul></td>
+            </tr>
+            <tr id="item-49" data-kind="private" data-scope="local">
+              <th scope="row" class="number">49</th>
+              <td class="benefit"><strong>แพ็กเกจดูแลผู้สูงอายุแบบชำระเงิน</strong> เช่น โปรแกรมประเมินการกลืนหรือดูแลเฉพาะด้าน</td>
+              <td class="amount">ราคาตามโปรแกรมที่เลือก ตรวจตารางราคาและรายการตรวจของแต่ละชุด</td>
+              <td class="agency"><strong>สมิติเวช</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะสาขา · ตามที่สมิติเวชกำหนดในแต่ละโปรแกรม</td>
+              <td class="eligibility">ผู้สูงอายุที่เหมาะกับการประเมินหรือดูแลของแต่ละโปรแกรม หน้ารวมไม่ได้ระบุอายุเดียวสำหรับทุกรายการ</td>
+              <td class="method">ติดต่อโรงพยาบาลให้ช่วยเลือกโปรแกรม นัดหมายและชำระค่าบริการตามเงื่อนไข</td>
+              <td class="contact">สมิติเวชตามสาขาและโปรแกรมที่ระบุในหน้า Complete Senior Care</td>
+              <td class="documents">สอบถามสาขาเรื่องบัตรยืนยันตัวตน เอกสารนัด และประวัติรักษาที่ควรนำไปตามโปรแกรม</td>
+              <td class="notes">หน้าประกาศ Complete Senior Care ระบุถึง <strong>31 ธันวาคม 2569</strong> สอบถามสาขา ราคา และความเหมาะสมกับผู้รับบริการ</td>
+              <td class="sources"><ul><li><a href="https://www.samitivejhospitals.com/th/package/detail/complete-senior-care-program">เงื่อนไขแพ็กเกจ</a></li></ul></td>
+            </tr>
+            <tr id="item-50" data-kind="private" data-scope="nationwide">
+              <th scope="row" class="number">50</th>
+              <td class="benefit"><strong>ส่วนลดแพ็กเกจมือถือ MyPlan</strong> สำหรับลูกค้าอายุ 55 ปีขึ้นไปตามเงื่อนไข</td>
+              <td class="amount">ลด 10% เฉพาะค่าบริการหลักตามเงื่อนไข MyPlan ยังคงชำระค่าแพ็กเกจ</td>
+              <td class="agency"><strong>True</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">ทั่วประเทศ · สมัครทางเว็บไซต์และเปิดเลขหมายใหม่ตามเงื่อนไข</td>
+              <td class="eligibility">ผู้มีอายุ 55 ปีขึ้นไป เปิดหมายเลขใหม่ผ่านหน้า MyPlan ที่กำหนด สถานะบริการปกติและเข้าเงื่อนไขส่วนลด</td>
+              <td class="method">สมัครแพ็กเกจผ่านเว็บไซต์และยืนยันตัวตน เมื่อผ่านเกณฑ์ระบบใช้ส่วนลดตามใบแจ้งค่าบริการ</td>
+              <td class="contact">เว็บไซต์ True MyPlan และจุดติดต่อที่ระบุในหน้าแพ็กเกจ</td>
+              <td class="documents">บัตรประชาชนหรือหลักฐานยืนยันตัวตนตามขั้นตอนเปิดหมายเลขใหม่เพื่อยืนยันอายุ</td>
+              <td class="notes">ประกาศระบุส่วนลด 10% ของค่าบริการหลักสำหรับการเปิดเลขหมายใหม่ผ่านช่องทางที่กำหนด ตรวจเงื่อนไขก่อนสมัคร</td>
+              <td class="sources"><ul><li><a href="https://www.true.th/myplan">เงื่อนไข MyPlan ข้อ 19</a></li></ul></td>
+            </tr>
+            <tr id="item-51" data-kind="private" data-scope="local">
+              <th scope="row" class="number">51</th>
+              <td class="benefit"><strong>สิทธิสมาชิกแบบชำระเงิน SF+ Senior</strong> สำหรับส่วนลดตามแพ็กเกจ</td>
+              <td class="amount">ค่าซื้อแพ็กเกจและราคาตั๋วหลังส่วนลดขึ้นกับเงื่อนไขสมาชิกและรอบฉาย</td>
+              <td class="agency"><strong>SF Cinema</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">เฉพาะสาขาหรือรอบ · ตามเงื่อนไขสมาชิกของ SF</td>
+              <td class="eligibility">ผู้สมัครแพ็กเกจ SF+ Senior ตามเกณฑ์อายุและเงื่อนไขสมาชิกของ SF ให้ยืนยันอายุขั้นต่ำที่จุดสมัคร</td>
+              <td class="method">สมัครแพ็กเกจสมาชิกและใช้สิทธิในรอบหรือสาขาที่ร่วมตามวิธีของ SF</td>
+              <td class="contact">จุดจำหน่ายตั๋ว SF หรือหน้า SF+</td>
+              <td class="documents">สอบถามบัตรยืนยันอายุสำหรับสมัครและข้อมูลสมาชิกที่ต้องแสดงขณะใช้สิทธิ</td>
+              <td class="notes">สอบถามอายุขั้นต่ำ ค่าสมัคร โรงภาพยนตร์ และรอบที่ร่วมรายการที่ SF ก่อนซื้อแพ็กเกจ</td>
+              <td class="sources"><ul><li><a href="https://nginxdo.sfcinemacity.com/sf-plus">เงื่อนไข SF+</a></li></ul></td>
+            </tr>
+            <tr id="item-52" data-kind="private" data-scope="nationwide">
+              <th scope="row" class="number">52</th>
+              <td class="benefit"><strong>ผลิตภัณฑ์ประกันชีวิตแบบชำระเบี้ย</strong> สำหรับผู้สูงอายุ เช่น อาวุโสโอเค และเมืองไทยวัยเก๋า</td>
+              <td class="amount">เบี้ยและเงินผลประโยชน์ขึ้นกับแบบและทุนประกัน ตรวจเงื่อนไขกรณีเสียชีวิตจากเจ็บป่วยใน 2 ปีแรก</td>
+              <td class="agency"><strong>เอไอเอ / เมืองไทยประกันชีวิต</strong></td>
+              <td class="kind">เอกชน</td>
+              <td class="scope">ทั่วประเทศ · ผ่านช่องทางจำหน่ายของแต่ละบริษัทและตามเกณฑ์รับประกัน</td>
+              <td class="eligibility">เอไอเอ อาวุโสโอเค รับอายุ 50–70 ปี เมืองไทยวัยเก๋า คุ้มทั่วไทย รับอายุ 50–75 ปี เงื่อนไขความคุ้มครองและช่วงต้นของกรมธรรม์ต่างกันตามแบบ</td>
+              <td class="method">สมัครซื้อกับบริษัทหรือตัวแทนที่ได้รับอนุญาต รอออกกรมธรรม์ ชำระเบี้ยและยื่นเรียกร้องเมื่อเกิดเหตุที่คุ้มครอง</td>
+              <td class="contact">เอไอเอหรือเมืองไทยประกันชีวิตผ่านหน้าผลิตภัณฑ์ สาขา หรือตัวแทน</td>
+              <td class="documents">ใบคำขอและบัตรประชาชน เอกสารผู้รับประโยชน์ตามบริษัทกำหนด เอกสารเรียกร้องขึ้นกับเหตุที่ขอ</td>
+              <td class="notes">อายุรับประกัน เบี้ย ผลประโยชน์ และเงื่อนไขช่วงแรกขึ้นกับแบบประกัน ขอเอกสารสรุปข้อยกเว้นและจำนวนเงินที่ต้องจ่ายจากบริษัทหรือตัวแทนก่อนสมัคร</td>
+              <td class="sources"><ul><li><a href="https://www.aia.co.th/th/our-products/life/senior-ok">แบบประกันเอไอเอ</a></li><li><a href="https://www.muangthai.co.th/th/whole-life-insurance/senior-waigao">แบบประกันเมืองไทยประกันชีวิต</a></li></ul></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <p class="related"><a href="thai-senior-benefits-2026-11-27.md">เปิดไฟล์ Markdown ของตารางนี้</a></p>
+  </main>
+  <script>
+    const filters = document.querySelector('#filters');
+    const query = document.querySelector('#query');
+    const kind = document.querySelector('#kind');
+    const scope = document.querySelector('#scope');
+    const count = document.querySelector('#result-count');
+    const empty = document.querySelector('#empty');
+    const rows = Array.from(document.querySelectorAll('tbody tr'), (element) => ({
+      element,
+      searchable: element.textContent.normalize('NFC').toLocaleLowerCase('th'),
+    }));
+
+    function updateResults() {
+      const terms = query.value.trim().normalize('NFC').toLocaleLowerCase('th').split(/\s+/).filter(Boolean);
+      let visible = 0;
+      for (const {element, searchable} of rows) {
+        const matchesText = terms.every((term) => searchable.includes(term));
+        const matchesKind = !kind.value || element.dataset.kind === kind.value;
+        const matchesScope = !scope.value || element.dataset.scope === scope.value;
+        element.hidden = !(matchesText && matchesKind && matchesScope);
+        if (!element.hidden) visible++;
+      }
+      count.textContent = 'แสดง ' + visible + ' จาก ' + rows.length + ' รายการ';
+      empty.hidden = visible !== 0;
+    }
+
+    filters.addEventListener('submit', (event) => {
+      event.preventDefault();
+      updateResults();
+    });
+    filters.addEventListener('input', updateResults);
+    filters.addEventListener('change', updateResults);
+    filters.addEventListener('reset', () => requestAnimationFrame(updateResults));
+    filters.hidden = false;
+    updateResults();
+  </script>
+</body>
+</html>

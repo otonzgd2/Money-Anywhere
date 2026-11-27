@@ -867,6 +867,7 @@ components:
               items: { type: object, required: [title, url, checkedAt], properties: { title: { type: string }, url: { type: string, format: uri }, checkedAt: { type: string, format: date } } }
             documents: { type: array, items: { type: object, required: [index, text, ready], properties: { index: { type: integer }, text: { type: string }, ready: { type: boolean } } } }
             channels: { type: array, items: { $ref: '#/components/schemas/Channel' } }
+            contactGuide: { type: string, pattern: '^/docs/sources/', description: "Path to the relevant section of the project's contact report" }
             after: { type: string }
             ifNo: { type: string }
             letterTemplate: { type: string }

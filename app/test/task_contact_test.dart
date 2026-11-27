@@ -1,11 +1,15 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
 import 'package:money_anywhere/task_screen.dart';
 
+const _baseUrl = 'http://localhost:8080/notebook';
+const _seniorGuide = '/docs/sources/thai-senior-benefits-2026-11-27.html#item-1';
+
 class _ContactApi extends Api {
-  _ContactApi({required this.moneyPlan});
+  _ContactApi({required this.moneyPlan}) : super(baseUrl: _baseUrl);
 
   final bool moneyPlan;
 
@@ -31,7 +35,8 @@ class _ContactApi extends Api {
       };
       case '/v1/money/old_age': return {
         'title': 'เบี้ยยังชีพผู้สูงอายุ', 'status': 'likely', 'amount': {'value': 600},
-        'documents': [], 'channels': [{'title': 'สำนักงานเขตตามทะเบียนบ้าน'}],
+        'documents': [], 'channels': [{'title': 'สำนักงานเขตตามทะเบียนบ้าน', 'kind': 'office'}],
+        'contactGuide': _seniorGuide,
       };
       default: throw StateError('Unexpected path $path');
     }
@@ -60,5 +65,28 @@ void main() {
     expect(find.text('เส้นทางรับเงิน'), findsOneWidget);
     expect(find.text('สำนักงานเขตตามทะเบียนบ้าน'), findsOneWidget);
     expect(find.text('ข้อมูลสมัครงาน'), findsNothing);
+  });
+
+  testWidgets('contact opens the project HTML at the correct row without asking whether a claim was filed', (tester) async {
+    const launcher = MethodChannel('plugins.flutter.io/url_launcher');
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final opened = <String>[];
+    messenger.setMockMethodCallHandler(launcher, (call) async {
+      expect(call.method, 'launch');
+      opened.add((call.arguments as Map)['url'] as String);
+      return true;
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(launcher, null));
+
+    await openContact(tester, moneyPlan: true);
+    await tester.tap(find.text('ติดต่อ ↗'));
+    await tester.pumpAndSettle();
+    expect(opened, ['$_baseUrl$_seniorGuide']);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text('กลับมาแล้ว 👋'), findsNothing);
+    expect(find.text('เส้นทางรับเงิน'), findsOneWidget);
   });
 }

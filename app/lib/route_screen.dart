@@ -120,16 +120,27 @@ class _RouteScreenState extends State<RouteScreen> {
         ),
       const SizedBox(height: 12),
       Text('📍 ไปยื่นที่ไหน', style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+      if (r['contactGuide'] case final String guide)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.description_outlined),
+          title: const Text('รายงานสิทธิและสวัสดิการผู้สูงอายุ'),
+          subtitle: const Text('ดูจุดติดต่อและแหล่งอ้างอิงของรายการนี้'),
+          trailing: OutlinedButton(
+            onPressed: () => openExternal(context, widget.app, url: '${api.baseUrl}$guide', title: '${r['title']}', askAfterReturn: false),
+            child: const Text('ติดต่อ ↗'),
+          ),
+        ),
       for (final c in channels)
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Text('${c['icon'] ?? ''}', style: const TextStyle(fontSize: 22)),
           title: Text('${c['title']}'),
           subtitle: Text('${c['detail'] ?? ''}'),
-          trailing: c['url'] != null
+          trailing: c['url'] is String
               ? OutlinedButton(
-                  onPressed: () => openExternal(context, widget.app, url: '${c['url']}', title: '${r['title']}', moneyId: widget.moneyId),
-                  child: const Text('เปิด ↗'))
+                  onPressed: () => openExternal(context, widget.app, url: c['url'] as String, title: '${r['title']}', moneyId: widget.moneyId, askAfterReturn: c['kind'] == 'online'),
+                  child: Text(c['kind'] == 'online' ? 'เปิด ↗' : 'ติดต่อ ↗'))
               : null,
         ),
       Text('⏱️ หลังยื่น: ${r['after']}'),

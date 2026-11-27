@@ -73,7 +73,8 @@ function createMoney(ref) {
       const p = programs.find(x => x.id === id); if (!p) return null;
       const e = evaluate(p, facts, govData), base = item(p, e);
       const letter = p.letter ? p.letter.replace('{unpaidDays}', facts.unpaidDays ?? '...').replace('{amount}', typeof e.amount.value === 'number' ? e.amount.value.toLocaleString('th-TH') + ' บาท' : '...') : undefined;
-      return { ...base, documents: p.docs.map((t, i) => ({ index: i, text: t, ready: docsReady.includes(i) })), channels: p.channels, after: p.after, ifNo: p.ifNo, letterTemplate: letter, claimable: !['unlikely', 'need'].includes(e.status), sources: p.sources || [], sourceNote: 'เกณฑ์ อัตรา เอกสาร และช่องทางรวบรวมจากแหล่งสาธารณะที่ระบุ ตรวจล่าสุด ' + p.version + ' ยังไม่ใช่การยืนยันสิทธิ์ ตรวจกับหน่วยงานก่อนยื่น แอปไม่รับประกันว่าจะได้เงิน' };
+      return { ...base, documents: p.docs.map((t, i) => ({ index: i, text: t, ready: docsReady.includes(i) })), channels: p.channels, contactGuide: p.contactGuide,
+        after: p.after, ifNo: p.ifNo, letterTemplate: letter, claimable: !['unlikely', 'need'].includes(e.status), sources: p.sources || [], sourceNote: 'เกณฑ์ อัตรา เอกสาร และช่องทางรวบรวมจากแหล่งสาธารณะที่ระบุ ตรวจล่าสุด ' + p.version + ' ยังไม่ใช่การยืนยันสิทธิ์ ตรวจกับหน่วยงานก่อนยื่น แอปไม่รับประกันว่าจะได้เงิน' };
     },
     validateFacts(patch) {
       const errors = [], clean = {};

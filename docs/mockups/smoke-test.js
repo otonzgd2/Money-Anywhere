@@ -7,8 +7,9 @@ const { JSDOM } = require(base);
 
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const errors = [];
+let openedUrl;
 const dom = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true,
-  beforeParse(w) { w.open = () => null; w.addEventListener('error', e => errors.push(e.message)); } });
+  beforeParse(w) { w.open = url => { openedUrl = url; return null; }; w.addEventListener('error', e => errors.push(e.message)); } });
 const w = dom.window, d = w.document;
 
 const results = [];
@@ -74,6 +75,9 @@ setTimeout(() => {
     check('accept saves the answers and opens the route', on('route') && ev('facts.ageBand') === '60-69' && ev('consent.core') === true && ev('consent.ai') === false);
     const rb = () => inner('routeBody');
     check('route: amount, documents, where to file, dated sources', rb().includes('฿600') && rb().includes('📄 เอาอะไรไป') && rb().includes('📍 ไปยื่นที่ไหน') && rb().includes('(ตรวจ 2026-11-26)'));
+    [...d.querySelectorAll('#routeBody button')].find(b => b.textContent.includes('ติดต่อ ↗')).click();
+    check('the senior benefit contact button opens the project report without filing a claim', !dlgOn()
+      && openedUrl === '../product/sources/thai-senior-benefits-2026-11-27.html#item-1');
     ev('toggleDoc(0)'); check('document tick is kept', d.querySelectorAll('#routeBody input[type=checkbox]:checked').length === 1);
     ev("saveToPlan({moneyId:'old_age'})"); check('saving a plan: button shows progress', ev('tasks.length') === 1 && rb().includes('อยู่ในแผนของฉันแล้ว · ทำแล้ว 0/4 ขั้น'));
     ev("goTab('home')"); const hb = inner('homeBody');

@@ -152,24 +152,26 @@ Future<void> showNotice(BuildContext context, AppState app) async {
   );
 }
 
-/// Open an official link outside the app. When the person comes back (app resumed), ask once whether they
-/// applied (ui-states.md popup P6). The answer is saved as user-reported, never as verified.
-Future<void> openExternal(BuildContext context, AppState app, {required String url, required String title, String? moneyId, String? opportunityId, VoidCallback? onUnavailable}) async {
+/// Open an official link outside the app. For an application link, ask on return whether the person
+/// applied (ui-states.md popup P6). Guide and contact links can skip the prompt.
+Future<void> openExternal(BuildContext context, AppState app, {required String url, required String title, String? moneyId, String? opportunityId, VoidCallback? onUnavailable, bool askAfterReturn = true}) async {
   final uri = Uri.tryParse(url);
   if (uri == null) {
     onUnavailable?.call();
     return;
   }
-  late final AppLifecycleListener listener;
-  var left = false;
-  listener = AppLifecycleListener(
-    onHide: () => left = true,
-    onResume: () {
-      if (!left) return;
-      listener.dispose();
-      if (context.mounted) _askApplied(context, app, title: title, moneyId: moneyId, opportunityId: opportunityId);
-    },
-  );
+  AppLifecycleListener? listener;
+  if (askAfterReturn) {
+    var left = false;
+    listener = AppLifecycleListener(
+      onHide: () => left = true,
+      onResume: () {
+        if (!left) return;
+        listener?.dispose();
+        if (context.mounted) _askApplied(context, app, title: title, moneyId: moneyId, opportunityId: opportunityId);
+      },
+    );
+  }
   bool ok;
   try {
     ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -177,7 +179,7 @@ Future<void> openExternal(BuildContext context, AppState app, {required String u
     ok = false;
   }
   if (!ok) {
-    listener.dispose();
+    listener?.dispose();
     if (!context.mounted) return;
     if (onUnavailable case final fallback?) {
       fallback();
