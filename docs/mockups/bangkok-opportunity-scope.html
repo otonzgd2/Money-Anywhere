@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ขอบเขตงานฐานข้อมูลโอกาส 50 เขต 10 หมวด พร้อมข้อกำหนดลิงก์และหน้า Info ของ Money Anywhere">
+  <title>ขอบเขตงานฐานข้อมูลและหน้า Info | Money Anywhere</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f7f6f1;
+      --surface: #fff;
+      --ink: #172721;
+      --muted: #4f6259;
+      --line: #dbe3dc;
+      --forest: #142e25;
+      --forest-deep: #10271f;
+      --accent: #d9ef90;
+      --wash: #eaf2db;
+      --link: #245f48;
+      --radius: 20px;
+      font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
+      line-height: 1.6;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-padding-top: 22px; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    a { color: var(--link); text-underline-offset: .18em; }
+    :focus-visible { outline: 3px solid #267454; outline-offset: 3px; }
+    h1, h2, h3, p, dl, ol, ul { margin: 0; }
+    h1, h2, h3 { line-height: 1.28; }
+    h2 { font-size: clamp(1.42rem, 2.7vw, 2.1rem); }
+    h3 { font-size: 1.06rem; }
+    button, input, select { font: inherit; }
+    code { font: .88em ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
+    .wrap { width: min(1180px, calc(100% - 48px)); margin-inline: auto; }
+    .masthead { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; }
+    .brand { font-weight: 750; letter-spacing: -.03em; text-decoration: none; color: var(--ink); white-space: nowrap; }
+    .brand::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #4a7351; margin-right: 9px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px 22px; }
+    nav a { color: var(--muted); font-size: .9rem; font-weight: 650; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(270px, .8fr);
+      align-items: stretch;
+      border-radius: 26px;
+      overflow: hidden;
+      background: var(--forest);
+      color: #f6faee;
+    }
+    .hero-copy { padding: clamp(26px, 5vw, 56px); }
+    .label { color: var(--accent); font-size: .84rem; font-weight: 700; margin-bottom: 11px; }
+    h1 { max-width: 560px; font-size: clamp(2.02rem, 4.6vw, 3.38rem); letter-spacing: -.035em; }
+    .intro { max-width: 530px; color: #d5e7db; margin-top: 14px; }
+    .hero-total {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
+      background: var(--forest-deep);
+      padding: clamp(24px, 4vw, 46px);
+      border-inline-start: 1px solid #385648;
+    }
+    .hero-total span:first-child { font-weight: 650; }
+    .hero-total strong {
+      display: block;
+      color: var(--accent);
+      font-size: clamp(3.35rem, 7.5vw, 6rem);
+      line-height: 1.03;
+      letter-spacing: -.065em;
+      font-variant-numeric: tabular-nums;
+    }
+    .hero-total .formula { margin-top: 11px; color: #c8ddcf; font-size: .92rem; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+    .metric { min-width: 0; padding: 15px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+    .metric:last-child { background: var(--wash); border-color: #cdddb6; }
+    .metric dt { font-size: .88rem; color: var(--muted); }
+    .metric dd { margin: 1px 0 0; font-size: clamp(1.05rem, 2.3vw, 1.45rem); font-weight: 750; }
+    .metric small { font-size: .8rem; font-weight: 500; color: var(--muted); }
+    main > section + section { margin-top: 48px; }
+    .section-intro { margin-top: 6px; color: var(--muted); max-width: 800px; }
+    .coverage { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .controls { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; padding: 17px 20px 13px; }
+    .controls label { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--muted); font-size: .85rem; font-weight: 650; }
+    .controls label:first-child { flex: 1 1 180px; }
+    .controls label:nth-child(2) { flex: 1 1 215px; }
+    input, select, button { min-height: 44px; padding: 7px 11px; border: 1px solid #abbcb1; border-radius: 9px; background: var(--surface); color: var(--ink); }
+    input, select { width: 100%; }
+    button { cursor: pointer; font-weight: 700; background: var(--wash); border-color: #b7c9a4; }
+    button:hover { background: #dfedc8; }
+    button[aria-pressed="true"] { background: var(--forest); border-color: var(--forest); color: #fff; }
+    .results { padding: 0 20px 12px; color: var(--muted); font-size: .87rem; }
+    .scroll { overflow: auto; max-height: 410px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .scroll:focus-visible { outline-offset: -3px; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    .coverage table { min-width: 980px; font-variant-numeric: tabular-nums; }
+    .coverage table.single { min-width: 355px; }
+    .coverage th, .coverage td { padding: 9px 12px; border-bottom: 1px solid #ecf0ec; text-align: end; white-space: nowrap; }
+    .coverage thead th { position: sticky; top: 0; z-index: 2; color: var(--muted); background: #f2f5ef; font-size: .8rem; }
+    .coverage thead a { color: inherit; }
+    .coverage tr > :first-child { position: sticky; left: 0; text-align: start; min-width: 137px; }
+    .coverage thead tr > :first-child { z-index: 3; }
+    .coverage tbody th { z-index: 1; background: var(--surface); }
+    .coverage tbody .priority > * { background: var(--wash); }
+    .coverage tbody td { color: var(--muted); }
+    .coverage tbody .priority td, .coverage tbody td:last-child { color: var(--ink); font-weight: 750; }
+    .coverage tbody .empty { position: static; text-align: center; padding: 24px; }
+    .coverage tfoot th, .coverage tfoot td { background: #f3f5ee; font-weight: 750; border: 0; }
+    .source-note { padding: 12px 20px; color: var(--muted); font-size: .85rem; }
+    .two-col { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+    .panel { min-width: 0; padding: clamp(17px, 3vw, 26px); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .panel h3 { margin-bottom: 9px; }
+    .panel p { color: var(--muted); }
+    .panel p + p { margin-top: 12px; }
+    .model { margin-top: 16px; }
+    .model div { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); }
+    .model dt { font-weight: 750; }
+    .model dd { margin: 0; color: var(--muted); font-size: .93rem; }
+    details { border-top: 1px solid var(--line); padding-top: 11px; margin-top: 13px; }
+    summary { font-weight: 700; color: var(--link); cursor: pointer; }
+    details p { margin-top: 6px; font-size: .92rem; }
+    .taxonomy { list-style: none; padding: 0; margin-top: 16px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+    .taxonomy li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); column-gap: 9px; padding: 12px 0; border-top: 1px solid var(--line); scroll-margin-top: 22px; }
+    .taxonomy li:target { background: var(--wash); }
+    .taxonomy .number { color: var(--link); font-size: .9rem; font-weight: 750; }
+    .taxonomy p { margin-top: 4px; color: var(--muted); font-size: .89rem; }
+    .steps, .checks { padding-left: 1.3rem; }
+    .steps li, .checks li { padding: 6px 0; }
+    .steps li::marker { color: var(--link); font-weight: 750; }
+    .checks li::marker { color: var(--link); }
+    .scope-flow { padding-left: 1.3rem; }
+    .scope-flow li { padding: 5px 0; }
+    .scope-flow li::marker { color: var(--link); font-weight: 750; }
+    .preview { --info-accent: #554493; --info-tint: #f0edfa; margin-top: 16px; }
+    .preview[data-theme="grant"] { --info-accent: #865120; --info-tint: #fbf1e4; }
+    .preview-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 13px 0; }
+    .preview-links a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 4px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: .88rem;
+      font-weight: 650;
+    }
+    .preview-links a[aria-current="true"] { background: var(--info-tint); color: var(--info-accent); border-color: var(--info-accent); }
+    .info-card { border: 1px solid var(--line); border-radius: 13px; overflow: hidden; }
+    .info-head { padding: 18px 20px; background: var(--info-accent); color: white; }
+    .info-head p { color: white; font-size: .87rem; }
+    .info-head strong { display: block; margin-top: 4px; font-size: 1.5rem; line-height: 1.28; overflow-wrap: anywhere; }
+    .info-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 13px 20px; background: var(--info-tint); }
+    .info-facts dt { font-size: .83rem; color: var(--muted); }
+    .info-facts dd { margin: 3px 0 0; font-weight: 700; }
+    .info-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 17px 20px; }
+    .info-body p { margin-top: 3px; }
+    .info-action { display: inline-block; color: #fff; background: var(--info-accent); border-radius: 6px; padding: 4px 10px; margin-top: 8px; font-size: .85rem; }
+    .footer { margin-top: 45px; border-top: 1px solid var(--line); padding-block: 14px 26px; color: var(--muted); font-size: .86rem; }
+
+    @media (max-width: 730px) {
+      .wrap { width: min(100% - 28px, 1180px); }
+      .masthead { align-items: flex-start; flex-direction: column; justify-content: center; gap: 6px; padding-block: 11px; }
+      nav { gap: 6px 15px; }
+      .hero, .two-col { grid-template-columns: minmax(0, 1fr); }
+      .hero-total { border-inline-start: 0; border-top: 1px solid #385648; }
+      .metrics { gap: 6px; }
+      .metric { padding: 10px 9px; }
+      .metric dt, .metric small { font-size: .75rem; }
+      .metric small { display: block; }
+      main > section + section { margin-top: 34px; }
+      .taxonomy { grid-template-columns: minmax(0, 1fr); }
+    }
+    @media (max-width: 425px) {
+      .controls > * { flex-basis: 100%; }
+      .controls button { flex-basis: auto; }
+      .info-body, .info-facts { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead wrap">
+    <a class="brand" href="#top">Money Anywhere</a>
+    <nav aria-label="หัวข้อในแผน">
+      <a href="#coverage">เป้าหมายรายเขต</a>
+      <a href="#categories">10 หมวดข้อมูล</a>
+      <a href="#info">ลิงก์และหน้า Info</a>
+      <a href="#schema">โครงฐานข้อมูล</a>
+      <a href="#delivery">เกณฑ์ตรวจรับ</a>
+    </nav>
+  </header>
+
+  <main class="wrap" id="top">
+    <section aria-labelledby="page-title">
+      <div class="hero">
+        <div class="hero-copy">
+          <p class="label">ขอบเขตงาน · 27 พ.ย. 2569</p>
+          <h1 id="page-title">ฐานข้อมูลโอกาส<br>และหน้า Info รายการ</h1>
+          <p class="intro">จัดทำข้อมูล 10 หมวดสำหรับทั้ง 50 เขตของกรุงเทพฯ ให้แต่ละรายการเปิดหน้ารายละเอียดของตัวเองได้ บางนามีเป้าหมาย 20 รายการต่อหมวด เขตอื่นมี 10 รายการต่อหมวด</p>
+        </div>
+        <div class="hero-total">
+          <span>เป้าหมายทั้งกรุงเทพฯ</span>
+          <strong id="grand-total">5,100</strong>
+          <span>รายการตามพื้นที่</span>
+          <p class="formula" id="formula">49 × 10 × 10 + 1 × 10 × 20</p>
+        </div>
+      </div>
+      <dl class="metrics">
+        <div class="metric"><dt>เขตที่ครอบคลุม</dt><dd><span id="district-total">50</span> เขต</dd></div>
+        <div class="metric"><dt>เขตอื่น</dt><dd><span id="standard-total">100</span> ต่อเขต <small>10 ต่อหมวด</small></dd></div>
+        <div class="metric"><dt>เขตบางนา</dt><dd><span id="priority-total">200</span> รายการ <small>20 ต่อหมวด</small></dd></div>
+      </dl>
+    </section>
+
+    <section id="coverage" aria-labelledby="coverage-title">
+      <h2 id="coverage-title">เป้าหมายรายเขตและหมวด</h2>
+      <p class="section-intro">ตัวเลขคือเป้าหมายการจัดทำข้อมูล เลือกเขตหรือหมวดเพื่อดูยอดย่อย</p>
+      <div class="coverage">
+        <div class="controls">
+          <label for="district-search">ค้นหาเขต
+            <input type="search" id="district-search" placeholder="เช่น ลาดกระบัง" autocomplete="off">
+          </label>
+          <label for="category-filter">หมวดข้อมูล
+            <select id="category-filter"><option value="">ทุกหมวด</option></select>
+          </label>
+          <button id="show-bang-na" type="button" aria-pressed="false">ดูเฉพาะบางนา</button>
+        </div>
+        <p class="results" id="filter-results" role="status"></p>
+        <div class="scroll" tabindex="0" role="region" aria-label="ตารางเป้าหมาย เลื่อนดูคอลัมน์เพิ่มเติมได้">
+          <table id="district-table" aria-label="เป้าหมายรายการต่อเขตและหมวด">
+            <thead></thead><tbody></tbody><tfoot></tfoot>
+          </table>
+        </div>
+        <noscript><p class="source-note">เปิด JavaScript เพื่อใช้ตารางรายเขตและตัวกรอง</p></noscript>
+        <p class="source-note">แต่ละหมวดรวม <strong id="per-category-total">510</strong> รายการทั่วกรุงเทพฯ <a href="https://policy.bangkok.go.th/genseal/site/index2569">ตรวจรายชื่อเขตจากกรุงเทพมหานคร</a></p>
+      </div>
+    </section>
+
+    <section id="categories" aria-labelledby="categories-title">
+      <h2 id="categories-title">10 หมวดข้อมูล</h2>
+      <p class="section-intro">ตัวอย่างประเภทข้อมูลที่จะเก็บตาม <a href="../product/requirements.md#3-opportunity-coverage">ข้อกำหนดผลิตภัณฑ์</a></p>
+      <ol class="taxonomy" id="category-list"></ol>
+    </section>
+
+    <section id="info" aria-labelledby="info-title">
+      <h2 id="info-title">ลิงก์รายรายการและหน้า Info</h2>
+      <p class="section-intro">ใช้ภาพอ้างอิงหน้า JobThai สำหรับลำดับของข้อมูล แล้วจัดหน้าในรูปแบบ Money Anywhere</p>
+      <div class="two-col">
+        <article class="panel">
+          <h3>ขั้นตอนเมื่อเปิดลิงก์</h3>
+          <ol class="scope-flow">
+            <li>ผู้ใช้เลือกเขตและหมวดจากรายการค้นหา</li>
+            <li>ผู้ใช้คลิกชื่อรายการเพื่อเปิดลิงก์ HTML ที่ระบุรหัสรายการและบริบทเขต</li>
+            <li>หน้า Info แสดงชื่อและรายละเอียดของรายการจากรหัสในลิงก์ ใช้สีตามหมวดที่บันทึกไว้ในข้อมูล</li>
+          </ol>
+          <p>ลิงก์ที่คัดลอกไปเปิดโดยตรงต้องแสดงรายการเดิม หากรหัสใช้ไม่ได้ ให้แสดงข้อความพร้อมลิงก์กลับไปยังรายการค้นหา</p>
+        </article>
+        <article class="panel">
+          <h3>ส่วนประกอบหน้า Info</h3>
+          <p>ทั้ง 10 หมวดใช้แม่แบบเดียวกัน ตำแหน่งกล่องสรุป รายละเอียด เงื่อนไข ช่องทางติดต่อ และส่วนที่ตั้งใช้แบบเดียวกัน</p>
+          <p>สีของส่วนหัว ป้ายหมวด และปุ่มเปลี่ยนตามหมวด ข้อความและลิงก์ต้นทางเปลี่ยนตามรายการ เช่น งานแสดงนายจ้างและค่าตอบแทน ส่วนทุนแสดงผู้ให้ทุนและรอบสมัคร</p>
+          <p>แสดงที่อยู่ วิธีเดินทาง หรือแผนที่เมื่อมีข้อมูลที่ยืนยันได้</p>
+        </article>
+      </div>
+      <article class="panel preview" id="info-preview" data-theme="work">
+        <h3>ตัวอย่างการเปลี่ยนข้อมูลเมื่อคลิกลิงก์</h3>
+        <p>ข้อมูลสมมติสำหรับทบทวนรูปแบบหน้าและสี</p>
+        <nav class="preview-links" aria-label="รายการตัวอย่างของหน้า Info">
+          <a href="?preview=admin#info-preview" data-preview="admin" aria-current="true">งานธุรการ · บางนา</a>
+          <a href="?preview=warehouse#info-preview" data-preview="warehouse">งานคลังสินค้า · บางนา</a>
+          <a href="?preview=grant#info-preview" data-preview="grant">ทุนสายอาชีพ · บางนา</a>
+        </nav>
+        <div class="info-card">
+          <div class="info-head">
+            <p id="info-category">งานประจำ</p>
+            <strong id="info-record-title">เจ้าหน้าที่ธุรการ</strong>
+          </div>
+          <dl class="info-facts">
+            <div><dt>พื้นที่</dt><dd>เขตบางนา กรุงเทพมหานคร</dd></div>
+            <div><dt id="info-owner-label">นายจ้าง</dt><dd id="info-owner">บริษัทตัวอย่าง A</dd></div>
+            <div><dt id="info-fact-label">ค่าตอบแทน</dt><dd id="info-fact">ตามประกาศรับสมัคร</dd></div>
+          </dl>
+          <div class="info-body">
+            <div>
+              <strong>รายละเอียดและเงื่อนไข</strong>
+              <p id="info-description">จัดเอกสารและประสานงานสำนักงาน ตรวจคุณสมบัติและเวลาทำงานจากประกาศ</p>
+            </div>
+            <div>
+              <strong>ติดต่อและที่ตั้ง</strong>
+              <p id="info-contact">ตรวจที่อยู่สำนักงานและวิธีสมัครจากผู้ประกาศ</p>
+              <span class="info-action">ตัวอย่างปุ่มเปิดเว็บต้นทาง</span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="schema" aria-labelledby="schema-title">
+      <h2 id="schema-title">โครงฐานข้อมูลที่เสนอ</h2>
+      <p class="section-intro">ตัวกรองของแอปรับเขตและหมวด แล้วคืนชื่อรายการ ที่อยู่หรือพื้นที่ให้บริการ ลิงก์ต้นทาง และวันที่ตรวจล่าสุด</p>
+      <div class="two-col">
+        <article class="panel">
+          <h3>ข้อมูลหลักและการผูกรายการกับเขต</h3>
+          <p>แคตตาล็อก SQLite เดิมมี <code>job_posting</code> และฟิลด์ <code>province</code>, <code>district</code>, <code>work_mode</code> อยู่แล้ว แผนนี้ใช้ข้อมูลเดิมเป็นต้นทางของประกาศงานและเสนอทะเบียนเขตกลางสำหรับเชื่อมทั้ง 10 หมวด</p>
+          <dl class="model">
+            <div><dt>เขตและหมวด</dt><dd>รหัสเขต ชื่อเขตภาษาไทย และรหัสหมวด 1–10 ใช้ตรวจค่าก่อนนำเข้า</dd></div>
+            <div><dt>รายการโอกาส</dt><dd>รหัสรายการ หมวด ชื่อ คำอธิบาย เงื่อนไข ผู้เผยแพร่ ช่องทางติดต่อ ลิงก์ต้นทาง วันที่ตรวจ สถานะ และวันหมดอายุเมื่อมี</dd></div>
+            <div><dt>พื้นที่ของรายการ</dt><dd>รหัสรายการและรหัสเขต พร้อมประเภทพื้นที่ ที่อยู่หรือแขวงเมื่อระบุได้ และพิกัดจากหลักฐานเมื่อมี</dd></div>
+            <div><dt>ลิงก์รายละเอียด</dt><dd>สร้าง URL จากรหัสรายการและรหัสเขต เพื่อเปิดข้อมูลชุดเดิมได้เมื่อเข้าจากลิงก์โดยตรง</dd></div>
+          </dl>
+          <details>
+            <summary>ทางเลือกการจัดเก็บ</summary>
+            <p>การขยายตารางเดียวทำให้ค้นง่าย แต่ประกาศงานและสิทธิอาจต้องใช้ฟิลด์และรอบอัปเดตต่างกัน อีกทางคือเก็บตามแหล่งเดิมแล้วรวมผ่านทะเบียนเขตและหมวดกลาง แผนนี้ใช้ทางเลือกหลังเป็นแบบร่าง ส่วนการจัดเก็บสิทธิและทุนรอตัดสินในขั้นออกแบบฐานข้อมูล</p>
+          </details>
+        </article>
+        <article class="panel">
+          <h3>เกณฑ์ระบุที่อยู่และนับรายการ</h3>
+          <p><strong>งานและกิจกรรมที่มีสถานที่จริง</strong> ใช้เขตของสถานที่ทำงาน จุดขาย จุดให้เช่า หรือจุดจัดกิจกรรมตามหลักฐานต้นทาง</p>
+          <p><strong>สิทธิ เงินคืน หรือทุน</strong> ใช้เขตที่มีสิทธิหรือเขตที่หน่วยงานให้บริการตามหลักเกณฑ์ ระบุที่อยู่จุดติดต่อเมื่อยืนยันได้</p>
+          <p><strong>การนับ</strong> รายการที่ใช้ได้หลายเขตเก็บรายละเอียดหลักครั้งเดียวและเชื่อมเฉพาะเขตที่มีหลักฐานรองรับ แต่ละคู่รายการกับเขตนับครั้งเดียว แผนจึงตรวจได้ทั้งจำนวนรายการที่ไม่ซ้ำและจำนวนรายการตามพื้นที่</p>
+          <p><strong>กรณีเขตยังไม่ชัด</strong> เข้าคิวตรวจพร้อมหลักฐานและแสดงยอดที่ขาดในตารางตรวจรับ</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="delivery" aria-labelledby="delivery-title">
+      <h2 id="delivery-title">แผนดำเนินงานและเกณฑ์ตรวจรับ</h2>
+      <div class="two-col">
+        <article class="panel">
+          <h3>ลำดับงาน</h3>
+          <ol class="steps">
+            <li>เตรียมทะเบียน 50 เขต รหัส 10 หมวด และตารางเป้าหมาย 500 คู่เขตกับหมวด</li>
+            <li>รวบรวมรายการจากหน่วยงานหรือผู้เผยแพร่ที่ระบุได้ เริ่มที่บางนาให้ครบ 200 รายการเพื่อทดสอบการระบุพื้นที่ทั้ง 10 หมวด</li>
+            <li>ตรวจแหล่งที่มา ที่อยู่หรือขอบเขตบริการ วันหมดอายุ และรายการซ้ำก่อนนำเข้า</li>
+            <li>ใช้ขั้นตอนเดียวกันกับอีก 49 เขต รวม 4,900 รายการ อัปเดตรายการเดิมด้วยรหัสต้นทางเมื่อข้อมูลเปลี่ยน</li>
+            <li>ออกรายงานเป้าหมายเทียบยอดที่ตรวจแล้ว ระบุเขตและหมวดที่ยังขาดก่อนส่งข้อมูลให้แอป</li>
+          </ol>
+        </article>
+        <article class="panel">
+          <h3>เกณฑ์ตรวจรับ</h3>
+          <ul class="checks">
+            <li>ครบ 50 เขต และแต่ละเขตครบทั้ง 10 หมวด</li>
+            <li>บางนา 20 รายการต่อหมวด เขตอื่น 10 รายการต่อหมวด รวม 510 ต่อหมวด และ 5,100 ตามพื้นที่</li>
+            <li>ยอดตรวจรับนับจากรายการที่ผ่านการตรวจแหล่ง เขต และสถานะการใช้งานแล้ว</li>
+            <li>รายการที่ผ่านการตรวจทุกตัวมีลิงก์เข้า Info และมีลิงก์ต้นทางตามข้อมูลของรายการ</li>
+            <li>เปิดลิงก์สองรายการในหมวดเดียวกันแล้วได้คนละข้อความและสีเดิม เปิดรายการต่างหมวดแล้วได้สีประจำหมวดใหม่</li>
+            <li>เปิดลิงก์ Info โดยตรงแล้วได้รายการและเขตเดิม เมื่อรหัสผิด หน้า Info แสดงทางกลับไปยังรายการค้นหา</li>
+            <li>นำเข้าชุดเดิมซ้ำแล้วจำนวนรายการและยอดรายเขตเท่าเดิม</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">Money Anywhere · ขอบเขตงานจัดทำข้อมูลและหน้า Info</footer>
+
+  <script>
+    const categoryDefinitions = [
+      [1, 'สวัสดิการรัฐ', 'สวัสดิการและสิทธิจากรัฐ', 'เบี้ยผู้สูงอายุ หรือสิทธิประกันสังคมพร้อมเงื่อนไขและจุดติดต่อ'],
+      [2, 'เงินคืน', 'เงินคืน', 'เงินคืนภาษี เงินประกัน หรือยอดชำระเกินที่ติดตามกับผู้รับเงินได้'],
+      [3, 'เงินค้างจ่าย', 'เงินที่ค้างจ่ายและค่าชดเชย', 'ค่าจ้างค้าง ค่าล่วงเวลา หรือค่าชดเชยพร้อมช่องทางยื่นคำร้อง'],
+      [4, 'งานประจำ', 'งานประจำ', 'ประกาศรับสมัครที่ระบุนายจ้างและเขตสถานที่ทำงาน'],
+      [5, 'พาร์ตไทม์', 'งานพาร์ตไทม์ รายวัน และชั่วคราว', 'ประกาศงานเป็นกะ รายวัน หรือระยะสั้นที่ระบุเขตและช่วงทำงาน'],
+      [6, 'ฟรีแลนซ์', 'ฟรีแลนซ์และงานตามสัญญา', 'งานรายชิ้นหรือรายโครงการที่มีเขตปฏิบัติงานหรือเขตให้บริการที่ตรวจได้'],
+      [7, 'ขายสินค้า', 'ขายสินค้าและของมือสอง', 'ตลาด จุดรับซื้อ หรือจุดขายสินค้าตามพื้นที่'],
+      [8, 'ใช้ทรัพย์สิน', 'รายได้จากทรัพย์สินที่มีอยู่', 'ช่องทางให้เช่าพื้นที่หรืออุปกรณ์ในเขตที่ระบุ'],
+      [9, 'ทุนให้เปล่า', 'ทุนและเงินช่วยเหลือแบบให้เปล่า', 'ทุนเรียนหรือทุนอาชีพพร้อมเกณฑ์พื้นที่และรอบสมัคร'],
+      [10, 'ทักษะ', 'สร้างรายได้จากทักษะ', 'หลักสูตรอาชีพหรือช่องทางใช้ทักษะเดิมกับงานที่หาได้ในพื้นที่']
+    ];
+
+    const districtNames = [
+      'คลองสาน', 'คลองสามวา', 'คลองเตย', 'คันนายาว', 'จตุจักร', 'จอมทอง', 'ดอนเมือง', 'ดินแดง', 'ดุสิต', 'ตลิ่งชัน',
+      'ทวีวัฒนา', 'ทุ่งครุ', 'ธนบุรี', 'บางกอกน้อย', 'บางกอกใหญ่', 'บางกะปิ', 'บางขุนเทียน', 'บางคอแหลม', 'บางซื่อ', 'บางนา',
+      'บางบอน', 'บางพลัด', 'บางรัก', 'บางเขน', 'บางแค', 'บึงกุ่ม', 'ปทุมวัน', 'ประเวศ', 'ป้อมปราบศัตรูพ่าย', 'พญาไท',
+      'พระนคร', 'พระโขนง', 'ภาษีเจริญ', 'มีนบุรี', 'ยานนาวา', 'ราชเทวี', 'ราษฎร์บูรณะ', 'ลาดกระบัง', 'ลาดพร้าว', 'วังทองหลาง',
+      'วัฒนา', 'สวนหลวง', 'สะพานสูง', 'สัมพันธวงศ์', 'สาทร', 'สายไหม', 'หนองจอก', 'หนองแขม', 'หลักสี่', 'ห้วยขวาง'
+    ];
+
+    const priorityDistrict = 'บางนา';
+    const standardTarget = 10;
+    const priorityTarget = 20;
+    const districts = districtNames.map(name => ({
+      name,
+      target: name === priorityDistrict ? priorityTarget : standardTarget
+    }));
+    const format = new Intl.NumberFormat('th-TH', { numberingSystem: 'latn' }).format;
+    const sumTargets = entries => entries.reduce((sum, district) => sum + district.target, 0);
+
+    const search = document.getElementById('district-search');
+    const select = document.getElementById('category-filter');
+    const priorityButton = document.getElementById('show-bang-na');
+    const table = document.getElementById('district-table');
+    const summary = document.getElementById('filter-results');
+    const categoryList = document.getElementById('category-list');
+
+    for (const [id, , label, example] of categoryDefinitions) {
+      select.add(new Option(`${id}. ${label}`, id));
+      const item = document.createElement('li');
+      item.id = `category-${id}`;
+      item.innerHTML = `<span class="number" aria-hidden="true">${id}.</span><div><h3>${label}</h3><p>${example}</p></div>`;
+      categoryList.append(item);
+    }
+
+    document.getElementById('grand-total').textContent = format(sumTargets(districts) * categoryDefinitions.length);
+    document.getElementById('district-total').textContent = format(districts.length);
+    document.getElementById('standard-total').textContent = format(standardTarget * categoryDefinitions.length);
+    document.getElementById('priority-total').textContent = format(priorityTarget * categoryDefinitions.length);
+    document.getElementById('per-category-total').textContent = format(sumTargets(districts));
+    document.getElementById('formula').textContent = `${districts.length - 1} × ${categoryDefinitions.length} × ${standardTarget} + 1 × ${categoryDefinitions.length} × ${priorityTarget}`;
+
+    function renderCoverage() {
+      const query = search.value.trim().replace(/^เขต\s*/, '');
+      const visibleDistricts = districts.filter(district => district.name.includes(query));
+      const visibleCategories = select.value
+        ? categoryDefinitions.filter(([id]) => String(id) === select.value)
+        : categoryDefinitions;
+      const categoryCount = visibleCategories.length;
+      const categorySum = sumTargets(visibleDistricts);
+      const total = categorySum * categoryCount;
+      table.classList.toggle('single', categoryCount === 1);
+      priorityButton.setAttribute('aria-pressed', String(query === priorityDistrict));
+      summary.textContent = `${format(visibleDistricts.length)} จาก ${districts.length} เขต · ${categoryCount} หมวด · เป้าหมาย ${format(total)} รายการ`;
+      table.tHead.innerHTML = `<tr><th scope="col">เขต</th>${visibleCategories.map(([id, label]) => (
+        `<th scope="col"><a href="#category-${id}">${id}. ${label}</a></th>`
+      )).join('')}<th scope="col">รวม</th></tr>`;
+
+      table.tBodies[0].innerHTML = visibleDistricts.map(district => `
+        <tr${district.name === priorityDistrict ? ' class="priority"' : ''}>
+          <th scope="row">${district.name}</th>
+          ${visibleCategories.map(() => `<td>${format(district.target)}</td>`).join('')}
+          <td>${format(district.target * categoryCount)}</td>
+        </tr>`).join('') || `<tr><td class="empty" colspan="${categoryCount + 2}">ไม่พบเขตที่ค้นหา</td></tr>`;
+
+      table.tFoot.innerHTML = `<tr><th scope="row">รวมเขตที่แสดง</th>
+        ${visibleCategories.map(() => `<td>${format(categorySum)}</td>`).join('')}
+        <td>${format(total)}</td></tr>`;
+    }
+
+    search.addEventListener('input', renderCoverage);
+    select.addEventListener('change', renderCoverage);
+    priorityButton.addEventListener('click', () => {
+      search.value = priorityButton.getAttribute('aria-pressed') === 'true' ? '' : priorityDistrict;
+      renderCoverage();
+    });
+    renderCoverage();
+
+    const previewRecords = {
+      admin: {
+        theme: 'work',
+        category: 'งานประจำ',
+        title: 'เจ้าหน้าที่ธุรการ',
+        ownerLabel: 'นายจ้าง',
+        owner: 'บริษัทตัวอย่าง A',
+        factLabel: 'ค่าตอบแทน',
+        fact: 'ตามประกาศรับสมัคร',
+        description: 'จัดเอกสารและประสานงานสำนักงาน ตรวจคุณสมบัติและเวลาทำงานจากประกาศ',
+        contact: 'ตรวจที่อยู่สำนักงานและวิธีสมัครจากผู้ประกาศ'
+      },
+      warehouse: {
+        theme: 'work',
+        category: 'งานประจำ',
+        title: 'เจ้าหน้าที่คลังสินค้า',
+        ownerLabel: 'นายจ้าง',
+        owner: 'บริษัทตัวอย่าง B',
+        factLabel: 'ค่าตอบแทน',
+        fact: 'ตามประกาศรับสมัคร',
+        description: 'ตรวจรับและจัดเก็บสินค้า ตรวจประสบการณ์ที่ต้องใช้และกะทำงานจากประกาศ',
+        contact: 'ตรวจที่อยู่คลังสินค้าและทางเข้าจากผู้ประกาศ'
+      },
+      grant: {
+        theme: 'grant',
+        category: 'ทุนและเงินช่วยเหลือแบบให้เปล่า',
+        title: 'ทุนเรียนต่อสายอาชีพ',
+        ownerLabel: 'ผู้ให้ทุน',
+        owner: 'หน่วยงานตัวอย่าง',
+        factLabel: 'รอบสมัคร',
+        fact: 'ตามประกาศของผู้ให้ทุน',
+        description: 'ทุนสำหรับผู้เรียนที่เข้าเกณฑ์ ตรวจคุณสมบัติและสถานศึกษาที่เข้าร่วมจากประกาศ',
+        contact: 'ตรวจหน่วยรับสมัครและสถานที่ยื่นเอกสารจากผู้ให้ทุน'
+      }
+    };
+    function renderInfoPreview() {
+      const requested = new URLSearchParams(location.search).get('preview');
+      const selected = Object.hasOwn(previewRecords, requested) ? requested : 'admin';
+      const record = previewRecords[selected];
+      document.getElementById('info-preview').dataset.theme = record.theme;
+      for (const [id, value] of Object.entries({
+        'info-category': record.category,
+        'info-record-title': record.title,
+        'info-owner-label': record.ownerLabel,
+        'info-owner': record.owner,
+        'info-fact-label': record.factLabel,
+        'info-fact': record.fact,
+        'info-description': record.description,
+        'info-contact': record.contact
+      })) {
+        document.getElementById(id).textContent = value;
+      }
+      for (const link of document.querySelectorAll('[data-preview]')) {
+        if (link.dataset.preview === selected) link.setAttribute('aria-current', 'true');
+        else link.removeAttribute('aria-current');
+      }
+    }
+    renderInfoPreview();
+  </script>
+</body>
+</html>
