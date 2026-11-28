@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ทางรอด · DEMO</title>
 <!--
-  Clickable mock of the Thang Rot Flutter app. Baseline: 5938e38.
+  Clickable mock of the Thang Rot Flutter app. Profile and connected accounts baseline: 8390036.
   No server and no AI are called: money rules, opportunities and the assistant run on mock data in this file.
   Test: node docs/mockups/smoke-test.js (needs jsdom). Assistant policy is synced from contracts/fixtures/assistant-policy.json by sync-policy.js.
 -->
@@ -263,37 +263,65 @@
   .opp-card { display:block; width:100%; border:0; background:transparent; color:inherit; text-align:left; padding:10px; }
   .opp-card-sub { display:block; white-space:pre-line; font-size:.8rem; margin-top:3px; color:var(--mut); }
   #v-opp :is(button,select,input,summary):focus-visible { outline:2px solid #174ea6; outline-offset:1px; }
-  .me-profile-link { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; text-align:left; width:100%; min-height:68px; padding:11px; border:1px solid #dce7df; border-radius:15px; background:#fff; color:#173d32; cursor:pointer; }
-  .me-profile-link strong, .me-profile-link .small { display:block; overflow-wrap:anywhere; }
-  .profile-monogram { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:#e6f4ec; color:#06513b; font-weight:750; }
-  .profile-card { padding:14px; border:1px solid #dce7df; border-radius:16px; box-shadow:none; }
-  .profile-identity[data-connected="true"] { background:#f0f7f3; border-color:#a9c8ba; }
-  .profile-section-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; margin-bottom:9px; }
-  .profile-section-head h2, #connectedAccounts h2 { margin:0; font-size:1rem; line-height:1.4; }
-  .profile-source-badge { color:#155744; background:#e2f1e8; border-radius:12px; padding:3px 8px; font-weight:700; font-size:.72rem; }
-  .profile-fields { display:grid; gap:10px; }
-  .profile-fields label, .profile-work-label { display:grid; gap:4px; color:#294c40; font-size:.84rem; font-weight:650; }
-  .profile-fields input, .profile-fields select { padding:8px 9px; min-height:40px; border:1px solid #a9bfb5; border-radius:9px; color:var(--ink); background:white; font:inherit; }
-  .profile-work-label { margin-top:12px; }
-  .profile-footnote { margin:8px 0 0; color:#49665a; font-size:.78rem; line-height:1.5; }
-  .profile-actions { flex:none; padding:8px 16px 12px; background:var(--bg); border-top:1px solid var(--line); }
-  .profile-save { background:#086348; margin:0; }
-  #connectedAccounts { margin:14px 0 8px; }
-  .account-count { margin:3px 0 9px; }
+  .screen:has(#v-me.on, #v-profile.on) { background:#f2f8f2; }
+  #v-me, #v-profile { --surface:#f2f8f2; --stroke:#717a72; --on-surface:#191e1b; --primary:#206749; color:var(--on-surface); }
+  #v-me .appbar, #v-profile .appbar { height:56px; padding:0 8px; font-size:22px; }
+  #v-profile .back { border:0; color:inherit; background:transparent; }
+  #meBody { padding:12px 12px 24px; }
+  #profileBody { padding:8px 16px 12px; }
+  .me-profile-link { display:grid; grid-template-columns:40px minmax(0,1fr) auto; gap:16px; align-items:center; text-align:left; width:100%; min-height:72px; padding:10px 16px; border:0; border-radius:12px; background:#edf2ec; color:inherit; box-shadow:0 1px 2px #19251c45; cursor:pointer; }
+  .me-profile-link .me-profile-title { display:block; font-size:1rem; line-height:1.5; }
+  .me-profile-link .small { display:block; font-size:.875rem; line-height:1.35; white-space:pre-line; overflow-wrap:anywhere; }
+  .me-profile-icon { position:relative; display:block; width:40px; height:40px; border-radius:50%; background:#a6f0cf; color:#00452f; }
+  .me-profile-icon::before, .me-profile-icon::after { content:""; position:absolute; left:50%; transform:translateX(-50%); border:1.5px solid currentColor; }
+  .me-profile-icon::before { width:5px; height:5px; top:11px; border-radius:50%; }
+  .me-profile-icon::after { width:13px; height:5px; top:21px; border-radius:8px 8px 2px 2px; }
+  .profile-card { padding:14px; border:1px solid #d9e5dd; border-radius:16px; margin:0 0 12px; box-shadow:none; }
+  .profile-identity[data-connected="true"] { background:#edf6f1; border-color:#a7cbb9; }
+  .profile-section-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  .profile-section-head h2, #connectedAccounts h2 { margin:0; font-size:1rem; line-height:1.5; }
+  .profile-source-badge { color:#165a45; background:#dfeee5; border-radius:20px; padding:3px 10px; font-size:.75rem; line-height:1.4; }
+  .profile-fields { display:grid; gap:14px; }
+  .profile-control { position:relative; min-width:0; width:100%; }
+  .profile-control input, .profile-control select { width:100%; min-height:56px; margin:0; padding:12px 14px; border:1px solid var(--stroke); border-radius:4px; color:inherit; background:transparent; font:inherit; }
+  .profile-control select { text-overflow:ellipsis; }
+  .profile-control input:focus, .profile-control select:focus { border-color:var(--primary); box-shadow:inset 0 0 0 1px var(--primary); }
+  .profile-control label { position:absolute; left:10px; top:0; transform:translateY(-50%); padding:0 4px; background:#fff; font-size:.75rem; color:#48594e; line-height:1.4; pointer-events:none; }
+  .profile-control input:not(:focus):placeholder-shown::placeholder { color:transparent; }
+  .profile-control input:not(:focus):placeholder-shown + label { top:50%; font-size:1em; }
+  .profile-work-label { margin:0; font-size:.875rem; font-weight:700; }
+  .profile-work-label.spaced, .profile-goal { margin-top:16px; }
+  .profile-skill-entry { margin-top:8px; }
+  #v-profile .chip { min-height:36px; padding:6px 12px; font-size:.875rem; color:#48544c; border-color:#a6b3a9; white-space:normal; overflow-wrap:anywhere; text-align:left; }
+  #v-profile .chip.on { background:#cce5d6; border-color:#cce5d6; color:#173d2c; font-weight:400; }
+  .profile-footnote { margin:12px 0 4px; font-size:.875rem; line-height:1.45; }
+  #v-profile .btn.out, .account-details .btn.out { border:1px solid var(--stroke); min-height:40px; margin:0; color:var(--primary); font-size:.875rem; font-weight:500; }
+  .profile-actions { flex:none; padding:8px 16px 12px; background:var(--surface); border-top:1px solid #c6d0c8; }
+  .profile-save { background:var(--primary); margin:0; min-height:48px; font-size:.875rem; font-weight:500; }
+  .profile-unavailable { display:grid; place-content:center; gap:10px; height:100%; text-align:center; }
+  .profile-screening { margin:2px 0 0; }
+  .profile-screening summary { cursor:pointer; padding:14px 4px; }
+  #connectedAccounts { margin:16px 0 6px; }
+  .account-count { margin:3px 0 8px; font-size:.75rem; color:#46554a; }
   .account-stack { display:grid; gap:6px; }
-  .account-card { border:1px solid #dce7df; border-radius:12px; background:#fff; padding:0 9px; }
-  .account-card[data-state="connected"] { border-color:#a9c8ba; }
-  .account-row { display:grid; grid-template-columns:32px minmax(0,1fr); gap:8px; align-items:center; min-height:55px; padding:8px 0; }
-  .account-row img { width:32px; height:32px; object-fit:contain; }
+  .account-card { border:1px solid #d9e5dd; border-radius:12px; background:#fff; }
+  .account-card[data-state="connected"] { border-color:#a7cbb9; }
+  .account-row { display:grid; grid-template-columns:34px minmax(0,1fr); gap:16px; align-items:center; min-height:64px; padding:8px 12px; }
+  .account-row img { width:34px; height:34px; object-fit:contain; }
   .account-row strong, .account-status { display:block; line-height:1.45; overflow-wrap:anywhere; }
-  .account-row strong { color:#1c4437; font-size:.82rem; }
-  .account-status { color:#526b61; font-size:.72rem; }
-  .account-status[data-connected="true"] { color:#105b44; font-weight:700; }
-  .account-card summary { cursor:pointer; list-style:none; position:relative; padding-right:16px; }
+  .account-row strong { font-size:1rem; }
+  .account-status { color:#444f47; font-size:.875rem; }
+  .account-card summary { cursor:pointer; list-style:none; position:relative; padding-right:44px; }
   .account-card summary::-webkit-details-marker { display:none; }
-  .account-card summary::after { content:"▾"; position:absolute; right:0; top:calc(50% - .55rem); color:#49665a; }
-  .account-card[open] summary::after { content:"▴"; }
-  .account-fields { padding:0 0 9px; margin:0; }
+  .account-card summary::after { content:""; position:absolute; right:20px; top:50%; width:7px; height:7px; border:solid #404d43; border-width:0 2px 2px 0; transform:translateY(-70%) rotate(45deg); }
+  .account-card[open] summary::after { transform:translateY(-15%) rotate(225deg); }
+  .account-details { padding:0 12px 10px; }
+  .account-details .btn { margin-top:8px; }
+  .btn.account-action { margin:0 12px 4px; }
+  .account-fields div, .account-fields div:last-child { grid-template-columns:minmax(0,2fr) minmax(0,3fr); padding:7px 0; border-bottom:1px solid #dce8e0; }
+  .account-fields dt { color:#47675b; overflow-wrap:anywhere; }
+  .account-checked { margin:8px 0 0; font-size:.875rem; }
+  .xl #v-profile .profile-actions, .xl :is(#meBody,#profileBody) > * { zoom:1.3; }
   #v-profile :is(button,input,select):focus-visible, #v-me :is(button,summary):focus-visible { outline:2px solid #174ea6; outline-offset:2px; }
 </style>
 </head>
@@ -301,7 +329,7 @@
 
 <div class="side">
   <h1>ทางรอด</h1>
-  <p>DEMO เทียบแอป Flutter รุ่น <code>5938e38</code> · 28 พ.ย. 2569 ใช้ข้อมูลตัวอย่างในไฟล์</p>
+  <p>โปรไฟล์และบัญชีที่เชื่อมต่อ เทียบ Flutter รุ่น <code>8390036</code> · 28 พ.ย. 2569</p>
   <button class="sbtn" type="button" onclick="openStartup(true)">ลองเปิดแอปครั้งแรก</button>
   <button class="sbtn" type="button" onclick="openPlanSamples()">ลองแผนของฉันครบ 10 หมวด</button>
   <div class="nav" id="nav"></div>
@@ -310,6 +338,12 @@
   <div class="grp">สถานะ server (สมมติ)</div>
   <button class="sbtn" id="govToggle" onclick="toggleGov()"></button>
   <button class="sbtn" id="offToggle" onclick="toggleOffline()"></button>
+  <button class="sbtn" id="profileModeToggle" type="button" onclick="toggleProfileUserMode()" aria-pressed="false">ดูแท็บฉันในโหมดผู้ใช้</button>
+  <label class="grp" for="accountFailure" style="display:block">จำลองบริการที่โหลดไม่ได้</label>
+  <select id="accountFailure" onchange="setMockAccountFailure(this.value)" style="width:100%;padding:8px;border-radius:10px;font-size:12.5px">
+    <option value="">ไม่มี</option><option value="0">ThaID</option><option value="1">ทางรัฐ</option>
+    <option value="2">ประกันสังคม (SSO+)</option><option value="3">D-MyTax</option>
+  </select>
   <div class="legend">ป้ายข้อมูลแบบเดียวกับแอป:<br>
     <span class="pill">DEMO / MOCK</span> ข้อมูลจำลอง<br>
     <b>เกณฑ์จากแหล่งสาธารณะ ยังไม่ยืนยันสิทธิ์</b> (curated)<br>
@@ -339,7 +373,7 @@
 
   </div>
   <div class="view" id="v-plans"><div class="body" id="plansBody" role="region" tabindex="-1" aria-labelledby="plansHeading"></div></div>
-  <div class="view" id="v-me"><div class="appbar"><div class="ttl">ฉัน</div></div><div class="body" id="meBody" style="padding:0 10px 24px"></div></div>
+  <div class="view" id="v-me"><div class="appbar"><div class="ttl">ฉัน</div></div><div class="body" id="meBody"></div></div>
 
   <!-- Full-screen flows: bottom bar hidden, back returns -->
   <div class="view" id="v-chat">
@@ -607,11 +641,14 @@ function guardCheck(t, step) {
 
 /* Opening the mock follows Flutter startup. The provider choices are local to this page. */
 const MOCK_SOURCES = [
-  { name:'ThaID', logo:'thaid.png', detail:'อายุหรือช่วงอายุ และเขตตามทะเบียนบ้านจำลอง', facts:{ageBand:'60-69'}, summary:'ชื่อ อายุ และเขตตามทะเบียนบ้าน', sample:[['ชื่อ-นามสกุล','นายสมศักดิ์ สมมติ'],['อายุ','65 ปี'],['เขตตามทะเบียนบ้าน','ปทุมวัน']] },
-  { name:'ทางรัฐ', logo:'thangrat.png', detail:'สถานะบัตรประจำตัวคนพิการจำลอง', facts:{disabilityCard:true}, summary:'สถานะบัตรประจำตัวคนพิการ', sample:[['บัตรประจำตัวคนพิการ','มีบัตรที่ใช้ได้']] },
-  { name:'ประกันสังคม (SSO+)', logo:'sso-plus.png', detail:'มาตราผู้ประกันตนและประวัติส่งเงินสมทบจำลอง', facts:{ss33:true}, summary:'มาตรา 33 และประวัติส่งเงินสมทบ', sample:[['มาตราผู้ประกันตน','มาตรา 33'],['ประวัติส่งเงินสมทบ','8 จาก 15 เดือนก่อนออกงาน']] },
+  { name:'ThaID', logo:'thaid.png', detail:'อายุหรือช่วงอายุ และเขตตามทะเบียนบ้านจำลอง', facts:{ageBand:'60-69'}, summary:'ชื่อ อายุ และเขตตามทะเบียนบ้าน', sample:[['ชื่อ–นามสกุล','นายสมศักดิ์ สมมติ'],['อายุ','65 ปี'],['เขตตามทะเบียนบ้าน','ปทุมวัน']] },
+  { name:'ทางรัฐ', logo:'thangrat.png', detail:'สถานะบัตรประจำตัวคนพิการจำลอง', facts:{disabilityCard:true}, summary:'สถานะบัตรประจำตัวคนพิการ', sample:[['สถานะบัตรประจำตัวคนพิการ','มีบัตรที่ใช้ได้']] },
+  { name:'ประกันสังคม (SSO+)', logo:'sso-plus.png', detail:'มาตราผู้ประกันตนและประวัติส่งเงินสมทบจำลอง', facts:{ss33:true}, summary:'ประวัติส่งเงินสมทบ', sample:[['ประวัติส่งเงินสมทบ','ม. 33 · ส่งสมทบ 8 จาก 15 เดือนก่อนออกงาน']] },
   { name:'D-MyTax', logo:'d-mytax.png', detail:'ปีภาษีและยอดหักภาษี ณ ที่จ่ายจำลอง', facts:{taxWithheld:true}, summary:'ข้อมูลภาษีหัก ณ ที่จ่าย', sample:[['ปีภาษี','2569'],['ภาษีหัก ณ ที่จ่าย','1,250 บาท']] },
 ];
+// All four gov-prefill fixture records share the same as-of date.
+const MOCK_SOURCE_CHECKED = '27/11/2569';
+let profileUserMode = false;
 const ONBOARDING_KEY = 'thang-rot-mock-onboarding-v1';
 const MOCK_BASE_FACTS = {
   govPension:false, oldAgeGets:false, work:'ลาออกหรือหมดสัญญา',
@@ -629,7 +666,7 @@ function saveMockConnections(choices) {
   try { localStorage.setItem(ONBOARDING_KEY, choices); } catch {}
 }
 function refreshMockAssessment() {
-  const selected = MOCK_SOURCES.filter((_, index) => onboardingChoices[index] === 'y');
+  const selected = profileUserMode ? [] : MOCK_SOURCES.filter((_, index) => onboardingChoices[index] === 'y');
   selectedAssessment = selected.length ? Object.assign({}, MOCK_BASE_FACTS, ...selected.map(source => source.facts)) : null;
 }
 let selectedAssessment = null;
@@ -651,6 +688,7 @@ function openStartup(reset = false) {
 }
 function openNextMockSource() {
   if (cur() !== 'startup') return;
+  if (profileUserMode) return finishMockStartup();
   const source = MOCK_SOURCES[onboardingChoices.length];
   if (!source) return finishMockStartup();
   dialog(source.name, `<div class="connect-source">
@@ -1501,43 +1539,100 @@ RENDER.oppd = () => {
 
 /* ================= S9 me tab, P7-P9, P12 sources (me_tab.dart) ================= */
 const PURPOSE_L = { ai:'ให้ AI ช่วยวิเคราะห์', reminders:'เตือนงานค้าง', location:'ใช้ตำแหน่งค้นหา' };
-const mockThaID = () => onboardingChoices[0] === 'y' ? MOCK_SOURCES[0] : null;
+let failedMockAccount = null;
+let retryingMockAccount = null;
+function mockAccountStatus(index) {
+  if (profileUserMode) return 'unconnected';
+  const choice = onboardingChoices[index];
+  if (choice === 'y' || (index === 0 && gov.connected)) {
+    if (index === retryingMockAccount) return 'loading';
+    return offline || index === failedMockAccount ? 'failed' : 'connected';
+  }
+  return 'unconnected';
+}
+const mockThaID = () => mockAccountStatus(0) === 'connected' ? MOCK_SOURCES[0] : null;
+function setMockAccountFailure(value) {
+  failedMockAccount = value === '' ? null : Number(value);
+  retryingMockAccount = null;
+  bump();
+}
+function retryMockAccount(index) {
+  retryingMockAccount = index;
+  bump();
+  setTimeout(() => {
+    if (retryingMockAccount !== index) return;
+    retryingMockAccount = null;
+    if (!offline && failedMockAccount === index) {
+      failedMockAccount = null;
+      $('accountFailure').value = '';
+    }
+    bump();
+    if (cur() === 'me') $('account-row-' + index)?.focus();
+  }, 250);
+}
+function toggleProfileUserMode() {
+  profileUserMode = !profileUserMode;
+  $('profileModeToggle').setAttribute('aria-pressed', String(profileUserMode));
+  $('profileModeToggle').textContent = profileUserMode ? 'กลับไปดูแท็บฉันใน DEMO' : 'ดูแท็บฉันในโหมดผู้ใช้';
+  refreshMockAssessment();
+  goTab('me');
+}
 function accountFields(fields) {
   return `<dl class="plan-facts account-fields">${fields.map(([label,value]) =>
     `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`;
 }
 function connectedAccounts() {
-  const count = [...onboardingChoices].filter(choice => choice === 'y').length;
+  const states = MOCK_SOURCES.map((_, index) => mockAccountStatus(index));
+  const count = states.filter(state => state === 'connected').length;
+  const expanded = [...$('meBody').querySelectorAll('details[open][data-account]')].map(card => card.dataset.account);
   const rows = MOCK_SOURCES.map((source, index) => {
-    const choice = onboardingChoices[index];
-    const connected = choice === 'y';
-    const status = connected ? 'เชื่อมแล้ว · ' + source.summary : choice === 'n' ? 'ยังไม่เชื่อม · ข้ามตอนเริ่มต้น' : 'ยังไม่เชื่อม';
+    const state = states[index];
+    const status = {
+      connected:'เชื่อมแล้ว · ' + source.summary,
+      unconnected:!profileUserMode && onboardingChoices[index] === 'n' ? 'ยังไม่เชื่อม · ข้ามตอนเริ่มต้น' : 'ยังไม่เชื่อม',
+      loading:'กำลังตรวจสถานะ…', failed:'โหลดไม่ได้',
+    }[state];
+    const availability = profileUserMode && [
+      'รอกรมการปกครองอนุมัติการเชื่อมต่อ', 'รอสิทธิ์เข้าถึงข้อมูลจากหน่วยงานเจ้าของบริการ',
+    ][index];
     const row = `<img src="../../app/assets/thang-rot/${source.logo}" alt="">
-      <span><strong>${source.name}</strong><span class="account-status" data-connected="${connected}">${status}</span></span>`;
-    const disconnect = index === 0 ? '<button type="button" class="btn out" onclick="disconnectThaid()">ยกเลิกเชื่อม ThaID</button>' : '';
-    return connected
-      ? `<details class="account-card" data-state="connected"><summary class="account-row">${row}</summary>${accountFields(source.sample)}${disconnect}</details>`
-      : `<div class="account-card" data-state="unconnected"><div class="account-row">${row}</div></div>`;
+      <span><strong>${source.name}</strong><span class="account-status">${status}</span>
+      ${availability ? `<span class="account-status">${availability}</span>` : ''}</span>`;
+    if (state === 'connected') {
+      const disconnect = index === 0 ? '<button type="button" class="btn out" onclick="disconnectThaid()">ยกเลิกการเชื่อม ThaID</button>' : '';
+      return `<details class="account-card" data-state="connected" data-account="${index}" ${expanded.includes(String(index)) ? 'open' : ''}>
+        <summary class="account-row" id="account-row-${index}">${row}</summary>
+        <div class="account-details">${demoPill()}${accountFields(source.sample)}
+          <p class="account-checked">ตรวจล่าสุด ${MOCK_SOURCE_CHECKED}</p>${disconnect}</div></details>`;
+    }
+    const action = state === 'failed' ? `<button type="button" class="btn txt inl account-action" onclick="retryMockAccount(${index})">ลองใหม่</button>`
+      : state === 'unconnected' && index === 0 && gov.flag && !profileUserMode && !offline
+        ? '<button type="button" class="btn txt inl account-action" onclick="connectThaid()">เชื่อม ThaID</button>' : '';
+    return `<div class="account-card" data-state="${state}"><div class="account-row" id="account-row-${index}" tabindex="-1">${row}</div>${action}</div>`;
   });
   return `<section id="connectedAccounts" aria-labelledby="connectedAccountsHeading">
     <h2 id="connectedAccountsHeading" tabindex="-1">บัญชีที่เชื่อมต่อ</h2>
-    <p class="small account-count">เชื่อมแล้ว ${count} จาก ${MOCK_SOURCES.length} บริการ${count ? ' · ข้อมูลจำลอง' : ''}</p>
+    <p class="small account-count" role="status">เชื่อมแล้ว ${count} จาก ${MOCK_SOURCES.length} บริการ${count ? ' · ข้อมูลจำลอง' : ''}</p>
     <div class="account-stack">${rows.join('')}</div>
   </section>`;
 }
 function openConnectedAccounts() {
   goTab('me');
+  const body = $('meBody');
   const heading = $('connectedAccountsHeading');
-  heading.focus();
-  heading.scrollIntoView?.({block:'start'});
+  heading.focus({preventScroll:true});
+  body.scrollTop += heading.getBoundingClientRect().top - body.getBoundingClientRect().top;
 }
 let memOpen = false;
 RENDER.me = () => {
   let h = offline ? offlineCard() : '';
+  const manualSummary = [profile?.displayName, profile?.district && `เขตที่อาศัย ${profile.district}`].filter(Boolean).join('\n');
+  const summary = mockThaID() ? 'ข้อมูลส่วนตัวจาก ThaID · DEMO / MOCK'
+    : offline ? 'โหลดข้อมูลส่วนตัวไม่ได้' : manualSummary || 'แตะเพื่อเพิ่มข้อมูลส่วนตัว';
   h += sec('ข้อมูลของฉัน')
     + `<button type="button" class="me-profile-link" onclick="go('profile')">
-      <span class="profile-monogram" aria-hidden="true">ฉัน</span>
-      <span><strong>โปรไฟล์</strong><span class="small">${mockThaID() ? 'ข้อมูลส่วนตัวจาก ThaID' : 'ข้อมูลส่วนตัวที่คุณแก้ไขได้'}</span></span>
+      <span class="me-profile-icon" aria-hidden="true"></span>
+      <span><span class="me-profile-title">โปรไฟล์</span><span class="small">${esc(summary)}</span></span>
       <span aria-hidden="true">›</span>
     </button>`
     + lt('📈', 'แผนรายได้', '', "go('plan')", true);
@@ -1553,9 +1648,9 @@ RENDER.me = () => {
   if (memOpen) h += memory.length ? memory.map(m => lt('', esc(m.text), m.source === 'ai' ? 'AI จำไว้' : 'คุณเพิ่มเอง', '', false, `<button class="btn txt inl" onclick="forget('${m.id}')">ลบ</button>`)).join('') : lt('', 'ยังไม่มี', '');
   h += lt('', 'ดูข้อมูลที่เก็บไว้', '', 'showMyData()', true) + lt('', '<span style="color:#dc2626">ลบข้อมูลทั้งหมด</span>', '', 'deleteAll()');
   h += sec('ช่วยเหลือ') + lt('', 'วิธีใช้แอป', '', 'helpDlg()') + lt('', 'รู้ทันมิจฉาชีพ', '', 'scamDlg()');
-  h += sec('สำหรับสาธิต (DEMO)') + Object.keys(PERSONAS).map(id => lt('👤', 'โหลดผู้ใช้ตัวอย่าง: ' + PERSONAS[id].label, '', `loadPersona('${id}')`)).join('');
+  if (!profileUserMode) h += sec('สำหรับสาธิต (DEMO)') + Object.keys(PERSONAS).map(id => lt('👤', 'โหลดผู้ใช้ตัวอย่าง: ' + PERSONAS[id].label, '', `loadPersona('${id}')`)).join('');
   h += lt('', 'ที่อยู่ server', esc(serverUrl), 'editServer()', false, '<div class="chev">✎</div>');
-  h += '<div style="padding:8px">' + demoPill('เวอร์ชันสาธิต · ผู้ใช้สมมติ · ไม่มีการเข้าสู่ระบบ') + '</div>';
+  if (!profileUserMode) h += '<div style="padding:8px">' + demoPill('เวอร์ชันสาธิต · ผู้ใช้สมมติ · ไม่มีการเข้าสู่ระบบ') + '</div>';
   $('meBody').innerHTML = h;
 };
 function togglePurpose(k) {
@@ -1572,13 +1667,15 @@ function showMyData() {
 }
 function resetDevice() { facts = {}; consent = null; consentHistory = 0; profile = null; tasks = []; memory = []; docsReady = {}; chat = null; qc = null; gov.connected = false; bySkill = false; rank = {}; }
 function deleteAll() {
-  dialog('ลบข้อมูลทั้งหมด?', 'คำตอบ แผน ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้', [['ยกเลิก', 'txt', 'closeDlg()'], ['ลบข้อมูล', 'red', 'deleteAllYes()']]);
+  dialog('ลบข้อมูลทั้งหมด?', 'คำตอบ แผนรวมถึงแผน DEMO ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้', [['ยกเลิก', 'txt', 'closeDlg()'], ['ลบข้อมูล', 'red', 'deleteAllYes()']]);
 }
 function deleteAllYes() {
-  resetDevice();
-  selectedAssessment = null;
   onboardingChoices = '';
   try { localStorage.removeItem(ONBOARDING_KEY); } catch {}
+  failedMockAccount = retryingMockAccount = null;
+  $('accountFailure').value = '';
+  resetDevice();
+  selectedAssessment = null;
   $('persona').value = '';
   goTab('home');
   toast('ลบข้อมูลและถอนความยินยอมแล้ว');
@@ -1612,6 +1709,7 @@ ENTER.profile = () => {
   pd = { skills:[], hours:null, goal:null, district:null, ...profile, ageBand:facts.ageBand };
   pd.skills = [...pd.skills];
   pd.extra = pd.skills.filter(skill => !SKILL_CHOICES.includes(skill));
+  pd.skillInput = '';
   $('profileBody').innerHTML = '';
 };
 const allSkills = () => SKILL_CHOICES.concat(pd.extra);
@@ -1625,17 +1723,37 @@ function pAdd() {
   if (!value) return;
   if (!allSkills().includes(value)) pd.extra.push(value);
   if (!pd.skills.includes(value)) pd.skills.push(value);
+  pd.skillInput = '';
   bump();
 }
 function profileOptions(options, selected) {
-  return '<option value="">เลือกภายหลัง</option>' + options.map(value =>
+  return '<option value="">เลือกภายหลัง</option>' + [...new Set([...(selected ? [selected] : []), ...options])].map(value =>
     `<option value="${esc(value)}" ${selected === value ? 'selected' : ''}>${esc(value)}</option>`).join('');
+}
+const profileControl = (id, label, control) => `<div class="profile-control">${control}<label for="${id}">${label}</label></div>`;
+const PROFILE_FACT_LABELS = {
+  ageBand:'ช่วงอายุ', nationality:'สัญชาติไทย', registryDistrict:'เขตหรืออำเภอตามทะเบียนบ้าน',
+  registryProvince:'จังหวัดตามทะเบียนบ้าน', govPension:'เงินประจำจากรัฐ', oldAgeGets:'ได้รับเบี้ยผู้สูงอายุ',
+  disabilityCard:'บัตรคนพิการที่ใช้ได้', disabilityGets:'ได้รับเบี้ยความพิการ', welfareCard:'บัตรสวัสดิการแห่งรัฐ',
+  work:'สถานะการทำงาน', ss33:'สมทบ ม.33 ครบ 6 เดือนใน 15 เดือนก่อนออกงาน', wage:'ค่าจ้างล่าสุด',
+  taxWithheld:'ภาษีหัก ณ ที่จ่าย', coverageEnded:'สิ้นสุดสถานะผู้ประกันตน', lifetimePaidMonths33And39:'เดือนสมทบสะสม ม.33 และ ม.39',
+};
+function profileScreening() {
+  if (!Object.keys(facts).length) return '';
+  const rows = Object.entries(PROFILE_FACT_LABELS).filter(([key]) =>
+    Object.hasOwn(facts, key) || ['disabilityCard', 'ss33', 'taxWithheld'].includes(key)).map(([key, label]) => {
+      const value = facts[key];
+      const result = value === true ? 'ใช่' : value === false ? 'ไม่มี / ไม่ใช่' : value ?? 'ยังไม่มีข้อมูล';
+      return lt('▤', esc(label), esc(value == null ? result : `${result} · คุณกรอกเอง`));
+    }).join('');
+  const wasOpen = $('profileBody').querySelector('.profile-screening')?.open;
+  return `<details class="profile-screening" ${wasOpen ? 'open' : ''}><summary>ข้อมูลที่ใช้คัดกรอง</summary>${rows}</details>`;
 }
 function pSave() {
   const draft = pd;
-  const goal = +String($('pGoal').value).replace(/[^\d]/g, '');
+  const goal = Number(String(draft.goal).replace(/[^\d.]/g, ''));
   ensureConsent('เพื่อบันทึกโปรไฟล์ไว้ใช้ประเมินสิทธิ์ หางาน และวางแผนรายได้', () => {
-    profile = {...profile, skills:draft.skills.slice(), hours:draft.hours, goal:goal > 0 ? goal : null};
+    profile = {...profile, skills:draft.skills.slice(), hours:draft.hours, goal:Number.isFinite(goal) && goal > 0 ? goal : null};
     if (!mockThaID()) {
       profile.displayName = draft.displayName?.trim() || null;
       profile.district = draft.district || null;
@@ -1648,41 +1766,52 @@ function pSave() {
 }
 RENDER.profile = () => {
   if (!pd) ENTER.profile();
+  const body = $('profileBody');
+  const save = $('v-profile').querySelector('.profile-save');
+  save.parentElement.classList.toggle('hidden', offline);
+  if (offline) {
+    body.innerHTML = '<div class="profile-unavailable"><div>โหลดโปรไฟล์ไม่ได้</div><button type="button" class="btn out" onclick="retry()">ลองใหม่</button></div>';
+    return;
+  }
   const source = mockThaID();
+  const loading = mockAccountStatus(0) === 'loading';
+  save.disabled = loading;
+  const accountShortcut = stack.at(-2) === 'me'
+    ? '<button class="btn out" type="button" onclick="openConnectedAccounts()">ดูบัญชีที่เชื่อมต่อ</button>' : '';
   const identity = source
-    ? accountFields(source.sample) + '<p class="profile-footnote">ข้อมูลจาก ThaID อ่านได้อย่างเดียว</p><button class="btn out" type="button" onclick="openConnectedAccounts()">ดูบัญชีที่เชื่อมต่อ</button>'
+    ? accountFields(source.sample) + '<p class="profile-footnote">ข้อมูลจาก ThaID อ่านได้อย่างเดียว</p>' + accountShortcut
+    : loading ? '<div role="status">กำลังตรวจสถานะ ThaID…</div>'
     : `<div class="profile-fields">
-      <label for="pDisplayName">ชื่อที่ใช้ในแอป<input id="pDisplayName" maxlength="80" value="${esc(pd.displayName)}"
-        placeholder="เช่น ชื่อเล่น" oninput="pd.displayName=this.value"></label>
-      <label for="pAge">ช่วงอายุ<select id="pAge" onchange="pd.ageBand=this.value">${profileOptions(FACTS.ageBand.options,pd.ageBand)}</select></label>
-      <label for="pDistrict">เขตที่อาศัย<select id="pDistrict" onchange="pd.district=this.value">${profileOptions(OPP_DISTRICTS,pd.district)}</select></label>
+      ${profileControl('pDisplayName','ชื่อที่ใช้ในแอป',`<input id="pDisplayName" maxlength="80" value="${esc(pd.displayName)}" placeholder="เช่น ชื่อเล่น" oninput="pd.displayName=this.value">`)}
+      ${profileControl('pAge','ช่วงอายุ',`<select id="pAge" onchange="pd.ageBand=this.value">${profileOptions(FACTS.ageBand.options,pd.ageBand)}</select>`)}
+      ${profileControl('pDistrict','เขตที่อาศัย',`<select id="pDistrict" onchange="pd.district=this.value">${profileOptions(OPP_DISTRICTS,pd.district)}</select>`)}
     </div>`;
   const skills = allSkills().map((skill, index) => {
     const selected = pd.skills.includes(skill);
     return `<button class="chip${selected ? ' on' : ''}" type="button" aria-pressed="${selected}" onclick="pSkill(${index})">${esc(skill)}</button>`;
   }).join('');
-  const hours = HOUR_CHOICES.map(value => {
+  const hourOptions = [...new Set([...HOUR_CHOICES, ...(pd.hours ? [pd.hours] : [])])];
+  const hours = hourOptions.map(value => {
     const selected = pd.hours === value;
-    return `<button class="chip${selected ? ' on' : ''}" type="button" aria-pressed="${selected}" onclick="pd.hours='${value}';bump()">${value}</button>`;
+    return `<button class="chip${selected ? ' on' : ''}" type="button" aria-pressed="${selected}" value="${esc(value)}" onclick="pChooseHours(this.value)">${esc(value)}</button>`;
   }).join('');
-  $('profileBody').innerHTML = `<section class="card profile-card profile-identity" data-connected="${Boolean(source)}">
+  const screening = profileScreening();
+  body.innerHTML = `<section class="card profile-card profile-identity" data-connected="${Boolean(source)}">
     <div class="profile-section-head"><h2>ข้อมูลส่วนตัว</h2>
-      <span class="profile-source-badge">${source ? 'ThaID · DEMO / MOCK' : 'คุณกรอกเอง'}</span></div>
+      ${loading ? '' : `<span class="profile-source-badge">${source ? 'ThaID · DEMO / MOCK' : 'คุณกรอกเอง'}</span>`}</div>
     ${identity}</section>
     <section class="card profile-card"><div class="profile-section-head"><h2>งานและรายได้</h2></div>
-      <b>ทักษะ</b><div class="chips">${skills}</div>
-      <div class="row" style="margin-top:8px"><input id="pSkillIn" class="grow" aria-label="ทักษะอื่น" placeholder="เพิ่มทักษะอื่น"
-        onkeydown="if(event.key==='Enter')pAdd()"><button type="button" class="btn txt inl" onclick="pAdd()">เพิ่ม</button></div>
-      <div class="profile-work-label">เวลาว่างต่อสัปดาห์ (ชั่วโมง)</div><div class="chips">${hours}</div>
-      <label class="profile-work-label" for="pGoal">เป้ารายได้ต่อเดือน (บาท)
-        <input id="pGoal" inputmode="numeric" placeholder="เช่น 10000" value="${esc(pd.goal)}" oninput="pd.goal=this.value">
-      </label>
-    </section>`;
+      <p class="profile-work-label">ทักษะ</p><div class="chips">${skills}</div>
+      <div class="row profile-skill-entry">${profileControl('pSkillIn','เพิ่มทักษะอื่น',`<input id="pSkillIn" placeholder=" " value="${esc(pd.skillInput)}" oninput="pd.skillInput=this.value" onkeydown="if(event.key==='Enter')pAdd()">`)}<button type="button" class="btn txt inl" onclick="pAdd()">เพิ่ม</button></div>
+      <p class="profile-work-label spaced">เวลาว่างต่อสัปดาห์ (ชั่วโมง)</p><div class="chips">${hours}</div>
+      <div class="profile-goal">${profileControl('pGoal','เป้ารายได้ต่อเดือน (บาท)',`<input id="pGoal" inputmode="numeric" placeholder="เช่น 10000" value="${esc(pd.goal)}" oninput="pd.goal=this.value">`)}</div>
+    </section>${screening}`;
   if (profileEntering) {
-    $('profileBody').scrollTop = 0;
+    body.scrollTop = 0;
     profileEntering = false;
   }
 };
+function pChooseHours(value) { pd.hours = pd.hours === value ? null : value; bump(); }
 
 /* ================= S11 income plan (income_plan_screen.dart, GET /v1/plans/goal) ================= */
 const KIND_IC = { benefit:'💰', job:'💼', skill:'🛠️' }, KIND_L = { benefit:'เงินจากรัฐ', job:'งาน', skill:'รายได้จากทักษะ' };
@@ -1861,7 +1990,8 @@ function freeAnswer(t) {
 
 /* ================= P11 ThaID (thaid.dart) ================= */
 function connectThaid() {
-  dialog('🪪 เชื่อม ThaID ดึงสิทธิ์จากรัฐ', '<p style="margin-top:0">แอปจะขอข้อมูลสิทธิ์และเงินที่คุณได้รับจากหน่วยงานผ่าน ThaID เพื่อยืนยันผลแทนการตอบคำถามเอง</p>'
+  dialog('🪪 เชื่อม ThaID ดึงสิทธิ์จากรัฐ', '<p style="margin-top:0">ThaID จะส่งข้อมูลตัวตนให้แอป: ชื่อ-นามสกุล (ไทย/อังกฤษ), วันเกิด, เพศ, ที่อยู่ตามทะเบียนบ้าน, วันออกบัตรและวันหมดอายุ เลขบัตรประชาชนแอปเห็นแค่แบบปิดบัง</p>'
+    + '<p>แอปใช้ข้อมูลนี้เติมโปรไฟล์และช่วยตรวจสิทธิ์จากหน่วยงาน</p>'
     + '<p>โหมดสาธิต: ยังเชื่อม ThaID จริงไม่ได้ (ต้องมีข้อตกลงกับผู้ให้บริการ) แอปจะข้ามขั้นยืนยันตัวตนและใช้ข้อมูลจำลองที่ทำงานเหมือนเชื่อมได้ ทุกรายการติดป้าย DEMO / MOCK</p><p>ยกเลิกการเชื่อมได้ทุกเมื่อที่แท็บ ฉัน</p>',
     [['ไม่ใช่ตอนนี้', 'txt', 'closeDlg()'], ['ยินยอมและเชื่อม', '', 'thaidAccept()']]);
 }
@@ -1876,17 +2006,15 @@ function thaidAccept() {
 function thaidDone() {
   closeDlg(); if (!gov.flag) { toast('server ปิดโหมด ThaID อยู่ (ตั้ง GOV_CONNECTED=1)'); return; }
   gov.connected = true;
-  saveMockConnections('y' + onboardingChoices.slice(1));
-  refreshMockAssessment();
-  bump(); toast('เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เงินที่หน่วยงานมีข้อมูลจะขึ้นว่า ยืนยันจากหน่วยงาน');
+  bump(); toast('เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เพิ่มข้อมูลยืนยันตัวตนในโปรไฟล์แล้ว');
 }
 function disconnectThaid() {
   gov.connected = false;
   if (consent) consent.gov = false;
-  if (mockThaID()) saveMockConnections('d' + onboardingChoices.slice(1));
+  if (onboardingChoices[0] === 'y') saveMockConnections('d' + onboardingChoices.slice(1));
   refreshMockAssessment();
   bump();
-  toast('ยกเลิกเชื่อม ThaID แล้ว');
+  toast('ยกเลิกการเชื่อม ThaID และลบข้อมูลจากหน่วยงานแล้ว');
 }
 
 /* ================= side panel ================= */

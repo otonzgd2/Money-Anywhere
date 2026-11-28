@@ -23,7 +23,7 @@ const tabsHidden = () => d.getElementById('tabs').classList.contains('hidden');
 const ev = s => w.eval(s);
 const run = (name, fn) => { try { fn(); } catch (e) { check(name + ' threw: ' + e.message, false); } };
 
-setTimeout(() => {
+setTimeout(async () => {
   run('Thang Rot first launch and mock assessment', () => {
     check('demo uses the same Thang Rot name as Flutter', d.title === 'ทางรอด · DEMO');
     ev('openStartup(true)');
@@ -336,6 +336,11 @@ setTimeout(() => {
     check('skip all leaves four accounts with no values', connected().length === 0 &&
       d.querySelectorAll('#connectedAccounts [data-state="unconnected"]').length === 4 &&
       !d.querySelector('#connectedAccounts dl'));
+    ev('if (!gov.flag) toggleGov()');
+    const canLink = d.querySelector('#connectedAccounts button')?.textContent === 'เชื่อม ThaID';
+    ev('toggleGov()');
+    check('Me offers ThaID linking only if its demo endpoint is enabled',
+      canLink && !d.querySelector('#connectedAccounts button'));
     d.querySelector('.me-profile-link').click();
     check('without ThaID, identity fields are editable and separated from work preferences',
       on('profile') && !getField('pDisplayName').readOnly && !!getField('pAge') && !!getField('pDistrict') &&
@@ -351,6 +356,8 @@ setTimeout(() => {
     ev('setConsent({core:true}); pSave()');
     check('manual identity saves using the same profile and age fact',
       ev("profile.displayName === 'ชื่อเล่นทดสอบ' && profile.district === 'บางนา' && facts.ageBand === '70-79'"));
+    check('Me summarizes the saved display name and current district',
+      d.querySelector('.me-profile-link .small').textContent === 'ชื่อเล่นทดสอบ\nเขตที่อาศัย บางนา');
 
     connect(['n','y','n','y']);
     check('only selected Tang Rat and D-MyTax reveal source fields',
@@ -365,6 +372,11 @@ setTimeout(() => {
     check('selected ThaID, SSO+ and D-MyTax match onboarding',
       connected().map(card => card.querySelector('strong').textContent).join('|') === 'ThaID|ประกันสังคม (SSO+)|D-MyTax'
       && !text('connectedAccounts').includes('มีบัตรที่ใช้ได้'));
+    check('Flutter account details carry source labels, timestamps and separate tax fields',
+      connected().every(card => card.querySelector('.pill').textContent === 'DEMO / MOCK'
+        && card.querySelector('.account-checked').textContent === 'ตรวจล่าสุด 27/11/2569')
+      && text('connectedAccounts').includes('ม. 33 · ส่งสมทบ 8 จาก 15 เดือนก่อนออกงาน')
+      && [...connected().at(-1).querySelectorAll('dt')].map(field => field.textContent).join('|') === 'ปีภาษี|ภาษีหัก ณ ที่จ่าย');
     d.querySelector('.me-profile-link').click();
     check('ThaID identity displays name, age and registry district without identity form fields',
       text('profileBody').includes('นายสมศักดิ์ สมมติ') && text('profileBody').includes('65 ปี') &&
@@ -384,6 +396,29 @@ setTimeout(() => {
     check('delete-all also clears saved provider selections',
       connected().length === 0 && text('connectedAccounts').includes('เชื่อมแล้ว 0 จาก 4 บริการ') &&
       w.localStorage.getItem('thang-rot-mock-onboarding-v1') === null);
+  });
+
+  run('connected account retry and user mode match Flutter', () => {
+    ev("saveMockConnections('nnyy'); goTab('me'); setMockAccountFailure('3')");
+    check('a failed account shows retry without exposing data or counting as connected',
+      d.querySelector('#connectedAccounts [data-state="failed"] button')?.textContent === 'ลองใหม่'
+      && text('connectedAccounts').includes('เชื่อมแล้ว 1 จาก 4 บริการ') && !text('connectedAccounts').includes('1,250 บาท'));
+    d.querySelector('#connectedAccounts [data-state="failed"] button').click();
+    check('retry loads only the selected failed service',
+      d.querySelector('#connectedAccounts [data-state="loading"]')?.textContent.includes('D-MyTax')
+      && text('connectedAccounts').includes('เชื่อมแล้ว 1 จาก 4 บริการ'));
+  });
+  await new Promise(resolve => setTimeout(resolve, 275));
+  run('retry restores the selected service and user mode hides demo sources', () => {
+    check('retry makes the recovered details available again',
+      text('connectedAccounts').includes('เชื่อมแล้ว 2 จาก 4 บริการ') && text('connectedAccounts').includes('1,250 บาท'));
+    d.getElementById('profileModeToggle').click();
+    check('user mode shows availability without showing demo connection values',
+      text('connectedAccounts').includes('เชื่อมแล้ว 0 จาก 4 บริการ')
+      && text('connectedAccounts').includes('รอกรมการปกครองอนุมัติการเชื่อมต่อ')
+      && !d.querySelector('#connectedAccounts details') && ev("onboardingChoices === 'nnyy'"));
+    d.querySelector('.me-profile-link').click();
+    check('user mode opens the editable profile form', text('profileBody').includes('คุณกรอกเอง') && !!d.getElementById('pDisplayName'));
   });
 
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));
