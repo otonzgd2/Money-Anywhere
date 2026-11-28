@@ -366,6 +366,24 @@ function createServer(opts = {}) {
     && opportunityLocations(o).some(l => l.coordinateSource === 'database');
   const districtName = value => normalizeJobText(value).replace(/^เขต/, '');
   const bangkokProvinces = new Set(['กรุงเทพมหานคร', 'กรุงเทพฯ', 'กรุงเทพ', 'กทม', 'bangkok'].map(normalizeJobText));
+  // Longest names first, so a district name inside a longer one is not matched twice.
+  const bangkokDistricts = readJson('fixtures/bangkok-district-map.json').districts
+    .map(({ name, lat, lng }) => ({ name, key: districtName(name), lat, lng }))
+    .sort((a, b) => b.key.length - a.key.length);
+  function districtsIn(text) {
+    let rest = normalizeJobText(text);
+    const found = [];
+    for (const district of bangkokDistricts) {
+      if (!rest.includes(district.key)) continue;
+      found.push(district);
+      rest = rest.split(district.key).join(' ');
+    }
+    return found;
+  }
+  const homeDistrict = d => {
+    const key = districtName((d && govIdentity(d) ? profileWithIdentity(d) : d?.profile)?.district);
+    return key ? bangkokDistricts.find(district => district.key === key) : undefined;
+  };
 
   // ---- shared services (used by HTTP routes and by the AI agent) ----
   function search(d, q) {
@@ -499,16 +517,29 @@ function createServer(opts = {}) {
         run: a => { const route = money.route(a.moneyId, facts(), govData(d), d.docsReady[a.moneyId]); return route ? { ...route, savedPlan: savedMoneyPlan(a.moneyId) } : { error: 'not found' }; } },
       search_opportunities: { mode: 'read', description: 'ค้นหาโอกาสใกล้ผู้ใช้', parameters: { type: 'object', properties: { q: { type: 'string' }, group: { type: 'string' }, limit: { type: 'integer' } } },
         run: a => {
-          const q = new URLSearchParams();
-          if (a.q) q.set('q', a.q);
-          if (context.sideJob || a.group) q.set('group', context.sideJob ? 'job' : a.group);
-          if (context.remote) q.set('workMode', 'remote');
-          const { xs } = search(d, q);
+          const params = extra => {
+            const q = new URLSearchParams(extra);
+            if (a.q) q.set('q', a.q);
+            if (context.sideJob || a.group) q.set('group', context.sideJob ? 'job' : a.group);
+            if (context.remote) q.set('workMode', 'remote');
+            return q;
+          };
+          const area = context.jobArea;
+          let xs;
+          if (!area) xs = search(d, params()).xs;
+          else if (!area.district) xs = search(d, params({ area: 'bangkok' })).xs;
+          else {
+            // The radius only filters pinned listings, so district-level listings count as near only inside the district.
+            const { name, lat, lng } = area.district;
+            const pinned = search(d, params({ lat, lng })).xs.filter(o => o.location.precision === 'exact');
+            const inDistrict = search(d, params({ area: 'bangkok', district: name })).xs;
+            xs = [...new Map([...pinned, ...inDistrict].map(o => [o.id, o])).values()];
+          }
           const items = xs.filter(o => (!context.sideJob || (sideJob(o) &&
             (context.spareHours === undefined || (advertisedShiftHours(o) ?? 0) <= context.spareHours)))
             && !context.excludedJobs?.has(o.id))
             .slice(0, Math.min(5, a.limit || 3));
-          return { items: items.map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) };
+          return { items: items.map(o => ({ id: o.id, title: o.title, money: o.money, district: o.location.district, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) };
         } },
       plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
         parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => Number.isInteger(a.target) && a.target > 0 && a.target <= 1000000 ? goalPlan(d, a.target, context) : { error: 'invalid monthly goal' } },
@@ -879,6 +910,10 @@ function createServer(opts = {}) {
       return turn(question, kind);
     }
 
+    function askJobDistrict(question = 'หางานแถวเขตไหนคะ? พิมพ์ชื่อเขต เช่น บางนา', options = ['ค้นทั้งกรุงเทพฯ']) {
+      return incomeAsk('jobDistrict', question, options);
+    }
+
     function askSideJobHours() {
       return incomeAsk('sideJobHours', 'คุณมีงานประจำอยู่แล้ว เราดูเฉพาะงานเสริมได้ค่ะ นอกเวลางานประจำ คุณว่างกี่ชั่วโมงต่อสัปดาห์?',
         ['ไม่เกิน 10', '10-20', 'ยังไม่แน่ใจ']);
@@ -962,7 +997,7 @@ function createServer(opts = {}) {
       const returnedJobs = new Set(excludedJobs);
       const spareHours = regular ? sideHours() : undefined;
       const tools = agentTools(d, device, { ...benefitContext(benefit || {}), remote: income && c.topic.remote,
-        sideJob: regular, spareHours, excludedJobs });
+        sideJob: regular, spareHours, excludedJobs, jobArea: income ? c.topic.jobArea : undefined });
       const allowed = income ? Object.fromEntries(Object.entries(tools).filter(([key]) =>
         ['search_opportunities', 'create_task', 'get_profile'].includes(key))) : { ...tools };
       delete allowed.save_income_goal;
@@ -1147,6 +1182,14 @@ function createServer(opts = {}) {
       if (workSafety) return turn('ระวังงานที่ขอมัดจำค่ะ ตรวจชื่อบริษัทกับช่องทางทางการก่อน ดูงานอื่นที่ระบุเงื่อนไขชัดและสมัครได้โดยไม่โอนเงิน');
       if (explicit.remote && !d.profile?.skills?.length) return incomeAsk('jobSkills', 'ถ้าจะทำงานจากบ้าน คุณถนัดงานอะไรบ้าง?', ['ดูทางเลือก']);
       if (explicit.remote && !d.profile?.hoursPerWeek) return incomeAsk('jobHours', 'คุณมีเวลาทำงานจากบ้านประมาณกี่ชั่วโมงต่อสัปดาห์?', ['ดูทางเลือก']);
+      if (!c.topic.remote) {
+        const named = districtsIn(text);
+        c.topic.jobQuery = text;
+        if (named.length > 1) return askJobDistrict('หมายถึงเขตไหนคะ?', named.map(district => district.name));
+        const home = homeDistrict(d);
+        c.topic.jobArea = named.length ? { district: named[0] } : c.topic.jobArea || (home && { district: home });
+        if (!c.topic.jobArea) return askJobDistrict();
+      }
       setStep(d, c, null);
       c.incomeQuestion = null;
       return runAssistant(text, 'in_scope', { income: true });
@@ -1183,6 +1226,16 @@ function createServer(opts = {}) {
       return runAssistant('ช่วยดูเงินของฉันหน่อย', 'in_scope');
     }
     if (c.topic?.id === 'income') {
+      if (sameQuestion?.fact === 'jobDistrict') {
+        const named = districtsIn(text);
+        if (text === 'ค้นทั้งกรุงเทพฯ' || guard.check(text, sameQuestion).kind === 'skip') c.topic.jobArea = { district: null };
+        else if (named.length === 1) c.topic.jobArea = { district: named[0] };
+        else if (named.length) return askJobDistrict('หมายถึงเขตไหนคะ?', named.map(district => district.name));
+        else return askJobDistrict('ยังไม่รู้จักเขตนี้ พิมพ์ชื่อเขตในกรุงเทพฯ เช่น บางนา');
+        c.incomeQuestion = null;
+        setStep(d, c, null);
+        return runAssistant(c.topic.jobQuery || 'หางานใกล้บ้าน', 'in_scope', { income: true });
+      }
       if (sameQuestion?.fact === 'jobSkills' || sameQuestion?.fact === 'jobHours') {
         if (text === 'ดูทางเลือก' || guard.check(text, sameQuestion).kind === 'skip') return incomeIdeas();
         const skillText = sameQuestion.fact === 'jobSkills' ? text : undefined;
