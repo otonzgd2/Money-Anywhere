@@ -351,16 +351,6 @@
             "id": "pa10",
             "tool": "create_task",
             "label": "บันทึกเข้าแผนของฉัน: เจ้าหน้าที่รับสินค้าเข้าคลัง · เขตบางนา"
-          },
-          {
-            "id": "pa11",
-            "tool": "create_task",
-            "label": "บันทึกเข้าแผนของฉัน: ผู้ช่วยบัญชีเจ้าหนี้ · เขตบางนา"
-          },
-          {
-            "id": "pa12",
-            "tool": "create_task",
-            "label": "บันทึกเข้าแผนของฉัน: เจ้าหน้าที่ประสานงานหน้าร้าน · เขตบางนา"
           }
         ]
       }
@@ -378,7 +368,7 @@
       },
       "status": 201,
       "response": {
-        "id": "t13",
+        "id": "t11",
         "title": "เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา",
         "districtCode": "1047",
         "status": "active",
@@ -395,7 +385,7 @@
       "name": "Complete the first step",
       "request": {
         "method": "POST",
-        "path": "/v1/tasks/t13/events",
+        "path": "/v1/tasks/t11/events",
         "headers": {
           "Idempotency-Key": "qa-step-01"
         },
@@ -405,7 +395,7 @@
       },
       "status": 201,
       "response": {
-        "id": "t13",
+        "id": "t11",
         "doneCount": 1
       }
     },
@@ -413,7 +403,7 @@
       "name": "Retry the same event",
       "request": {
         "method": "POST",
-        "path": "/v1/tasks/t13/events",
+        "path": "/v1/tasks/t11/events",
         "headers": {
           "Idempotency-Key": "qa-step-01"
         },
@@ -423,7 +413,7 @@
       },
       "status": 201,
       "response": {
-        "id": "t13",
+        "id": "t11",
         "doneCount": 1
       }
     }

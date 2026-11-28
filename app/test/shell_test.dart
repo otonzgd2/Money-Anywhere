@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:ui' show Size;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart' show Scrollable;
 
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
 import 'package:money_anywhere/main.dart';
+import 'package:money_anywhere/me_tab.dart';
 
 class _OfflineApi extends Api {
   @override
@@ -52,7 +54,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('ฉัน').last);
     await tester.pumpAndSettle();
-    expect(find.text('ลบข้อมูลทั้งหมด'), findsOneWidget);
     expect(find.text('ตัวอักษรใหญ่'), findsOneWidget);
+    final settings = find.descendant(
+      of: find.byType(MeTab),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text('ลบข้อมูลทั้งหมด'),
+      200,
+      scrollable: settings.first,
+    );
+    expect(find.text('ลบข้อมูลทั้งหมด'), findsOneWidget);
   });
 }
