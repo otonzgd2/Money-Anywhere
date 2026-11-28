@@ -7,6 +7,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
 import 'package:money_anywhere/main.dart';
+import 'package:money_anywhere/onboarding_screen.dart';
+import 'package:money_anywhere/opportunity_assessment.dart';
 import 'package:money_anywhere/opp_screen.dart';
 import 'package:money_anywhere/opp_tab.dart' show OppTab;
 import 'package:money_anywhere/opportunity_catalog.dart';
@@ -54,8 +56,11 @@ class FlowApi extends Api {
   bool user = false,
       configFails = false,
       assessmentFails = false,
-      saveFails = false;
+      saveFails = false,
+      connectFails = false;
   bool? hasMoreMapLocations;
+  bool taxPreviewIncomplete = false;
+  bool largeText = false;
   final districtCounts = <String, int>{};
   Completer<Map<String, dynamic>>? pendingSave;
   Map<String, dynamic>? previewFacts;
@@ -74,11 +79,42 @@ class FlowApi extends Api {
     calls.add(path);
     final uri = Uri.parse(path);
     switch (uri.path) {
+      case '/v1/me/settings':
+        return {'largeText': largeText};
       case '/v1/app-config':
         if (configFails) throw ApiException(503, 'TEST', 'config');
         return {
           'mode': user ? 'user' : 'demo',
           'featureFlags': {'demo': !user},
+        };
+      case '/v1/demo/personas/gov-prefill':
+        if (connectFails) {
+          throw ApiException(503, 'TEST', 'โหลดข้อมูลจำลองไม่ได้');
+        }
+        final source = DemoSource.values.firstWhere(
+          (entry) => entry.id == uri.queryParameters['sources'],
+        );
+        final preview = switch (source) {
+          DemoSource.thaid => {
+            'name': 'สมศักดิ์ สมมติ',
+            'age': '65 ปี',
+            'district': 'ปทุมวัน',
+          },
+          DemoSource.thangRat => {'card': 'มีบัตรที่ใช้ได้'},
+          DemoSource.socialSecurity => {
+            'section': 'มาตรา 33',
+            'contributions': '8 จาก 15 เดือนก่อนออกงาน',
+          },
+          DemoSource.dMyTax => {
+            'taxYear': '2569',
+            if (!taxPreviewIncomplete) 'withholding': '1,250 บาท',
+          },
+        };
+        return {
+          'dataStatus': 'mock',
+          'sources': [
+            {'field': source.field, 'preview': preview},
+          ],
         };
       case '/v1/money':
         if (assessmentFails) throw ApiException(503, 'TEST', 'assessment');
@@ -225,6 +261,24 @@ void main() {
     }
     await tester.tap(text.hitTestable().first);
     await tester.pumpAndSettle();
+    if (label == select || label == 'ลองเชื่อมใหม่') {
+      await tester.pump(const Duration(milliseconds: 450));
+      await tester.pumpAndSettle();
+    }
+  }
+
+  Future<void> beginAssessment(WidgetTester tester) async {
+    expect(find.text('พร้อมเริ่มใช้งาน'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'เริ่มใช้งาน'),
+          )
+          .onPressed,
+      isNull,
+    );
+    await choose(tester, 'ฉันรับทราบเงื่อนไขการใช้งานและประกาศความเป็นส่วนตัว');
+    await choose(tester, 'เริ่มใช้งาน');
   }
 
   testWidgets(
@@ -237,10 +291,10 @@ void main() {
         'ประกันสังคม (SSO+)',
         'D-MyTax',
       ]) {
-        expect(find.text(source), findsOneWidget);
+        expect(find.text('เชื่อมต่อ $source'), findsOneWidget);
         expect(
           find.descendant(
-            of: find.byType(AlertDialog),
+            of: find.byType(OnboardingScreen),
             matching: find.byType(Image),
           ),
           findsOneWidget,
@@ -251,6 +305,7 @@ void main() {
         );
         await choose(tester, select);
       }
+      await beginAssessment(tester);
       expect(api.onboardingChoices, 'yyyy');
       expect(api.calls, contains('demo-device:thang-rot-onboarding'));
       expect(
@@ -272,10 +327,11 @@ void main() {
     (tester) async {
       await launch(tester);
       await choose(tester, select);
-      await choose(tester, 'ข้าม');
+      await choose(tester, 'ไว้ภายหลัง');
       await launch(tester);
-      expect(find.text('ประกันสังคม (SSO+)'), findsOneWidget);
+      expect(find.text('เชื่อมต่อ ประกันสังคม (SSO+)'), findsOneWidget);
       await choose(tester, skipAll);
+      await beginAssessment(tester);
       expect(api.onboardingChoices, 'ynnn');
       expect(
         api.calls.where((call) => call.startsWith('isolated')).single,
@@ -289,10 +345,87 @@ void main() {
   ) async {
     await launch(tester);
     await choose(tester, skipAll);
+    await beginAssessment(tester);
     expect(api.onboardingChoices, 'nnnn');
-    expect(api.calls.where((call) => call.contains('personas')), isEmpty);
+    expect(api.calls.where((call) => call.startsWith('isolated')), isEmpty);
     expect(find.text('ข้อมูลยังไม่พอประเมิน'), findsOneWidget);
   });
+
+  testWidgets('connection error can be retried, and back preserves choices', (
+    tester,
+  ) async {
+    await launch(tester);
+    api.connectFails = true;
+    await choose(tester, select);
+    expect(find.text('โหลดข้อมูลจำลองไม่ได้'), findsOneWidget);
+    expect(api.onboardingChoices, isEmpty);
+    api.connectFails = false;
+    await choose(tester, 'ลองเชื่อมใหม่');
+    expect(find.text('เชื่อมต่อ ทางรัฐ'), findsOneWidget);
+    await tester.tap(find.byTooltip('ย้อนกลับ'));
+    await tester.pumpAndSettle();
+    expect(find.text('เชื่อมต่อ ThaID'), findsOneWidget);
+    await choose(tester, 'ไว้ภายหลัง');
+    await choose(tester, skipAll);
+    await beginAssessment(tester);
+    expect(api.onboardingChoices, 'nnnn');
+  });
+
+  testWidgets(
+    'four synthetic previews render before connecting on a small screen',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      api.largeText = true;
+      await tester.pumpWidget(
+        MoneyAnywhereApp(
+          app: AppState(api)..largeText.value = true,
+          runStartup: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        MediaQuery.textScalerOf(tester.element(find.byType(OnboardingScreen)))
+            .scale(10),
+        greaterThan(10),
+      );
+      for (final values in [
+        ['สมศักดิ์ สมมติ', '65 ปี', 'ปทุมวัน'],
+        ['มีบัตรที่ใช้ได้'],
+        ['มาตรา 33', '8 จาก 15 เดือนก่อนออกงาน'],
+        ['2569', '1,250 บาท'],
+      ]) {
+        for (final value in values) {
+          await tester.ensureVisible(find.text(value));
+          expect(find.text(value).hitTestable(), findsOneWidget);
+        }
+        expect(find.text('DEMO / MOCK'), findsOneWidget);
+        expect(api.onboardingChoices.contains('y'), isFalse);
+        await choose(tester, 'ไว้ภายหลัง');
+        expect(tester.takeException(), isNull);
+      }
+      expect(api.onboardingChoices, 'nnnn');
+      expect(api.calls.where((call) => call.startsWith('isolated')), isEmpty);
+    },
+  );
+
+  testWidgets(
+    'unavailable preview can be retried without filling a missing value',
+    (tester) async {
+      api.saveOnboardingChoices('nnn');
+      api.connectFails = true;
+      api.taxPreviewIncomplete = true;
+      await launch(tester);
+      expect(find.text('ยังไม่มีข้อมูล'), findsNWidgets(2));
+      api.connectFails = false;
+      await choose(tester, 'ลองโหลดค่าตัวอย่างอีกครั้ง');
+      expect(find.text('2569'), findsOneWidget);
+      expect(find.text('ยังไม่มีข้อมูล'), findsOneWidget);
+      expect(find.text('1,250 บาท'), findsNothing);
+      expect(api.onboardingChoices, 'nnn');
+    },
+  );
 
   testWidgets(
     'AC-04 unavailable config leaves onboarding pending and user mode can retry assessment',
@@ -319,9 +452,14 @@ void main() {
     tester.view.physicalSize = const Size(800, 980);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final app = AppState(api)..oppGroup.value = 'job';
-    await tester.pumpWidget(MaterialApp(home: OppTab(app: app)));
+    final app = AppState(api)..goTab(AppTab.opportunities, group: 'job');
+    await tester.pumpWidget(MoneyAnywhereApp(app: app));
     await tester.pumpAndSettle();
+    await choose(tester, 'ประเภทงาน');
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(app.tab.value, AppTab.opportunities);
+    expect(find.byType(CheckboxMenuButton), findsNothing);
     await choose(tester, 'ประเภทงาน');
     await choose(tester, 'งานประจำ');
     await choose(tester, 'ฟรีแลนซ์');
@@ -361,7 +499,7 @@ void main() {
     const lanes = {
       'สิทธิ์และสวัสดิการ': {'welfare', 'refund', 'owed'},
       'ขายสินค้า': {'sell'},
-      'อื่นๆ': {'assets', 'grant', 'skill'},
+      'อื่น ๆ': {'assets', 'grant', 'skill'},
       'ทั้งหมด': {null},
     };
     for (final lane in lanes.entries) {
@@ -463,13 +601,13 @@ void main() {
 
     await choose(tester, 'ดูแผนที่');
     expect(find.byTooltip('ประกาศ full1'), findsOneWidget);
-    expect(find.text('DEMO · พิกัดรายเขต 1 เขต'), findsOneWidget);
+    expect(find.textContaining('DEMO · 1 เขต'), findsOneWidget);
     final districtPin = find.byTooltip('เขตบางนา 40 รายการจำลอง');
     expect(districtPin, findsOneWidget);
     await tester.tap(districtPin);
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(OutlinedButton, 'เขตบางนา'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'เขตบางนา'), findsOneWidget);
     expect(find.text('ดูแผนที่'), findsOneWidget);
     expect(
       api.calls.map(Uri.parse).any((uri) {

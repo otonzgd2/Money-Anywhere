@@ -4,6 +4,7 @@ import 'api.dart';
 import 'common.dart';
 import 'money.dart';
 import 'route_screen.dart';
+import 'thang_rot_theme.dart';
 
 /// Quick money check: one question at a time via POST /v1/money/preview (nothing stored, no consent yet).
 /// Stops as soon as there is a sourced amount to show; the rest can be asked afterwards.
@@ -107,7 +108,7 @@ class _QuickCheckScreenState extends State<QuickCheckScreen> {
           padding: const EdgeInsets.only(top: 6),
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: const Color(0xFFF1F5F4), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: blueTint, borderRadius: BorderRadius.circular(12)),
             child: Text('💡 ${q['help']}'),
           ),
         ),
@@ -203,7 +204,7 @@ class _MoneyCard extends StatelessWidget {
     final amount = item['amount'] as Map<String, dynamic>;
     final value = amount['value'];
     return Card(
-      shape: primary ? RoundedRectangleBorder(side: const BorderSide(color: Color(0xFF0E9F6E), width: 2), borderRadius: BorderRadius.circular(14)) : null,
+      shape: primary ? RoundedRectangleBorder(side: const BorderSide(color: brandBlue), borderRadius: BorderRadius.circular(18)) : null,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

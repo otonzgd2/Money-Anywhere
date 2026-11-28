@@ -4,8 +4,10 @@ import 'package:material_ui/material_ui.dart';
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
 import 'package:money_anywhere/plan_info.dart';
+import 'package:money_anywhere/plan_contact_screen.dart';
 import 'package:money_anywhere/plans_tab.dart';
 import 'package:money_anywhere/task_screen.dart';
+import 'package:money_anywhere/thang_rot_theme.dart';
 
 class _PlanApi extends Api {
   String id = 'welfare';
@@ -139,13 +141,24 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('ยังไม่มีช่องทางติดต่อที่ตรวจสอบได้'), findsOneWidget);
       api.sourceFails = false;
-      await tester.tap(find.text('ลองใหม่'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(PlanContactScreen),
+          matching: find.text('ลองใหม่'),
+        ),
+      );
       await tester.pumpAndSettle();
-      expect(find.text('ปิดรับแล้ว'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(PlanContactScreen),
+          matching: find.text('ปิดรับแล้ว'),
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('16:30 น. (เวลาไทย)'), findsOneWidget);
       expect(find.text('เปิดเว็บไซต์'), findsNothing);
       expect(find.text('สำนักงานอีกเขต'), findsNothing);
-      await tester.pageBack();
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
       expect(find.text('กำลังทำ'), findsOneWidget);
       expect(find.text('ทำแล้ว 1 จาก 2 ขั้น'), findsOneWidget);
@@ -156,16 +169,17 @@ void main() {
   testWidgets(
     'AC-13 keyboard navigation opens contact in a small viewport at large text',
     (tester) async {
-      tester.view.physicalSize = const Size(360, 720);
+      tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final api = _PlanApi()..id = 'freelance';
       addTearDown(api.close);
       await tester.pumpWidget(
         MaterialApp(
+          theme: thangRotTheme(),
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context)
-                .copyWith(textScaler: const TextScaler.linear(1.65)),
+                .copyWith(textScaler: const TextScaler.linear(1.5)),
             child: child!,
           ),
           home: TaskScreen(app: AppState(api), taskId: 'test-plan'),
@@ -189,7 +203,13 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pumpAndSettle();
       expect(find.text('ช่องทางติดต่อ'), findsOneWidget);
-      expect(find.text('ต้นทาง freelance'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(PlanContactScreen),
+          matching: find.text('ต้นทาง freelance'),
+        ),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );

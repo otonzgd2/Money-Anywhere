@@ -2,6 +2,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'money.dart';
+import 'thang_rot_theme.dart';
 
 enum OpportunityCategory {
   welfare('welfare', 'สวัสดิการรัฐ', Color(0xFF17644D)),
@@ -22,6 +23,19 @@ enum OpportunityCategory {
   bool get isJob => index >= fullTime.index && index <= freelance.index;
   bool get isBenefit => index <= owed.index;
 
+  IconData get icon => switch (this) {
+    welfare => Icons.volunteer_activism_outlined,
+    refund => Icons.currency_exchange_outlined,
+    owed => Icons.request_quote_outlined,
+    fullTime => Icons.work_outline,
+    partTime => Icons.schedule_outlined,
+    freelance => Icons.laptop_mac_outlined,
+    sell => Icons.storefront_outlined,
+    assets => Icons.key_outlined,
+    grant => Icons.account_balance_outlined,
+    skill => Icons.build_outlined,
+  };
+
   static OpportunityCategory? of(Map<String, dynamic> item) => values
       .where(
         (category) =>
@@ -36,6 +50,53 @@ enum OpportunityCategory {
     'unpaid_wages' => owed,
     _ => null,
   };
+}
+
+class OpportunityArtwork extends StatelessWidget {
+  const OpportunityArtwork({
+    super.key,
+    this.category,
+    this.moneyId,
+    this.size = 38,
+  });
+
+  final OpportunityCategory? category;
+  final String? moneyId;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = switch (moneyId) {
+      'old_age' => 'benefit-senior',
+      'unemployment' => 'benefit-unemployment',
+      'child_support' => 'benefit-child',
+      'disability' => 'benefit-disability',
+      'tax_refund' => 'benefit-refund',
+      'unpaid_wages' => 'benefit-wages',
+      _ => null,
+    };
+    if (image != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.asset(
+          'assets/thang-rot/$image.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          excludeFromSemantics: true,
+        ),
+      );
+    }
+    return CircleAvatar(
+      radius: size / 2,
+      backgroundColor: blueTint,
+      foregroundColor: category?.color ?? brandDark,
+      child: Icon(
+        category?.icon ?? Icons.auto_awesome_outlined,
+        size: size * .55,
+      ),
+    );
+  }
 }
 
 // Names and order from the Bangkok scope handoff; codes from the official district register.

@@ -7,12 +7,12 @@
   <style>
     :root {
       color-scheme: light;
-      --paper: #f3f7f9;
+      --paper: #f4f7fc;
       --surface: #fff;
-      --ink: #142d3a;
-      --muted: #425967;
-      --line: #d4e0e6;
-      --accent: #0b597d;
+      --ink: #0f172a;
+      --muted: #516078;
+      --line: #e6ebf2;
+      --accent: #0a3a9e;
       --amount: #eff8f0;
       --amount-ink: #20503b;
       font-family: "Leelawadee UI", Tahoma, system-ui, sans-serif;
@@ -24,7 +24,7 @@
     a { color: var(--accent); text-underline-offset: .18em; }
     :focus-visible { outline: 3px solid #1274a2; outline-offset: 2px; }
     .shell { width: min(100% - 2rem, 94rem); margin-inline: auto; }
-    .masthead { padding: clamp(1.35rem, 4vw, 2.7rem) 0; background: #103e53; color: #fff; }
+    .masthead { padding: clamp(1.35rem, 4vw, 2.7rem) 0; background: linear-gradient(135deg, #0a3a9e, #0b4fd6); border-radius: 0 0 22px 22px; color: #fff; }
     .masthead .date { margin: 0 0 .2rem; color: #e0eef4; font-weight: 700; }
     h1 { margin: 0; font-size: clamp(1.6rem, 4.1vw, 2.65rem); line-height: 1.24; }
     main { padding: 1rem 0 1.7rem; }
@@ -62,7 +62,7 @@
     col.col-notes { width: 19rem; }
     col.col-sources { width: 17rem; }
     th, td { padding: .66rem .75rem; text-align: start; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-    thead th { position: sticky; top: 0; z-index: 2; background: #e4eef3; color: var(--ink); }
+    thead th { position: sticky; top: 0; z-index: 2; background: #eaf1ff; color: var(--ink); }
     tr > .number { position: sticky; left: 0; text-align: center; padding-inline: .15rem; font-variant-numeric: tabular-nums; }
     thead .number { z-index: 3; }
     tbody tr { --row: var(--surface); }
@@ -77,6 +77,8 @@
     .sources ul { margin: 0; padding-inline-start: 1.05rem; }
     .sources li + li { margin-top: .3rem; }
     .empty { padding: .7rem; border: 1px dashed #859eac; border-radius: .5rem; }
+    .report-nav { display: flex; gap: .65rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .report-nav a { display: inline-flex; align-items: center; background: var(--surface); border: 1px solid var(--line); padding: .6rem .85rem; border-radius: 999px; font-weight: 700; min-height: 44px; }
     .related { margin: .9rem 0 0; }
     @media (max-width: 48rem) {
       .shell { width: calc(100% - 1.1rem); }
@@ -98,6 +100,10 @@
     </div>
   </header>
   <main class="shell">
+    <nav class="report-nav" aria-label="สารบัญ">
+      <a href="#table-heading">ตารางสิทธิผู้สูงอายุ</a>
+      <a href="#report-related">ข้อมูลที่เกี่ยวข้อง</a>
+    </nav>
     <form class="controls" id="filters" role="search" aria-label="ค้นและกรองรายการสิทธิ" hidden>
       <div class="control search">
         <label for="query">ค้นหาสิทธิหรือหน่วยงาน</label>
@@ -895,7 +901,7 @@
         </table>
       </div>
     </section>
-    <p class="related"><a href="thai-senior-benefits-2026-11-27.md">เปิดไฟล์ Markdown ของตารางนี้</a></p>
+    <p class="related" id="report-related"><a href="thai-senior-benefits-2026-11-27.md">เปิดไฟล์ Markdown ของตารางนี้</a></p>
   </main>
   <script>
     const filters = document.querySelector('#filters');

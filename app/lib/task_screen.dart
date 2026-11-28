@@ -4,6 +4,7 @@ import 'api.dart';
 import 'common.dart';
 import 'money.dart';
 import 'plan_contact_screen.dart';
+import 'thang_rot_theme.dart';
 import 'plan_info.dart';
 
 const taskStatusLabel = {
@@ -146,12 +147,17 @@ class _TaskScreenState extends State<TaskScreen> {
   }
 
   Future<void> _contact(PlanInfo source) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => PlanContactScreen(
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: .88,
+        child: PlanContactScreen(
           app: widget.app,
           info: source,
           reload: () => _loadSource(t!),
+          sheet: true,
         ),
       ),
     );
@@ -362,14 +368,22 @@ class _TaskScreenState extends State<TaskScreen> {
           Text('ทำแล้ว $done จาก ${steps.length} ขั้น', style: tt.bodySmall),
           for (var i = 0; i < steps.length; i++)
             ListTile(
-              contentPadding: EdgeInsets.zero,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              tileColor: i == done ? blueTint : null,
               leading: Icon(
                 i < done
                     ? Icons.check_circle
                     : (i == done
                           ? Icons.radio_button_checked
                           : Icons.radio_button_unchecked),
-                color: i < done ? const Color(0xFF0E9F6E) : null,
+                color: i < done
+                    ? const Color(0xFF168254)
+                    : i == done
+                    ? brandDark
+                    : mutedInk,
               ),
               title: Text(
                 steps[i],
@@ -464,7 +478,21 @@ class _TaskScreenState extends State<TaskScreen> {
             ]),
           if (plan.documents.isNotEmpty)
             PlanSection('เอกสารที่ต้องเตรียม', [
-              for (final document in plan.documents) Text('• $document'),
+              if (plan.moneyId case final id?)
+                ClaimChecklist(
+                  app: widget.app,
+                  moneyId: id,
+                  documents: plan.entry['documents'] as List? ?? const [],
+                  onUpdated: (entry) => setState(() {
+                    info = PlanInfo(
+                      t ?? task,
+                      entry,
+                      PlanSourceState.available,
+                    );
+                  }),
+                )
+              else
+                for (final document in plan.documents) Text('• $document'),
             ]),
           if (plan.dataStatus != null ||
               plan.source != null ||

@@ -1,7 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'api.dart';
 import 'common.dart';
 import 'opportunity_catalog.dart';
+import 'thang_rot_theme.dart';
 
 enum PlanLayout {
   claim('สิทธิ์และเงิน'),
@@ -380,10 +382,6 @@ class PlanHeading extends StatelessWidget {
     final color = info.category?.color ?? theme.colorScheme.primary;
     return Card(
       margin: EdgeInsets.zero,
-      color: Color.alphaBlend(
-        color.withValues(alpha: .09),
-        theme.colorScheme.surface,
-      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -394,6 +392,10 @@ class PlanHeading extends StatelessWidget {
               runSpacing: 4,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
+                OpportunityArtwork(
+                  category: info.category,
+                  moneyId: info.moneyId,
+                ),
                 if (info.category case final category?)
                   Chip(
                     backgroundColor: color,
@@ -419,7 +421,13 @@ class PlanHeading extends StatelessWidget {
             if (info.availability case final status?)
               Text(status, style: theme.textTheme.titleSmall),
             if (showAmount && info.amount != null)
-              Text(info.amount!, style: theme.textTheme.titleMedium),
+              Text(
+                info.amount!,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: brandDark,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ?action,
           ],
         ),
@@ -434,20 +442,92 @@ class PlanSection extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const SizedBox(height: 20),
-      Semantics(
-        header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(top: 10),
+    child: Padding(
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...children,
+        ],
       ),
-      const SizedBox(height: 6),
-      ...children,
+    ),
+  );
+}
+
+class ClaimChecklist extends StatefulWidget {
+  const ClaimChecklist({
+    super.key,
+    required this.app,
+    required this.moneyId,
+    required this.documents,
+    required this.onUpdated,
+  });
+
+  final AppState app;
+  final String moneyId;
+  final List<dynamic> documents;
+  final ValueChanged<Map<String, dynamic>> onUpdated;
+
+  @override
+  State<ClaimChecklist> createState() => _ClaimChecklistState();
+}
+
+class _ClaimChecklistState extends State<ClaimChecklist> {
+  bool saving = false;
+
+  Future<void> _toggle(int index, bool checked) async {
+    if (saving) return;
+    final rows = widget.documents;
+    final ready = [
+      for (var i = 0; i < rows.length; i++)
+        if (i == index ? checked : rows[i] is Map && rows[i]['ready'] == true)
+          i,
+    ];
+    setState(() => saving = true);
+    try {
+      final updated = await widget.app.api.patch(
+        '/v1/money/${Uri.encodeComponent(widget.moneyId)}',
+        {'documentsReady': ready},
+      );
+      if (mounted) {
+        widget.onUpdated(updated);
+        widget.app.bump();
+      }
+    } on ApiException catch (error) {
+      if (mounted) toast(context, error.message);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      for (final (index, record) in widget.documents.indexed)
+        if (record case {'text': final String label})
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: record['ready'] == true,
+            onChanged: saving
+                ? null
+                : (checked) => _toggle(index, checked == true),
+            title: Text(label),
+          )
+        else if (record is String)
+          Text(record),
     ],
   );
 }

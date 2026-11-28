@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
@@ -6,6 +8,7 @@ import 'connected_accounts.dart';
 import 'opportunity_catalog.dart';
 import 'profile_fact_details.dart';
 import 'thaid.dart';
+import 'thang_rot_theme.dart';
 
 const skillChoices = [
   'ทำอาหาร',
@@ -105,12 +108,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? saveError;
   bool loading = true, saving = false;
   Api get api => widget.app.api;
+  bool get dirty {
+    final saved = profile;
+    if (saved == null) return false;
+    final fields = saved.fields;
+    return profileText(name.text) != saved.displayName ||
+        district != saved.district ||
+        ageBand != savedAgeBand ||
+        !setEquals(
+          skills,
+          (fields['skills'] as List? ?? const []).whereType<String>().toSet(),
+        ) ||
+        hours != profileText(fields['hoursPerWeek']) ||
+        num.tryParse(goal.text.replaceAll(',', '').trim()) !=
+            fields['incomeGoalPerMonth'] ||
+        extra.text.trim().isNotEmpty;
+  }
 
   @override
   void initState() {
     super.initState();
+    for (final field in [name, goal, extra]) {
+      field.addListener(_updateButtons);
+    }
     widget.app.accounts.refresh();
     _load();
+  }
+
+  void _updateButtons() {
+    if (mounted && profile != null) setState(() {});
+  }
+
+  Future<void> _exit() async {
+    if (saving) return;
+    var discard = true;
+    if (dirty) {
+      discard =
+          await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              scrollable: true,
+              title: const Text('ยังไม่ได้บันทึก'),
+              content: const Text('ถ้าออกตอนนี้ การแก้ไขจะหายไป'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('แก้ต่อ'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('ทิ้งการแก้ไข'),
+                ),
+              ],
+            ),
+          ) ==
+          true;
+    }
+    if (mounted && discard) Navigator.pop(context);
   }
 
   @override
@@ -372,76 +426,106 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    return Scaffold(
-      appBar: AppBar(title: const Text('โปรไฟล์')),
-      body: SafeArea(
-        child: loading
-            ? const Center(child: CircularProgressIndicator())
-            : profile == null
-            ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('โหลดโปรไฟล์ไม่ได้'),
-                    OutlinedButton(
-                      onPressed: () {
-                        setState(() => loading = true);
-                        _load();
-                      },
-                      child: const Text('ลองใหม่'),
-                    ),
-                  ],
-                ),
-              )
-            : ValueListenableBuilder<AccountsSnapshot>(
-                valueListenable: widget.app.accounts,
-                builder: (context, accounts, _) => Column(
-                  children: [
-                    Expanded(
-                      child: ListView(
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
+    return PopScope<bool>(
+      canPop: !dirty && !saving,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && dirty) _exit();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('แก้ไขโปรไฟล์'),
+          leading: BackButton(onPressed: _exit),
+          backgroundColor: brandDark,
+          foregroundColor: Colors.white,
+          titleTextStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+          systemOverlayStyle: SystemUiOverlayStyle.light,
+          shape: const RoundedRectangleBorder(borderRadius: pageCorners),
+        ),
+        body: SafeArea(
+          child: loading
+              ? const Center(child: CircularProgressIndicator())
+              : profile == null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('โหลดโปรไฟล์ไม่ได้'),
+                      OutlinedButton(
+                        onPressed: () {
+                          setState(() => loading = true);
+                          _load();
+                        },
+                        child: const Text('ลองใหม่'),
+                      ),
+                    ],
+                  ),
+                )
+              : ValueListenableBuilder<AccountsSnapshot>(
+                  valueListenable: widget.app.accounts,
+                  builder: (context, accounts, _) => Column(
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                          children: [
+                            _personal(accounts),
+                            const SizedBox(height: 12),
+                            _work(text),
+                            ProfileFactDetails(
+                              profile: profile!.fields,
+                              facts: profile!.facts,
+                              hideMock: accounts.userMode,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                        children: [
-                          _personal(accounts),
-                          const SizedBox(height: 12),
-                          _work(text),
-                          ProfileFactDetails(
-                            profile: profile!.fields,
-                            facts: profile!.facts,
-                            hideMock: accounts.userMode,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (saveError case final message?)
-                            Semantics(liveRegion: true, child: Text(message)),
-                          FilledButton(
-                            onPressed:
-                                saving ||
-                                    accounts.thaid.status ==
-                                        AccountStatus.loading
-                                ? null
-                                : _save,
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (saveError case final message?)
+                              Semantics(liveRegion: true, child: Text(message)),
+                            Row(
+                              children: [
+                                OutlinedButton(
+                                  onPressed: saving ? null : _exit,
+                                  child: const Text('ยกเลิก'),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed:
+                                        !dirty ||
+                                            saving ||
+                                            accounts.thaid.status ==
+                                                AccountStatus.loading
+                                        ? null
+                                        : _save,
+                                    style: FilledButton.styleFrom(
+                                      minimumSize: const Size.fromHeight(48),
+                                    ),
+                                    child: Text(
+                                      saving ? 'กำลังบันทึก…' : 'บันทึกโปรไฟล์',
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: Text(
-                              saving ? 'กำลังบันทึก…' : 'บันทึกโปรไฟล์',
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }
@@ -465,12 +549,12 @@ class _ProfileCard extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       margin: EdgeInsets.zero,
-      color: linked ? const Color(0xFFEDF6F1) : Colors.white,
+      color: linked ? const Color(0xFFEDF4FF) : Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: linked ? const Color(0xFFA7CBB9) : const Color(0xFFD9E5DD),
+          color: linked ? const Color(0xFFBBCFF2) : const Color(0xFFE6EBF2),
         ),
       ),
       child: Padding(
@@ -496,7 +580,7 @@ class _ProfileCard extends StatelessWidget {
                 if (badge case final label?)
                   DecoratedBox(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDFEEE5),
+                      color: const Color(0xFFE3EDFF),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Padding(
@@ -507,7 +591,7 @@ class _ProfileCard extends StatelessWidget {
                       child: Text(
                         label,
                         style: theme.textTheme.labelMedium?.copyWith(
-                          color: const Color(0xFF165A45),
+                          color: const Color(0xFF0A3A9E),
                         ),
                       ),
                     ),
@@ -556,7 +640,7 @@ class AccountDetailField extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFDCE8E0))),
+        border: Border(bottom: BorderSide(color: Color(0xFFE6EBF2))),
       ),
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
@@ -567,7 +651,7 @@ class AccountDetailField extends StatelessWidget {
             child: Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF47675B),
+                color: const Color(0xFF516078),
               ),
             ),
           ),

@@ -144,15 +144,32 @@ class Api {
   String get onboardingChoices =>
       _settings._read(_settings._file(_settings.directory, _onboardingKey)) ?? '';
 
+  static const _onboardingSummaryKey = 'thang_rot_onboarding_summary';
+  bool get onboardingSummaryPending =>
+      _settings._read(_settings._file(_settings.directory, _onboardingSummaryKey)) == 'pending';
+  void setOnboardingSummaryPending(bool pending) =>
+      _writeOnboarding(_onboardingSummaryKey, pending ? 'pending' : 'accepted');
+
+  static const _chatSampleKey = 'thang_rot_chat_sample';
+  String? get chatSampleSelection =>
+      _settings._read(_settings._file(_settings.directory, _chatSampleKey));
+  void saveChatSampleSelection(String selection) =>
+      _settings.write(_chatSampleKey, selection);
+
   void saveOnboardingChoices(String choices) {
-    final target = _settings._file(_settings.directory, _onboardingKey);
     if (choices.isEmpty) {
       // Flush the cleared value on the existing file before deleting remotely.
+      final target = _settings._file(_settings.directory, _onboardingKey);
       target.writeAsStringSync('', flush: true);
       return;
     }
+    _writeOnboarding(_onboardingKey, choices);
+  }
+
+  void _writeOnboarding(String key, String value) {
+    final target = _settings._file(_settings.directory, key);
     final pending = File('${target.path}.tmp');
-    pending.writeAsStringSync(choices, flush: true);
+    pending.writeAsStringSync(value, flush: true);
     pending.renameSync(target.path);
   }
 

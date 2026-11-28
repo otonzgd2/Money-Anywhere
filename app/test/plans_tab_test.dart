@@ -89,7 +89,7 @@ Future<AppState> _showPlans(
   addTearDown(tester.view.reset);
   final api = _PlanApi(data);
   addTearDown(api.close);
-  final app = AppState(api)..goTab(2);
+  final app = AppState(api)..goTab(AppTab.plans);
   await tester.pumpWidget(
     MaterialApp(
       builder: (context, child) => MediaQuery(
@@ -120,7 +120,7 @@ void main() {
     expect(find.textContaining('แผนที่บันทึก'), findsNothing);
     expect(find.textContaining('โหลดตัวอย่าง'), findsNothing);
     await tester.tap(find.text('ไปเช็คเงินที่หน้าแรก'));
-    expect(app.tab.value, 0);
+    expect(app.tab.value, AppTab.home);
   });
 
   testWidgets('AC-15 orders groups and renders bounded step progress', (
@@ -229,7 +229,8 @@ void main() {
         isTrue,
       );
       final complete = find.text('✓ ทำขั้นนี้เสร็จแล้ว');
-      await tester.scrollUntilVisible(complete, 160);
+      await tester.scrollUntilVisible(complete.hitTestable(), 160);
+      await tester.pumpAndSettle();
       await tester.tap(complete);
       await tester.pumpAndSettle();
       await tester.pageBack();

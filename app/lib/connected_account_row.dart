@@ -109,7 +109,7 @@ class ConnectedAccountRow extends StatelessWidget {
       elevation: 0,
       shape: shape.copyWith(
         side: BorderSide(
-          color: connected ? const Color(0xFFA7CBB9) : const Color(0xFFD9E5DD),
+          color: connected ? const Color(0xFFBBCFF2) : const Color(0xFFE6EBF2),
         ),
       ),
       child: connected

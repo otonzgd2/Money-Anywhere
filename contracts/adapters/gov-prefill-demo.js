@@ -64,25 +64,39 @@ function govPrefillPersona(thaidConfig, selectedSources = govPrefillSourceIds, o
       pidMasked: mock.pidMasked, claims: mock.claims, derived: mock.derived
     };
     facts.ageBand = ageBand;
-    sources.push({ field: 'identity', label: 'ThaID', value: age === undefined ? `ช่วงอายุ ${ageBand}` : `อายุ ${age} ปี`, checkedAt: thaid.asOf });
+    sources.push({ field: 'identity', label: 'ThaID', value: age === undefined ? `ช่วงอายุ ${ageBand}` : `อายุ ${age} ปี`, checkedAt: thaid.asOf,
+      preview: { name: displayName, age: age === undefined ? ageBand : `${age} ปี`, district } });
   }
   if (selected.has('tangRat')) {
     Object.assign(facts, tangRatFacts(tangRat));
     const status = facts.disabilityCard;
-    sources.push({ field: 'disabilityCard', label: 'ทางรัฐ', value: status === undefined ? 'ยังไม่มีข้อมูล' : status ? 'มีบัตรที่ใช้ได้' : 'ไม่มีบัตรที่ใช้ได้', checkedAt: tangRat.asOf });
+    const value = status === undefined ? 'ยังไม่มีข้อมูล' : status ? 'มีบัตรที่ใช้ได้' : 'ไม่มีบัตรที่ใช้ได้';
+    sources.push({ field: 'disabilityCard', label: 'ทางรัฐ', value, checkedAt: tangRat.asOf, preview: { card: value } });
   }
   if (selected.has('socialSecurity')) {
     Object.assign(facts, socialSecurityFacts(socialSecurity));
     const { paidMonths, windowMonthsBeforeExit } = socialSecurity.contributionHistory || {};
     const summary = paidMonths === undefined ? 'ยังไม่มีข้อมูลช่วงสมทบ' : 'ม. ' + socialSecurity.coverageSectionAtExit
       + ' · ส่งสมทบ ' + paidMonths + ' จาก ' + windowMonthsBeforeExit + ' เดือนก่อนออกงาน';
-    sources.push({ field: 'ss33', label: 'ประกันสังคม', value: summary, checkedAt: socialSecurity.asOf });
+    const coverage = socialSecurity.coverageSectionAtExit;
+    const contributions = socialSecurity.contributionHistory?.complete === true &&
+      Number.isInteger(paidMonths) && Number.isInteger(windowMonthsBeforeExit) &&
+      paidMonths >= 0 && windowMonthsBeforeExit > 0 && paidMonths <= windowMonthsBeforeExit;
+    sources.push({ field: 'ss33', label: 'ประกันสังคม', value: summary, checkedAt: socialSecurity.asOf,
+      preview: {
+        section: Number.isInteger(coverage) ? `มาตรา ${coverage}` : undefined,
+        contributions: contributions ? `${paidMonths} จาก ${windowMonthsBeforeExit} เดือนก่อนออกงาน` : undefined
+      } });
   }
   if (selected.has('dMyTax')) {
     Object.assign(facts, taxWithholdingFacts(dMyTax, Number(dMyTax.asOf.slice(0, 4))));
     const amount = dMyTax.withholdingSummary?.amountTHB;
     const summary = Number.isFinite(amount) ? new Intl.NumberFormat('th-TH').format(amount) + ' บาท' : 'ยังไม่มีข้อมูลยอดหัก';
-    sources.push({ field: 'taxWithheld', label: 'D-MyTax', value: summary + ' · ปีภาษี ' + (dMyTax.taxYear + 543), checkedAt: dMyTax.asOf });
+    sources.push({ field: 'taxWithheld', label: 'D-MyTax', value: summary + ' · ปีภาษี ' + (dMyTax.taxYear + 543), checkedAt: dMyTax.asOf,
+      preview: {
+        taxYear: Number.isInteger(dMyTax.taxYear) ? String(dMyTax.taxYear + 543) : undefined,
+        withholding: dMyTax.withholdingSummary?.complete === true && Number.isFinite(amount) && amount >= 0 ? summary : undefined
+      } });
   }
 
   const records = Object.fromEntries(selectedSources.map(id => [id, sourceRecords[id]]));

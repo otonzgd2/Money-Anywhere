@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>แผนที่โอกาสกรุงเทพฯ | Money Anywhere</title>
+  <title>แผนที่โอกาสกรุงเทพฯ | ทางรอด</title>
   <style>
     :root {
       color-scheme: light;
-      --paper: #f4f6f0;
-      --ink: #193227;
-      --muted: #526359;
-      --line: #d9e3da;
-      --green: #225b4c;
-      --mint: #e7f2e8;
+      --paper: #f4f7fc;
+      --ink: #0f172a;
+      --muted: #516078;
+      --line: #e6ebf2;
+      --primary: #0a3a9e;
+      --tint: #eaf1ff;
       font-family: "Leelawadee UI", Tahoma, system-ui, sans-serif;
       line-height: 1.55;
     }
@@ -21,7 +21,7 @@
     h1, h2, p, ol { margin: 0; }
     h1 { font-size: clamp(1.7rem, 4vw, 3rem); line-height: 1.15; }
     h2 { font-size: 1.24rem; }
-    a { color: var(--green); text-underline-offset: .18em; }
+    a { color: var(--primary); text-underline-offset: .18em; }
     button, select { font: inherit; min-height: 42px; border: 1px solid #a2b7ab; border-radius: 8px; background: white; color: var(--ink); }
     button { cursor: pointer; }
     select { width: 100%; padding: 4px 8px; }
@@ -29,9 +29,9 @@
     .wrap { width: min(1250px, calc(100% - 40px)); margin-inline: auto; }
     .top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; padding-block: 16px; }
     .brand { font-weight: 750; text-decoration: none; }
-    .hero { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 17px; background: #18372d; color: #fff; padding: clamp(18px, 4vw, 32px); border-radius: 19px; }
-    .hero p { color: #d1e4d6; margin-top: 7px; }
-    .badge { display: inline-block; padding: 2px 8px; border: 1px solid #9fc4ac; color: #f3f9f4; border-radius: 20px; font-size: .8rem; font-weight: 700; margin-bottom: 7px; }
+    .hero { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 17px; background: linear-gradient(135deg, #0a3a9e, #0b4fd6); color: #fff; padding: clamp(18px, 4vw, 32px); border-radius: 19px; }
+    .hero p { color: #eaf1ff; margin-top: 7px; }
+    .badge { display: inline-block; padding: 2px 8px; border: 1px solid #b8ccf8; color: #f3f9f4; border-radius: 20px; font-size: .8rem; font-weight: 700; margin-bottom: 7px; }
     .hero label { display: grid; gap: 4px; flex: 0 1 255px; font-size: .9rem; width: 100%; }
     .layout { display: grid; grid-template-columns: minmax(0, 2.25fr) minmax(250px, 1fr); gap: 13px; margin-top: 13px; }
     .panel { min-width: 0; border: 1px solid var(--line); border-radius: 16px; background: white; overflow: hidden; }
@@ -39,7 +39,7 @@
     .head p { font-size: .86rem; color: var(--muted); }
     .zoom { display: flex; gap: 6px; }
     .zoom button { width: 42px; font-size: 1.25rem; }
-    .viewport { overflow: auto; height: clamp(330px, 54vh, 590px); background: #e8efea; border-block: 1px solid var(--line); }
+    .viewport { overflow: auto; height: clamp(330px, 54vh, 590px); background: #eaf1ff; border-block: 1px solid var(--line); }
     .plane { width: 100%; height: 100%; position: relative; }
     canvas { width: 100%; height: 100%; display: block; }
     .pin {
@@ -50,11 +50,11 @@
       border-radius: 24px;
       border: 2px solid white;
       color: white;
-      background: var(--green);
+      background: var(--primary);
       font-size: .76rem;
       font-weight: 750;
       transform: translate(-50%, -50%);
-      box-shadow: 0 1px 5px #19322750;
+      box-shadow: 0 1px 5px #0f172a50;
     }
     .pin:hover, .pin:focus-visible { z-index: 2; }
     .pin[aria-pressed="true"] { background: #81491d; z-index: 3; }
@@ -77,7 +77,7 @@
 </head>
 <body>
   <header class="wrap top">
-    <a class="brand" href="opportunity-info.html">Money Anywhere</a>
+    <a class="brand" href="opportunity-info.html">ทางรอด</a>
     <a href="opportunity-info.html">ดูข้อมูลแบบรายการ</a>
   </header>
   <main class="wrap">
@@ -130,7 +130,7 @@
       </section>
     </div>
   </main>
-  <footer class="wrap">ตำแหน่งบนแผนที่เป็นจุดอ้างอิงของเขตสำหรับข้อมูลจำลอง</footer>
+  <footer class="wrap">ทางรอด · ตำแหน่งบนแผนที่เป็นจุดอ้างอิงของเขตสำหรับข้อมูลจำลอง</footer>
   <script>
     const byId = id => document.getElementById(id);
     const mapStatus = byId('map-status');
@@ -187,8 +187,8 @@
           for (const value of rest) context.lineTo(...point(...value));
           context.closePath();
         }
-        context.fillStyle = area.name === district.value ? '#edcf9f' : covered.has(area.name) ? '#c8ded0' : '#e0e9e2';
-        context.strokeStyle = '#6c9181';
+        context.fillStyle = area.name === district.value ? '#edcf9f' : covered.has(area.name) ? '#c7d9fa' : '#e7eefb';
+        context.strokeStyle = '#718ab5';
         context.lineWidth = 1;
         context.fill('evenodd');
         context.stroke();
@@ -204,6 +204,9 @@
     async function showDistrict(append = false) {
       const request = ++listingRequest;
       const name = district.value;
+      document.title = name
+        ? 'แผนที่โอกาสเขต' + name + ' | ทางรอด'
+        : 'แผนที่โอกาสกรุงเทพฯ | ทางรอด';
       const start = append ? cursor : null;
       loadMore.hidden = true;
       if (!append) {

@@ -1,9 +1,6 @@
 import 'dart:async';
 
-import 'package:material_ui/material_ui.dart';
-
 import 'api.dart';
-import 'common.dart';
 
 enum DemoSource {
   thaid(
@@ -46,6 +43,58 @@ enum DemoSource {
 
   String answer(String choices) => choices.length > index ? choices[index] : '';
 
+  Map<String, String> get previewFields => switch (this) {
+    thaid => const {
+      'name': 'ชื่อ-นามสกุล',
+      'age': 'อายุหรือช่วงอายุ',
+      'district': 'เขตตามทะเบียนบ้าน',
+    },
+    thangRat => const {'card': 'บัตรประจำตัวคนพิการ'},
+    socialSecurity => const {
+      'section': 'มาตราผู้ประกันตน',
+      'contributions': 'ประวัติส่งเงินสมทบ',
+    },
+    dMyTax => const {'taxYear': 'ปีภาษี', 'withholding': 'ภาษีหัก ณ ที่จ่าย'},
+  };
+
+  Future<Map<String, String>> loadPreview(Api api) async {
+    final sample = await api
+        .get(personaPath([this]))
+        .timeout(const Duration(seconds: 8));
+    final sources = sample['sources'];
+    final row = sources is List
+        ? sources
+              .whereType<Map>()
+              .where((row) => row['field'] == field)
+              .firstOrNull
+        : null;
+    if (sample['dataStatus'] != 'mock' || row == null) {
+      throw ApiException(0, 'DEMO_DATA', 'ข้อมูลจำลองของบริการนี้ไม่พร้อม');
+    }
+    final preview = row['preview'];
+    if (preview is Map) {
+      return {
+        for (final key in previewFields.keys)
+          if (preview[key] case final String value when value.trim().isNotEmpty)
+            key: value,
+      };
+    }
+    // Older servers provide the synthetic identity and a source summary.
+    if (this == thaid) {
+      final profile = sample['profile'];
+      return {
+        if (profile case {'displayName': final String name}) 'name': name,
+        if (profile case {'district': final String district})
+          'district': district,
+        if (row['value'] case final String age) 'age': age,
+      };
+    }
+    return {
+      if (row['value'] case final String value)
+        (this == thangRat ? 'card' : 'summary'): value,
+    };
+  }
+
   static bool enabled(Map<String, dynamic> config) =>
       config['mode'] == 'demo' &&
       config['featureFlags'] is Map &&
@@ -59,8 +108,6 @@ enum DemoSource {
 
 const onboardingDemoDevice = 'thang-rot-onboarding';
 
-enum DemoChoice { use, skip, skipRemaining }
-
 enum AssessmentStatus { loading, ready, configUnavailable, failed }
 
 class OpportunityAssessment {
@@ -68,11 +115,13 @@ class OpportunityAssessment {
     this.status, {
     this.benefits = const [],
     this.income = const [],
+    this.moneyOverview,
     this.mock = false,
   });
 
   final AssessmentStatus status;
   final List<Map<String, dynamic>> benefits, income;
+  final Map<String, dynamic>? moneyOverview;
   final bool mock;
 
   static Future<OpportunityAssessment> load(
@@ -115,6 +164,7 @@ class OpportunityAssessment {
       AssessmentStatus.ready,
       benefits: itemsOf(benefits),
       income: itemsOf(income),
+      moneyOverview: benefits,
       mock: sources.isNotEmpty,
     );
   }
@@ -124,48 +174,3 @@ List<Map<String, dynamic>> itemsOf(Map<String, dynamic>? response) =>
     response?['items'] is List
     ? (response!['items'] as List).whereType<Map<String, dynamic>>().toList()
     : [];
-
-Future<DemoChoice?> showDemoSource(BuildContext context, DemoSource source) =>
-    showDialog<DemoChoice>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PopScope(
-        canPop: false,
-        child: AlertDialog(
-          scrollable: true,
-          title: Text(source.label),
-          content: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Image.asset(
-                'assets/thang-rot/${source.image}',
-                width: 144,
-                height: 60,
-                fit: BoxFit.contain,
-                alignment: Alignment.centerLeft,
-              ),
-              const SizedBox(height: 12),
-              const DemoPill(),
-              const SizedBox(height: 12),
-              const Text('ใช้ข้อมูลจำลองเพื่อประเมินสิทธิ์และรายได้'),
-              const SizedBox(height: 8),
-              Text(source.description),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, DemoChoice.skipRemaining),
-              child: const Text('ข้ามทั้งหมด'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, DemoChoice.skip),
-              child: const Text('ข้าม'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, DemoChoice.use),
-              child: const Text('เชื่อมต่อข้อมูลจำลอง'),
-            ),
-          ],
-        ),
-      ),
-    );

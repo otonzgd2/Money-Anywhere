@@ -2,6 +2,10 @@
 
 การเปลี่ยนแปลงของ `openapi.yaml` และพฤติกรรมของ server ที่แอปต้องรู้ ประวัติก่อน v0.4 อยู่ใน `docs/design/api-review.md`
 
+## 0.16.0 (28 พ.ย. 2569)
+
+- `GET /v1/demo/personas/gov-prefill` เพิ่ม `sources[].preview` แบบเลือกส่ง เพื่อแสดงค่าจำลองของบริการที่เลือกก่อนเชื่อม
+
 ## 0.15.0 (28 พ.ย. 2569)
 
 - `GET /v1/opportunities?includeDistrictPins=true` คืนพิกัดอ้างอิงและจำนวนรายการเดโมกรุงเทพฯ รายเขตตามผลค้นหาทุกหน้า

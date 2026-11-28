@@ -10,21 +10,28 @@ import 'package:money_anywhere/main.dart';
 // Widget tests run without a server (every request fails), which is the "new person" home.
 // Real I/O only completes inside runAsync, so let it settle before checking.
 Future<void> settle(WidgetTester tester) async {
-  await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 800)));
+  await tester.runAsync(
+    () => Future<void>.delayed(const Duration(milliseconds: 800)),
+  );
   await tester.pump();
 }
 
 class _StartupApi extends Api {
   @override
-  Future<Map<String, dynamic>> get(String path) async => throw ApiException(503, 'TEST', 'offline');
+  Future<Map<String, dynamic>> get(String path) async =>
+      throw ApiException(503, 'TEST', 'offline');
 }
 
 void main() {
-  testWidgets('draws a startup screen while local settings are loading', (tester) async {
+  testWidgets('draws a startup screen while local settings are loading', (
+    tester,
+  ) async {
     final startup = Completer<AppState>();
     final api = _StartupApi();
     addTearDown(api.close);
-    await tester.pumpWidget(MoneyAnywhereStartup(initialize: () => startup.future));
+    await tester.pumpWidget(
+      MoneyAnywhereStartup(initialize: () => startup.future),
+    );
 
     expect(find.byType(ThangRotSplash), findsOneWidget);
     expect(find.bySemanticsLabel('ทางรอด'), findsOneWidget);
@@ -34,26 +41,58 @@ void main() {
     expect(find.text('ตรวจโหมดแอปไม่ได้'), findsOneWidget);
   });
 
-  testWidgets('4 tabs and the new-person home (ui-states.md §1, §3)', (tester) async {
+  testWidgets('can retry a failed local startup', (tester) async {
+    final api = _StartupApi();
+    addTearDown(api.close);
+    var attempts = 0;
+    await tester.pumpWidget(
+      MoneyAnywhereStartup(
+        initialize: () async {
+          if (++attempts == 1) throw StateError('Can’t open local storage');
+          return AppState(api);
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('เปิดแอปไม่สำเร็จ'), findsOneWidget);
+    await tester.tap(find.text('ลองใหม่'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Shell), findsOneWidget);
+    expect(attempts, 2);
+  });
+
+  testWidgets('5 tabs and the new-person home (ui-states.md §1, §3)', (
+    tester,
+  ) async {
     // Phone-sized screen (1080 x 2340 at 3x) so the whole home fits like on the Demo phone.
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MoneyAnywhereApp(app: AppState(Api(baseUrl: 'http://127.0.0.1:9'))));
+    await tester.pumpWidget(
+      MoneyAnywhereApp(app: AppState(Api(baseUrl: 'http://127.0.0.1:9'))),
+    );
     await settle(tester);
 
-    for (final label in ['หน้าแรก', 'โอกาส', 'แผนของฉัน', 'ฉัน']) {
+    for (final label in [
+      'หน้าแรก',
+      'คุยกับ AI',
+      'โอกาส',
+      'แผนของฉัน',
+      'บัญชี',
+    ]) {
       expect(find.text(label), findsWidgets);
     }
   });
 
-  testWidgets('ฉัน tab shows delete-all and large text', (tester) async {
+  testWidgets('บัญชี tab shows delete-all and large text', (tester) async {
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(MoneyAnywhereApp(app: AppState(Api(baseUrl: 'http://127.0.0.1:9'))));
+    await tester.pumpWidget(
+      MoneyAnywhereApp(app: AppState(Api(baseUrl: 'http://127.0.0.1:9'))),
+    );
     await settle(tester);
-    await tester.tap(find.text('ฉัน').last);
+    await tester.tap(find.text('บัญชี').last);
     await settle(tester);
     expect(find.text('ลบข้อมูลทั้งหมด'), findsOneWidget);
     expect(find.text('ตัวอักษรใหญ่'), findsOneWidget);
