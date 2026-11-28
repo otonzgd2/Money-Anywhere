@@ -2,12 +2,13 @@
 
 แอปมือถือที่ช่วยผู้ใช้ค้นหา **เงินตามสิทธิ/เงินค้างรับ** และ **โอกาสหารายได้** พร้อมใช้ AI วิเคราะห์ทางเลือกที่เหมาะกับชีวิต วางแผนการลงมือทำ และติดตามความคืบหน้า
 
-**สถานะ:** อนุมัติขอบเขตธุรกิจฉบับเริ่มต้นแล้ว (Demo/Prototype) ยังไม่มีแอปที่พัฒนาและทดสอบสำเร็จ
+**สถานะ** มี Flutter Demo และ mock API สำหรับซ้อม การประเมินและหลักฐานที่ยังต้องเก็บในวันแข่งอยู่ในชุดเตรียม AI Skill Wars
 
 ## เอกสารหลัก
 
 | เอกสาร | หน้าที่ |
 |---|---|
+| [ชุดเตรียม AI Skill Wars](docs/competition/skillwar/README.md) | ประเมินคะแนน สเปกสร้าง Demo และวิธีเตรียมไฟล์สำหรับ repo วันแข่ง |
 | [docs/product/requirements.md](docs/product/requirements.md) | ข้อกำหนดธุรกิจที่ Owner อนุมัติ (input ของ AI-DLC) |
 | [docs/plan/delivery-plan.md](docs/plan/delivery-plan.md) | แผนส่งมอบเป็นเฟสพร้อม checklist |
 | [docs/plan/work-breakdown.md](docs/plan/work-breakdown.md) | รายการงานย่อย (ID, ผู้ทำ, ขึ้นกับ, หลักฐาน, สถานะ) ตัวติดตามความคืบหน้าหลัก |

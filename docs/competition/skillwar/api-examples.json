@@ -1,0 +1,317 @@
+{
+  "purpose": "QA evidence from a rules-only runtime. Responses are field projections. Never serve this file as an AI answer.",
+  "requestDefaults": {
+    "X-Device-Id": "device-skillwar-qa",
+    "Content-Type": "application/json"
+  },
+  "examples": [
+    {
+      "name": "Config flags",
+      "request": {
+        "method": "GET",
+        "path": "/v1/app-config",
+        "headers": {}
+      },
+      "status": 200,
+      "response": {
+        "mode": "demo",
+        "noticeVersion": "1.0-draft",
+        "featureFlags": {
+          "moneyMap": true,
+          "aiChat": true,
+          "aiAssistant": true,
+          "liveSources": true,
+          "govConnected": true,
+          "demo": true
+        }
+      }
+    },
+    {
+      "name": "Synthetic source shape",
+      "request": {
+        "method": "GET",
+        "path": "/v1/demo/personas/gov-prefill?sources=thaid,socialSecurity",
+        "headers": {}
+      },
+      "status": 200,
+      "response": {
+        "dataStatus": "mock",
+        "sources": [
+          {
+            "field": "identity",
+            "label": "ThaID",
+            "value": "อายุ 65 ปี",
+            "checkedAt": "2026-11-27"
+          },
+          {
+            "field": "ss33",
+            "label": "ประกันสังคม",
+            "value": "ม. 33 · ส่งสมทบ 8 จาก 15 เดือนก่อนออกงาน",
+            "checkedAt": "2026-11-27"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Calculate a preview",
+      "request": {
+        "method": "POST",
+        "path": "/v1/money/preview",
+        "headers": {},
+        "body": {
+          "facts": {
+            "hasUnpaid": true,
+            "unpaidDays": 2,
+            "dailyWage": 500
+          }
+        }
+      },
+      "status": 200,
+      "response": [
+        {
+          "id": "unpaid_wages",
+          "status": "likely",
+          "amount": {
+            "basis": "calc",
+            "value": 1000,
+            "unit": "บาท",
+            "note": "จำนวนวัน × ค่าจ้างต่อวัน ตามที่คุณแจ้ง"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bang Na mock catalogue",
+      "request": {
+        "method": "GET",
+        "path": "/v1/opportunities?area=bangkok&districtCode=1047&district=%E0%B8%9A%E0%B8%B2%E0%B8%87%E0%B8%99%E0%B8%B2&dataMode=mock&group=job&includeDistrictPins=true&limit=1",
+        "headers": {}
+      },
+      "status": 200,
+      "response": {
+        "items": [
+          {
+            "id": "mock_bangkok_catalogue_d20-job_full-01",
+            "title": "เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา",
+            "category": "job_full",
+            "location": {
+              "precision": "city",
+              "text": "สำนักงาน เขตบางนา กรุงเทพมหานคร (จุดสมมติ)",
+              "province": "กรุงเทพมหานคร",
+              "district": "บางนา",
+              "workMode": "onsite",
+              "lat": 13.66609,
+              "lng": 100.61909
+            },
+            "provenance": {
+              "provider": "mock_bangkok_catalogue",
+              "dataStatus": "mock",
+              "sourceUrl": "http://demo.invalid/docs/mockups/opportunity-info.html?id=mock_bangkok_catalogue_d20-job_full-01",
+              "updatedAt": "2026-11-27T14:33:56.110Z",
+              "fetchedAt": "2026-11-27T14:33:56.110Z",
+              "attribution": "DEMO / MOCK",
+              "linkStatus": "unknown",
+              "ageDays": 1
+            }
+          }
+        ],
+        "districtPins": [
+          {
+            "district": "บางนา",
+            "lat": 13.66609,
+            "lng": 100.61909,
+            "count": 60
+          }
+        ]
+      }
+    },
+    {
+      "name": "Give synthetic-user consent",
+      "request": {
+        "method": "POST",
+        "path": "/v1/me/consents",
+        "headers": {},
+        "body": {
+          "noticeVersion": "1.0-draft",
+          "ageConfirmed": true,
+          "purposes": {
+            "core": true,
+            "ai": true
+          }
+        }
+      },
+      "status": 201,
+      "response": {
+        "purposes": {
+          "core": true,
+          "location": false,
+          "ai": true,
+          "reminders": false,
+          "gov": false
+        }
+      }
+    },
+    {
+      "name": "Start guided conversation",
+      "request": {
+        "method": "POST",
+        "path": "/v1/ai/conversations",
+        "headers": {},
+        "body": {
+          "mode": "guided"
+        }
+      },
+      "status": 201,
+      "response": {
+        "conversationId": "conv2",
+        "step": {
+          "id": "step3",
+          "fact": "intent"
+        },
+        "quickReplies": [
+          "เช็กสิทธิรับเงิน",
+          "วางแผนหาเงินเพิ่ม",
+          "ไม่แน่ใจ ข้ามข้อนี้"
+        ]
+      }
+    },
+    {
+      "name": "Select older persons allowance",
+      "request": {
+        "method": "POST",
+        "path": "/v1/ai/conversations/conv2/messages",
+        "headers": {},
+        "body": {
+          "text": "เช็กสิทธิเบี้ยผู้สูงอายุ",
+          "stepId": "step3"
+        }
+      },
+      "status": 200,
+      "response": {
+        "aiStatus": "guarded",
+        "reply": "คุณอายุเท่าไหร่",
+        "step": {
+          "id": "step4",
+          "fact": "ageBand"
+        },
+        "quickReplies": [
+          "ต่ำกว่า 60",
+          "60-69",
+          "70-79",
+          "80-89",
+          "90 ขึ้นไป",
+          "ไม่แน่ใจ ข้ามข้อนี้"
+        ]
+      }
+    },
+    {
+      "name": "Answer the displayed step",
+      "request": {
+        "method": "POST",
+        "path": "/v1/ai/conversations/conv2/messages",
+        "headers": {},
+        "body": {
+          "text": "อายุ 65 ปีค่ะ",
+          "stepId": "step4"
+        }
+      },
+      "status": 200,
+      "response": {
+        "aiStatus": "guarded",
+        "reply": "บันทึกคำตอบแล้วค่ะ\nคุณมีสัญชาติไทยไหม",
+        "step": {
+          "id": "step5",
+          "fact": "nationality"
+        },
+        "quickReplies": [
+          "มีสัญชาติไทย",
+          "ไม่มีสัญชาติไทย",
+          "ไม่แน่ใจ ข้ามข้อนี้"
+        ]
+      }
+    },
+    {
+      "name": "Skip the current benefit question",
+      "request": {
+        "method": "POST",
+        "path": "/v1/ai/conversations/conv2/messages",
+        "headers": {},
+        "body": {
+          "text": "ไม่แน่ใจ ข้ามข้อนี้",
+          "stepId": "step5"
+        }
+      },
+      "status": 200,
+      "response": {
+        "aiStatus": "guarded",
+        "reply": "ข้ามข้อนี้ไว้ก่อนค่ะ\nเบี้ยยังชีพผู้สูงอายุ ยังมีข้อมูลไม่พอสำหรับประเมิน ตรวจเกณฑ์และช่องทางกับ องค์กรปกครองส่วนท้องถิ่นตามทะเบียนบ้าน (กรุงเทพฯ: สำนักงานเขต) ค่ะ",
+        "quickReplies": [
+          "เช็กสิทธิรับเงิน",
+          "วางแผนหาเงินเพิ่ม"
+        ]
+      }
+    },
+    {
+      "name": "Save the catalogue item",
+      "request": {
+        "method": "POST",
+        "path": "/v1/tasks",
+        "headers": {},
+        "body": {
+          "opportunityId": "mock_bangkok_catalogue_d20-job_full-01",
+          "districtCode": "1047"
+        }
+      },
+      "status": 201,
+      "response": {
+        "id": "t6",
+        "title": "เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา",
+        "districtCode": "1047",
+        "status": "active",
+        "doneCount": 0,
+        "steps": [
+          "เตรียมเอกสาร",
+          "ติดต่อผู้ประกาศ",
+          "ไปสัมภาษณ์",
+          "เริ่มงาน"
+        ]
+      }
+    },
+    {
+      "name": "Complete the first step",
+      "request": {
+        "method": "POST",
+        "path": "/v1/tasks/t6/events",
+        "headers": {
+          "Idempotency-Key": "qa-step-01"
+        },
+        "body": {
+          "type": "complete_step"
+        }
+      },
+      "status": 201,
+      "response": {
+        "id": "t6",
+        "doneCount": 1
+      }
+    },
+    {
+      "name": "Retry the same event",
+      "request": {
+        "method": "POST",
+        "path": "/v1/tasks/t6/events",
+        "headers": {
+          "Idempotency-Key": "qa-step-01"
+        },
+        "body": {
+          "type": "complete_step"
+        }
+      },
+      "status": 201,
+      "response": {
+        "id": "t6",
+        "doneCount": 1
+      }
+    }
+  ]
+}

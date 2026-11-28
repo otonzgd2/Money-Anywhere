@@ -1,0 +1,59 @@
+{
+  "baseline": "8efb63bb57e88fcb8cfd489d155ffe9cba025401",
+  "groups": {
+    "blueprint": {
+      "use": "Pre-event specifications, interface contracts and QA. Example responses are test evidence only.",
+      "paths": [
+        "docs/competition/skillwar/README.md",
+        "docs/competition/skillwar/scorecard.md",
+        "docs/competition/skillwar/requirements.md",
+        "docs/competition/skillwar/dev-spec.md",
+        "docs/competition/skillwar/event-runbook.md",
+        "docs/competition/skillwar/kiro-build.md",
+        "docs/competition/skillwar/data-dictionary.md",
+        "docs/competition/skillwar/qa-scenarios.json",
+        "docs/competition/skillwar/api-examples.json",
+        "docs/competition/skillwar/starter-manifest.json",
+        "contracts/openapi.yaml",
+        "contracts/app-config.schema.json",
+        "contracts/app-config.sample.json"
+      ]
+    },
+    "reference-data": {
+      "use": "Public source references, schema and app brand assets. Review provenance and reuse terms.",
+      "paths": [
+        "contracts/fixtures/bangkok-district-map.json",
+        "docs/entities/database-script/001_create_job_tables.sql",
+        "docs/entities/database-script/002_job_location_filters.sql",
+        "docs/entities/database-script/select_job_catalogue.sql",
+        "docs/product/sources/bangkok-benefits-2026-11-27.md",
+        "docs/product/sources/bangkok-benefits-2026-11-27.html",
+        "docs/product/sources/thai-senior-benefits-2026-11-27.md",
+        "docs/product/sources/thai-senior-benefits-2026-11-27.html",
+        "app/assets/thang-rot/d-mytax.png",
+        "app/assets/thang-rot/sso-plus.png",
+        "app/assets/thang-rot/thaid.png",
+        "app/assets/thang-rot/thang-rot-logo.png",
+        "app/assets/thang-rot/thangrat.png"
+      ]
+    },
+    "mock-inputs": {
+      "use": "Prepared synthetic and mixed-provenance inputs. Disclose mock data and preserve its labels. Filter mixed inputs before stage use.",
+      "paths": [
+        "contracts/fixtures/assistant-policy.json",
+        "contracts/fixtures/bangkok-district-map.json",
+        "contracts/fixtures/gov-prefill-demo.json",
+        "contracts/fixtures/reference.json",
+        "contracts/fixtures/opportunities.json",
+        "contracts/fixtures/opportunities-mock.json",
+        "contracts/fixtures/job-feed.demo.json",
+        "contracts/fixtures/job-feed.demo.csv",
+        "contracts/fixtures/job-file-feeds.demo.json",
+        "docs/entities/database-script/demo/catalogue.db",
+        "docs/mockups/opportunity-info.html",
+        "docs/mockups/job-application.html",
+        "docs/mockups/opportunity-map.html"
+      ]
+    }
+  }
+}
