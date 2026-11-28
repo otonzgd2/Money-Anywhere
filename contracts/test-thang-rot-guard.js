@@ -746,6 +746,15 @@ test('SOFT-02 mask covers spaced digits, Thai digits and passwords', () => {
   }
 });
 
+test('SOFT-02 masks qualified credentials and preserves the job request', () => {
+  const { createGuard } = require('./adapters/guard');
+  const guard = createGuard(require('./fixtures/assistant-policy.json'));
+  for (const input of ['OTP code: "000123"', 'PIN number is 000123', 'password is 000123', 'หมายเลขบัญชี: "000123"']) {
+    const result = guard.mask(input + ' หางานบางนา');
+    assert.ok(!result.includes('000123'), 'credential value must be removed');
+    assert.match(result, /\[ซ่อน\].*หางานบางนา$/);
+  }
+});
 
 test('JOB-01 model search parameters cannot override job filters', async () => {
   const { api, searched, districtsOf } = await openCatalogueChat();
@@ -815,6 +824,7 @@ test('LINK-01, LINK-02 catalogue controls links and pending actions', async () =
   assert.ok(turn.opportunityLinks.every(link => link.opportunityId !== 'invented_id' && link.dataStatus === 'mock'));
   assert.match(turn.reply, /DEMO \/ MOCK.*ข้อมูลตัวอย่าง/);
   assert.ok(turn.opportunityLinks.every(link => turn.pendingActions.some(action => action.id === link.actionId)));
+  assert.equal(turn.pendingActions.length, turn.opportunityLinks.length);
 });
 
 test('LINK-03 reject and LINK-04 retry confirm leave one task', async () => {

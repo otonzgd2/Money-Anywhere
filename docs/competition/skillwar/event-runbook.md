@@ -87,6 +87,7 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 - หากยังเกิด `Could not close incremental caches` ให้เพิ่ม `kotlin.incremental=false` และ `kotlin.compiler.execution.strategy=in-process` ชั่วคราวใน `app/android/gradle.properties` แล้ว build ใหม่ คืนค่าเดิมก่อน stage ไฟล์ วิธีนี้สร้าง debug APK ของ baseline สำเร็จบนเครื่องที่ใช้ตรวจ
 - `npm run mock:bangkok` เป็นชุด rules-only ใช้ port `8082` ตามค่าเริ่มต้น และใช้สำเนาของฐาน mock ใน `contracts/.data/` ตั้ง `JOB_DB_FILE` เพื่อเลือกฐานสำเนาของทีม
 - เมื่อทีมข้อมูลตรวจสิทธิ์จัดเก็บและแสดงประกาศจาก feed แล้ว ให้ลงทะเบียนผู้ตรวจและวันตรวจจริงในฐานสำเนาด้วย `node contracts/fixtures/register-bkk-curated.js <catalogue.db> "<reviewer>" <YYYY-MM-DD>` จากนั้นตั้ง `JOB_FEEDS_FILE` ให้ใช้ provider `bkk_curated` และ `mock: false` แล้วเปิดด้วย `npm.cmd --prefix contracts run mock` ตามสเปก S0
+- สำหรับรอบเวทีที่ใช้ประกาศจริง ให้ตั้ง `CHAT_JOB_DATA_MODE=real` และตรวจเคสค้นพบกับเคสผลว่างก่อนเริ่ม รอบทดสอบ mock ใช้ `CHAT_JOB_DATA_MODE=mock` หรือไม่ตั้งค่า พร้อมป้ายของแต่ละรายการ `GUARD_MODE=strict` เปิดพฤติกรรม guard เดิมสำหรับเปรียบเทียบกับโหมด soft ค่าเริ่มต้น
 - ทดสอบ API ด้วย `npm.cmd --prefix contracts test`, `node contracts/test-thang-rot-guard.js`, `node contracts/test-thang-rot-manual.js` และ `node docs/competition/skillwar/capture-api-examples.cjs` จากราก repo สำหรับ capture ใช้ loopback, memory state และ rules
 
 ## สาธิตให้จบในเจ็ดนาที

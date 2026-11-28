@@ -123,6 +123,9 @@ function createServer(opts = {}) {
   const guardMode = opts.guardMode ?? process.env.GUARD_MODE ?? 'soft';
   const chatJobDataMode = opts.chatJobDataMode ?? process.env.CHAT_JOB_DATA_MODE;
   if (!['soft', 'strict'].includes(guardMode)) throw new Error('GUARD_MODE must be soft or strict');
+  if (chatJobDataMode && !OPPORTUNITY_DATA_MODES.has(chatJobDataMode)) {
+    throw new Error('CHAT_JOB_DATA_MODE must be real or mock');
+  }
   const startedAt = nowIso();
   const scam = text => reviewScamSignals(ref.scamRules, text);
   const purposeIds = NOTICE.purposes.filter(p => !p.feature || (p.feature === 'govConnected' && govOn)).map(p => p.id);
@@ -911,9 +914,17 @@ function createServer(opts = {}) {
     function details(out, tools, query = text, turnIds = [], returnedIds = turnIds) {
       const plans = savedPlans();
       const related = moneySummaryQuery.test(query) ? plans : matchingMoneyPlans(plans, { ...out, text: query });
+      const candidateReply = String(out.reply || '');
+      const ordered = turnIds.map((id, index) => {
+        const o = findOpportunity(id);
+        if (!o) return null;
+        const mention = [id, o.title].map(value => candidateReply.indexOf(value)).filter(pos => pos >= 0);
+        return { o, index, mention: mention.length ? Math.min(...mention) : Infinity };
+      }).filter(Boolean).sort((a, b) => a.mention - b.mention || a.index - b.index).slice(0, 3);
       const alreadySaved = new Set(), pendingActions = [], jobActions = new Map();
       const candidates = [...(out.pending || []).filter(action => !action.args?.opportunityId || (returnedIds.includes(action.args.opportunityId) && !turnIds.includes(action.args.opportunityId))),
-        ...turnIds.filter(id => !d.tasks.some(task => task.opportunityId === id)).map(id => ({ tool: 'create_task', args: { opportunityId: id } }))];
+        ...ordered.filter(({ o }) => !d.tasks.some(task => task.opportunityId === o.id))
+          .map(({ o }) => ({ tool: 'create_task', args: { opportunityId: o.id } }))];
       for (const action of candidates) {
         if (tools[action.tool]?.mode !== 'confirm') continue;
         if (action.tool === 'update_facts') {
@@ -933,13 +944,7 @@ function createServer(opts = {}) {
       }
       const savedNote = [...alreadySaved].map(task => 'บันทึกแผน ' + task.title + ' ไว้แล้ว · ' + planPaymentStatus(task));
       const replyText = guardPromises(out.reply, pendingActions);
-      const ordered = turnIds.map((id, index) => {
-        const o = findOpportunity(id);
-        if (!o) return null;
-        const mention = [id, o.title].map(value => replyText.indexOf(value)).filter(pos => pos >= 0);
-        return { o, index, mention: mention.length ? Math.min(...mention) : Infinity };
-      }).filter(Boolean).sort((a, b) => a.mention - b.mention || a.index - b.index);
-      const opportunityLinks = ordered.slice(0, 3).map(({ o: item }) => {
+      const opportunityLinks = ordered.map(({ o: item }) => {
         const o = opportunityResponse(item, req), url = URL.parse(o.provenance.sourceUrl || '');
         const checked = o.checkedAt || o.provenance.linkCheckedAt;
         const task = d.tasks.find(t => t.opportunityId === o.id);
