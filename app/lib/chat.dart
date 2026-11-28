@@ -2,6 +2,8 @@ import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'common.dart';
+import 'opp_screen.dart';
+import 'opportunity_catalog.dart';
 import 'task_screen.dart';
 
 /// One-click AI: pressing the home button records consent (core + ai, stated on the button) and starts a
@@ -18,13 +20,55 @@ class ChatScreen extends StatefulWidget {
 
 typedef _PlanLink = ({String taskId, String label});
 
+class _OpportunityLink {
+  const _OpportunityLink(this.id, this.title, this.data);
+
+  final String id, title;
+  final Map<String, dynamic> data;
+  String? get actionId => data['actionId'] as String?;
+  String? get savedTaskId => data['savedTaskId'] as String?;
+
+  Uri? get source {
+    final value = data['sourceUrl'];
+    if (value is! String || data['sourceStatus'] == 'unavailable') return null;
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+            (uri.scheme == 'http' || uri.scheme == 'https') &&
+            uri.host.isNotEmpty &&
+            uri.userInfo.isEmpty
+        ? uri
+        : null;
+  }
+
+  String get sourceLabel {
+    return switch (data['dataStatus']) {
+      'mock' => 'DEMO / MOCK',
+      'curated' => switch (data['checkedAt']) {
+        final String date when DateTime.tryParse(date) != null =>
+          'ตรวจแล้ว ${date.split('T').first}',
+        _ => 'แหล่งข้อมูลคัดตรวจ',
+      },
+      'live' => 'ข้อมูลจากต้นทาง',
+      'open_data' => 'ข้อมูลเปิด',
+      _ => 'ยังไม่ทราบที่มา',
+    };
+  }
+}
+
 class _Msg {
-  _Msg(this.mine, this.text, {this.status, this.guard, this.actions = const [], this.planLinks = const []});
+  _Msg(this.mine, this.text, {
+    this.status,
+    this.guard,
+    this.actions = const [],
+    this.planLinks = const [],
+    this.opportunities = const [],
+  });
   final bool mine;
   final String text;
   final String? status, guard;
   final List<Map<String, dynamic>> actions;
   final List<_PlanLink> planLinks;
+  final List<_OpportunityLink> opportunities;
 }
 
 const _guardLabel = {
@@ -47,6 +91,7 @@ String _who(_Msg m) {
 class ChatSession extends ChangeNotifier {
   final List<_Msg> _msgs = [];
   final Set<String> decided = {};
+  final Set<Uri> unavailableSources = {};
   List<String> quick = [];
   String? stepId;
   String? conversationId;
@@ -58,6 +103,7 @@ class ChatSession extends ChangeNotifier {
   void reset() {
     _msgs.clear();
     decided.clear();
+    unavailableSources.clear();
     quick = [];
     stepId = null;
     conversationId = null;
@@ -153,12 +199,27 @@ class _ChatScreenState extends State<ChatScreen> {
           if (plan case {'taskId': final String taskId, 'title': final String title})
             (taskId: taskId, label: 'เปิดแผน $title'),
       ];
+      final opportunities = [
+        for (final link in r['opportunityLinks'] as List? ?? const [])
+          if (link case {
+            'opportunityId': final String id,
+            'title': final String title,
+          })
+            _OpportunityLink(id, title, Map<String, dynamic>.from(link)),
+      ];
       final index = session._msgs.indexOf(pending);
       if (index >= 0) {
         session._updateMessages(() {
-          session._msgs[index] = _Msg(true, guard == 'sensitive' ? 'ซ่อนข้อความที่มีข้อมูลส่วนตัว' : t);
+          final maskedText = r['maskedText'];
+          session._msgs[index] = _Msg(
+            true,
+            maskedText is String
+                ? maskedText
+                : guard == 'sensitive' ? 'ซ่อนข้อความที่มีข้อมูลส่วนตัว' : t,
+          );
           session._msgs.add(_Msg(false, '${r['reply']}', status: r['aiStatus'] as String?, guard: guard,
-              actions: (r['pendingActions'] as List? ?? const []).cast<Map<String, dynamic>>(), planLinks: planLinks));
+              actions: (r['pendingActions'] as List? ?? const []).cast<Map<String, dynamic>>(),
+              planLinks: planLinks, opportunities: opportunities));
           session.quick = (r['quickReplies'] as List? ?? const []).cast<String>();
           session.stepId = (r['step'] as Map?)?['id'] as String?;
           session._sending = false;
@@ -216,6 +277,83 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _openSource(_OpportunityLink link, Uri source) async {
+    final session = s;
+    final conversation = conversationId;
+    final opened = await openExternal(
+      context,
+      widget.app,
+      url: source.toString(),
+      title: link.title,
+      opportunityId: link.id,
+      askAfterReturn: false,
+      showError: false,
+    );
+    if (!opened && session.conversationId == conversation) {
+      session._updateMessages(() => session.unavailableSources.add(source));
+    }
+  }
+
+  void _openTask(String taskId) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TaskScreen(app: widget.app, taskId: taskId),
+    ));
+  }
+
+  Widget _opportunityRow(_OpportunityLink link, Map<String, dynamic>? action) {
+    final source = link.source;
+    final saveId = action?['id'];
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(link.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Text([
+            if (link.data['workMode'] == 'remote')
+              'ทำจากบ้าน'
+            else if (link.data['district'] case final String district)
+              'เขต$district',
+            link.sourceLabel,
+          ].join(' · ')),
+          if (link.data['money'] is Map) Text(oppMoney(link.data)),
+          Wrap(
+            spacing: 4,
+            children: [
+              if (source != null || link.data['sourceStatus'] == 'unavailable')
+                TextButton(
+                  onPressed: source == null || s.unavailableSources.contains(source)
+                      ? null
+                      : () => _openSource(link, source),
+                  child: Text(
+                    source == null || s.unavailableSources.contains(source)
+                        ? 'ต้นทางยังเปิดไม่ได้'
+                        : 'ดูต้นทาง',
+                  ),
+                ),
+              TextButton(
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => OppScreen(app: widget.app, opportunityId: link.id),
+                )),
+                child: const Text('ดูรายละเอียด'),
+              ),
+              if (link.savedTaskId case final String taskId)
+                TextButton(
+                  onPressed: () => _openTask(taskId),
+                  child: const Text('บันทึกไว้แล้ว · ดูแผน ›'),
+                )
+              else if (action != null && saveId is String && !decided.contains(saveId))
+                FilledButton(
+                  onPressed: deciding.contains(saveId) ? null : () => _decide(action, true),
+                  child: const Text('บันทึกเข้าแผน'),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _scrollDown() => WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && scroll.hasClients) scroll.animateTo(scroll.position.maxScrollExtent, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       });
@@ -262,6 +400,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _bubble(_Msg m) {
     final bg = m.mine ? const Color(0xFF0E9F6E) : const Color(0xFFF1F5F4);
+    final actionsById = {for (final action in m.actions) action['id']: action};
+    final rowActionIds = {for (final link in m.opportunities) link.actionId};
     return Align(
       alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -274,10 +414,12 @@ class _ChatScreenState extends State<ChatScreen> {
           Text(m.text, style: TextStyle(color: m.mine ? Colors.white : Colors.black87, fontSize: 15)),
           for (final plan in m.planLinks)
             TextButton(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TaskScreen(app: widget.app, taskId: plan.taskId))),
+              onPressed: () => _openTask(plan.taskId),
               child: Text(plan.label),
             ),
-          for (final a in m.actions)
+          for (final link in m.opportunities)
+            _opportunityRow(link, actionsById[link.actionId]),
+          for (final a in m.actions.where((a) => !rowActionIds.contains(a['id'])))
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: decided.contains(a['id'])
