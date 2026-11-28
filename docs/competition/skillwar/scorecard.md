@@ -4,6 +4,8 @@
 
 ใช้แผนปิดช่องว่างเพื่อติดตามงาน เจ้าของ และหลักฐานที่ต้องเก็บก่อนกลับไปปรับ Dev Spec กับชุดไฟล์วันแข่ง [เปิดแผนปิดช่องว่างคะแนน](https://github.com/otonzgd2/Money-Anywhere/blob/main/docs/competition/skillwar/gap-closure-plan.md)
 
+เป้าตรวจรับคือหลักฐานครบ 25 ข้อรวม 100 คะแนนก่อนหัก ตารางตรวจรับระบุเงื่อนไขที่วัดได้ ส่วนที่ใช้ดุลยพินิจ และสถานะจากการรันจริง [เปิดตารางตรวจรับหลักฐาน](https://github.com/otonzgd2/Money-Anywhere/blob/main/docs/competition/skillwar/evidence-acceptance.md)
+
 | หมวด | คะแนนเต็ม | พร้อมจากหลักฐาน |
 | --- | ---: | ---: |
 | Functionality & Execution | 30 | 19 |
