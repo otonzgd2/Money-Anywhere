@@ -174,7 +174,9 @@ class Api {
         req.add(bytes);
       }
       final res = await req.close().timeout(const Duration(seconds: 40));
-      final text = await res.transform(utf8.decoder).join();
+      final text = await res.transform(utf8.decoder)
+          .timeout(const Duration(seconds: 40))
+          .join();
       final data = text.isEmpty ? <String, dynamic>{} : jsonDecode(text) as Map<String, dynamic>;
       if (res.statusCode >= 400) {
         throw ApiException(res.statusCode, '${data['code'] ?? 'ERROR'}', '${data['message'] ?? 'ระบบขัดข้อง'}');
