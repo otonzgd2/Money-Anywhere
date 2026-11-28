@@ -1213,6 +1213,17 @@ components:
         aiStatus: { $ref: '#/components/schemas/AiStatus' }
         aiInvocationId: { type: string }
         reply: { type: string, description: "Money figures not found in tool results are removed" }
+        maskedText: { type: string, description: "ข้อความผู้ใช้หลังปิดบังข้อมูลส่วนตัว เมื่อมีการปิดบัง" }
+        jobSearch:
+          type: object
+          properties:
+            district: { type: string }
+            districtSource: { type: string, enum: [text, profile] }
+            skill: { type: string }
+            workMode: { type: string }
+            shift: { type: string }
+            excluded: { type: integer }
+            resultCount: { type: integer }
         toolCalls: { type: array, items: { type: object, required: [tool], properties: { tool: { type: string } } }, description: "Read tools the agent used, for transparency" }
         pendingActions: { type: array, items: { $ref: '#/components/schemas/PendingAction' } }
         planLinks:

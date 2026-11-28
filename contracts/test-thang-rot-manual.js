@@ -17,7 +17,7 @@ const clientPath = '/v1/ai/conversations';
 
 async function setup(t, options = {}) {
   const server = createServer({
-    appMode: 'demo', demo: true, govConnected: true, jobs: false, retentionDays: 0,
+    guardMode: 'strict', appMode: 'demo', demo: true, govConnected: true, jobs: false, retentionDays: 0,
     ai: rulesAi, agent: rulesAgent, aiLogFile: '', aiDailyLimit: 0, clock: () => referenceTime,
     fetch: async () => { throw new Error('No external service in the MAN fixtures'); },
     ...options

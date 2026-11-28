@@ -49,7 +49,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const consentBody = (p = {}) => ({ noticeVersion: NOTICE, ageConfirmed: true, purposes: { core: true, location: false, ai: true, reminders: true, ...p } });
 
   // ================= Server 1: default (gov mode hidden, rules AI) =================
-  const server = createServer({ integrationKey: 'test-key' });
+  const server = createServer({ integrationKey: 'test-key', guardMode: 'strict' });
   const base = await listen(server);
   const call = client(base, { 'X-Device-Id': 'device-aaaa-1111' });
   const other = client(base, { 'X-Device-Id': 'device-bbbb-2222' });
@@ -595,7 +595,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   });
   const fakeBase = await listen(fake);
   const aiOpts = { baseUrl: fakeBase, apiKey: 'fake', timeoutMs: 2000 };
-  const s2 = createServer({ govConnected: true, legacyGovFixtures: true, ai: createAi(aiOpts), agent: createAgent(aiOpts) });
+  const s2 = createServer({ guardMode: 'strict', govConnected: true, legacyGovFixtures: true, ai: createAi(aiOpts), agent: createAgent(aiOpts) });
   const base2 = await listen(s2);
   const g = client(base2, { 'X-Device-Id': 'device-eeee-5555' });
   const gNo = client(base2, { 'X-Device-Id': 'device-ffff-6666' });

@@ -11,6 +11,13 @@ function createGuard(policy) {
   const ZERO = /^(ไม่มี|ไม่ค้าง|ไม่เคย|ศูนย์|0)/;
   return {
     version: policy.version,
+    mask(text) {
+      return String(text || '')
+        .replace(/((?:otp|pin|รหัส\s*(?:ยืนยัน|ใช้ครั้งเดียว))\s*(?:คือ|เป็น|[:=])?\s*)([\d๐-๙]+(?:[ -]+[\d๐-๙]+)*)/gi, '$1[ซ่อน]')
+        .replace(/((?:รหัสผ่าน|password)\s*(?:(?:คือ|เป็น|[:=])\s*)?)(\S+)/gi, '$1[ซ่อน]')
+        .replace(/((?:เลข)?(?:บัญชี|บัตร)\s*(?:เลขที่|คือ|เป็น|[:=])?\s*)([\d๐-๙](?:[\d๐-๙\s-]*[\d๐-๙])?)/gi, (all, prefix, value) => value.replace(/[^\d๐-๙]/g, '').length >= 4 ? prefix + '[ซ่อน]' : all)
+        .replace(/(?<![\d๐-๙])(?:[\d๐-๙][ -]?){12}[\d๐-๙](?![\d๐-๙])/g, '[ซ่อน]');
+    },
     check(text, expect) {
       const t = thaiDigits(text || '').trim();
       if (credentialName.test(t) && safetyQuestion.test(t) && !credentialValue.test(t)
