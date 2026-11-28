@@ -118,6 +118,7 @@
     .model div { display: grid; gap: 3px; padding: 10px 0; border-top: 1px solid var(--line); }
     .model dt { font-weight: 750; }
     .model dd { margin: 0; color: var(--muted); font-size: .93rem; }
+    .model code { overflow-wrap: anywhere; }
     details { border-top: 1px solid var(--line); padding-top: 11px; margin-top: 13px; }
     summary { font-weight: 700; color: var(--link); cursor: pointer; }
     details p { margin-top: 6px; font-size: .92rem; }
@@ -183,6 +184,7 @@
   <header class="masthead wrap">
     <a class="brand" href="#top">Money Anywhere</a>
     <nav aria-label="หัวข้อในแผน">
+      <a href="#files">ตำแหน่งไฟล์</a>
       <a href="#coverage">เป้าหมายรายเขต</a>
       <a href="#categories">10 หมวดข้อมูล</a>
       <a href="#info">ลิงก์และหน้า Info</a>
@@ -211,6 +213,38 @@
         <div class="metric"><dt>เขตอื่น</dt><dd><span id="standard-total">100</span> ต่อเขต <small>10 ต่อหมวด</small></dd></div>
         <div class="metric"><dt>เขตบางนา</dt><dd><span id="priority-total">200</span> รายการ <small>20 ต่อหมวด</small></dd></div>
       </dl>
+    </section>
+
+    <section id="files" aria-labelledby="files-title">
+      <h2 id="files-title">ตำแหน่งไฟล์ข้อมูลจำลอง</h2>
+      <p class="section-intro">ไฟล์ SQLite ที่เผยแพร่บน GitHub มีข้อมูล DEMO / MOCK 5,100 รายการ ครบ 10 หมวดใน 50 เขต บางนามี 200 รายการ</p>
+      <dl class="model">
+        <div>
+          <dt><a href="../entities/database-script/demo/catalogue.db" download>ดาวน์โหลด catalogue.db ชุดเผยแพร่</a></dt>
+          <dd><code>docs/entities/database-script/demo/catalogue.db</code> · เฉพาะข้อมูลจำลองกรุงเทพฯ</dd>
+        </div>
+        <div>
+          <dt><a href="../entities/database-script/catalogue.db">ฐานข้อมูลที่แอปใช้ในเครื่อง</a></dt>
+          <dd><code>docs/entities/database-script/catalogue.db</code> · ฐานข้อมูลสำหรับรันเซิร์ฟเวอร์เดโม อยู่ในเครื่องตาม <code>.gitignore</code></dd>
+        </div>
+        <div>
+          <dt><a href="../../contracts/fixtures/seed-bangkok-opportunities.js">สคริปต์สร้างข้อมูลจำลอง</a></dt>
+          <dd><code>contracts/fixtures/seed-bangkok-opportunities.js</code></dd>
+        </div>
+        <div>
+          <dt><a href="../../contracts/fixtures/bangkok-district-map.json">พิกัดและขอบเขตเขตกรุงเทพฯ</a></dt>
+          <dd><code>contracts/fixtures/bangkok-district-map.json</code></dd>
+        </div>
+        <div>
+          <dt><a href="opportunity-map.html">หน้าแผนที่</a></dt>
+          <dd><code>docs/mockups/opportunity-map.html</code></dd>
+        </div>
+        <div>
+          <dt><a href="opportunity-info.html">หน้า Info รายประกาศ</a></dt>
+          <dd><code>docs/mockups/opportunity-info.html</code></dd>
+        </div>
+      </dl>
+      <p class="section-intro">หน้าแผนที่และหน้า Info อ่านข้อมูลผ่าน API ของเซิร์ฟเวอร์เดโม</p>
     </section>
 
     <section id="coverage" aria-labelledby="coverage-title">
