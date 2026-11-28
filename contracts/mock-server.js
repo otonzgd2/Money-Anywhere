@@ -406,11 +406,16 @@ function createServer(opts = {}) {
   }
   function jobShift(o) {
     const text = (o.conditions || []).join(' ');
-    const named = [['กลางคืน', 'night'], ['เช้า', 'morning'], ['บ่าย', 'afternoon'], ['เย็น', 'evening']].find(([word]) => text.includes(word));
-    if (named) return named[1];
-    const hour = /(?:กะ|เวลา).*?(\d{1,2}):[0-5]\d/.exec(text);
-    if (!hour || +hour[1] > 23) return undefined;
-    return +hour[1] < 6 ? 'night' : +hour[1] < 12 ? 'morning' : +hour[1] < 17 ? 'afternoon' : +hour[1] < 21 ? 'evening' : 'night';
+    const names = [['กลางคืน', 'night'], ['เช้า', 'morning'], ['บ่าย', 'afternoon'], ['เย็น', 'evening']];
+    const named = names.filter(([word]) => text.includes(word)).map(([, value]) => value);
+    const time = /(?:กะ|เวลา).*?(\d{1,2}):([0-5]\d)\s*[-–]\s*(\d{1,2}):([0-5]\d)/.exec(text);
+    if (!time || +time[1] > 23 || +time[3] > 23) return named;
+    const start = +time[1] * 60 + +time[2], end = +time[3] * 60 + +time[4];
+    if (start === end) return named;
+    const intervals = end > start ? [[start, end]] : [[start, 1440], [0, end]];
+    const periods = { morning: [[360, 720]], afternoon: [[720, 1020]], evening: [[1020, 1260]], night: [[1260, 1440], [0, 360]] };
+    return [...new Set([...named, ...Object.entries(periods).filter(([, ranges]) =>
+      ranges.some(([a, b]) => intervals.some(([x, y]) => x < b && y > a))).map(([name]) => name)])];
   }
 
   // ---- shared services (used by HTTP routes and by the AI agent) ----
@@ -568,11 +573,11 @@ function createServer(opts = {}) {
           }
           const items = xs.filter(o => (!context.sideJob || (sideJob(o) &&
             (context.spareHours === undefined || (advertisedShiftHours(o) ?? 0) <= context.spareHours)))
-            && (!js?.shift || !jobShift(o) || jobShift(o) === js.shift)
+            && (!js?.shift || !jobShift(o).length || jobShift(o).includes(js.shift))
             && !context.excludedJobs?.has(o.id)).slice(0, js && guardMode === 'soft' ? 5 : Math.min(5, a.limit || 3));
           return { items: items.map(o => ({ id: o.id, title: o.title, money: o.money, district: o.location.district,
             workMode: o.location.workMode ?? (o.location.isRemote ? 'remote' : undefined),
-            shiftUnknown: !!js?.shift && !jobShift(o), distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) };
+            shiftUnknown: !!js?.shift && !jobShift(o).length, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) };
         } },
       plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
         parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => Number.isInteger(a.target) && a.target > 0 && a.target <= 1000000 ? goalPlan(d, a.target, context) : { error: 'invalid monthly goal' } },
@@ -895,10 +900,15 @@ function createServer(opts = {}) {
     const hasRegularJob = () => c.hasRegularJob === true || effectiveFacts(d).work === 'ทำงานประจำ';
     const sideHours = () => c.sideJobHours ?? partTimeHoursOf(d);
     const waiting = () => c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : '';
-    const turn = (reply, kind = 'in_scope', extra = {}) => [200, { aiStatus: 'guarded', reply: (masked ? 'ซ่อนข้อมูลส่วนตัวแล้ว\n' : '') + reply,
-      ...(masked ? { maskedText: text } : {}),
-      toolCalls: [], pendingActions: [], planLinks: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
-      step: c.expect || undefined, quickReplies: stepQuick(c.expect) || defaultReplies(), ...extra }];
+    const turn = (reply, kind = 'in_scope', extra = {}, trace = {}) => {
+      const result = { aiStatus: 'guarded', reply: (masked ? 'ซ่อนข้อมูลส่วนตัวแล้ว\n' : '') + reply,
+        ...(masked ? { maskedText: text } : {}),
+        toolCalls: [], pendingActions: [], planLinks: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
+        step: c.expect || undefined, quickReplies: stepQuick(c.expect) || defaultReplies(), ...extra };
+      if (turnNumber !== undefined) logAi(device, 'agent', result, { turnNumber, jobSearch: result.jobSearch,
+        tools: result.toolCalls.map(call => call.tool), pendingActionIds: result.pendingActions.map(action => action.id), ...trace });
+      return [200, result];
+    };
     c.skipped ||= [];
     c.queue ||= [];
 
@@ -1165,8 +1175,7 @@ function createServer(opts = {}) {
         c.history = c.history.slice(-8);
         c.lastTurnUsedAi = true;
       }
-      logAi(device, 'agent', out, { turnNumber, jobSearch: extra.jobSearch, tools: (out.toolCalls || []).map(call => call.tool), turnIds: [...turnIds], mentionedIds, pendingActionIds: extra.pendingActions.map(action => action.id) });
-      return turn(reply + waiting(), kind, { ...extra, memoryAdded, aiStatus: deterministic ? 'guarded' : out.aiStatus });
+      return turn(reply + waiting(), kind, { ...extra, memoryAdded, aiStatus: deterministic ? 'guarded' : out.aiStatus }, { turnIds: [...turnIds], mentionedIds });
     }
 
     const topics = topicRequests(text);

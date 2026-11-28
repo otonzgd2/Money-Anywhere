@@ -980,11 +980,13 @@ test('LINK trace records evidence without conversation text or credentials', asy
   const convo = await chat(api);
   const turn = await convo.send('OTP 000123 หางานบางนา');
   await api('POST', '/v1/ai/conversations/' + convo.conversationId + '/actions/' + turn.opportunityLinks[0].actionId, { decision: 'confirm' });
+  const direct = await convo.send('เงินฉันอยู่ไหน');
   const raw = readFileSync(aiLogFile, 'utf8');
   const entries = raw.trim().split('\n').map(JSON.parse);
   assert.doesNotMatch(raw, /000123|หางานบางนา/);
   assert.ok(entries.some(entry => entry.turnIds?.length && entry.pendingActionIds?.length && entry.jobSearch?.district === 'บางนา'));
   assert.ok(entries.some(entry => entry.result === 'done' && entry.decision === 'confirm'));
+  assert.ok(entries.some(entry => entry.turnNumber === 2 && entry.aiStatus === direct.aiStatus && direct.aiStatus === 'guarded'));
 });
 
 
@@ -1058,4 +1060,25 @@ test('JOB explicit citywide search stays citywide on later job request', async (
   const again = await convo.send('หางานใกล้บ้าน');
   assert.equal(again.jobSearch.district, undefined);
   assert.doesNotMatch(calls.at(-1).text, /เขต บางนา/);
+});
+
+
+test('JOB shift filtering retains overlapping and unspecified shifts', async () => {
+  const { api, searched, jobDbFile } = await openCatalogueChat();
+  await person(api);
+  await (await chat(api)).send('หางานแถวบางนา');
+  const ids = searched[0];
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(jobDbFile);
+  const update = db.prepare('UPDATE job_posting SET conditions = ? WHERE id = ?');
+  update.run(JSON.stringify(['เวลา 09:00-17:00']), ids[0]);
+  update.run(JSON.stringify(['เวลา 22:00-04:00']), ids[1]);
+  update.run(JSON.stringify([]), ids[2]);
+  db.close();
+  const afternoon = await (await chat(api)).send('หางานบางนาตอนบ่าย');
+  assert.ok(searched[1].includes(ids[0]));
+  assert.ok(searched[1].includes(ids[2]));
+  assert.match(afternoon.reply, /ไม่ระบุกะ/);
+  await (await chat(api)).send('หางานบางนาตอนกลางคืน');
+  assert.ok(searched[2].includes(ids[1]));
 });
