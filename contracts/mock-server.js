@@ -1060,7 +1060,7 @@ function createServer(opts = {}) {
     async function runAssistant(query, kind, { deterministic = false, income = false, moreJobs = false, benefit } = {}) {
       const regular = income && hasRegularJob();
       const js = income ? (c.topic.jobSearch ||= {}) : undefined;
-      const excludedJobs = moreJobs ? new Set(js.shownIds || []) : new Set();
+      const excludedJobs = moreJobs ? new Set(js.shownIds || c.topic.jobResultIds || []) : new Set();
       const returnedJobs = new Set(excludedJobs);
       let searchRan = false, shiftUnknown = false;
       const turnIds = new Set(), allTurnIds = new Set();
@@ -1143,8 +1143,14 @@ function createServer(opts = {}) {
       if (income && shiftUnknown) out.reply += '\nบางประกาศไม่ระบุกะ';
       if (guardMode === 'soft') out.reply = guard.mask(out.reply || '');
       const { reply, ...extra } = details(out, allowed, query, [...turnIds], [...allTurnIds]);
+      const mentionedIds = [...turnIds].filter(id => {
+        const opportunity = findOpportunity(id);
+        return reply.includes(id) || (opportunity && reply.includes(opportunity.title));
+      });
       if (income) {
-        js.shownIds = [...returnedJobs];
+        js.shownIds = [...new Set([
+          ...excludedJobs, ...(extra.opportunityLinks || []).map(link => link.opportunityId), ...mentionedIds
+        ])];
         c.topic.jobResultIds = js.shownIds;
         extra.jobSearch = { ...js, shownIds: undefined, excluded: excludedJobs.size, resultCount: returnedJobs.size - excludedJobs.size };
         extra.quickReplies = returnedJobs.size > excludedJobs.size ? jobReplies() : ['ค้นทั้งกรุงเทพฯ', 'ไม่จำกัดทักษะ', 'ดูงานทำจากบ้าน'];
@@ -1159,7 +1165,6 @@ function createServer(opts = {}) {
         c.history = c.history.slice(-8);
         c.lastTurnUsedAi = true;
       }
-      const mentionedIds = [...turnIds].filter(id => { const o = findOpportunity(id); return out.reply.includes(id) || (o && out.reply.includes(o.title)); });
       logAi(device, 'agent', out, { turnNumber, jobSearch: extra.jobSearch, tools: (out.toolCalls || []).map(call => call.tool), turnIds: [...turnIds], mentionedIds, pendingActionIds: extra.pendingActions.map(action => action.id) });
       return turn(reply + waiting(), kind, { ...extra, memoryAdded, aiStatus: deterministic ? 'guarded' : out.aiStatus });
     }

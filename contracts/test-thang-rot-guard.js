@@ -779,6 +779,21 @@ test('JOB-02 and JOB-03 changing district resets shown IDs and more keeps filter
   assert.ok(searched[2].every(id => !searched[1].includes(id)));
 });
 
+test('JOB-03 follow-up leaves room for candidates the user did not see yet', async () => {
+  const { api, searched } = await openCatalogueChat({ reply: 'นี่คือผลค้นงาน' });
+  await person(api);
+  const convo = await chat(api);
+  const first = await convo.send('หางานแถวบางนา');
+  const firstVisible = first.opportunityLinks.map(link => link.opportunityId);
+  const unseen = searched[0].filter(id => !firstVisible.includes(id));
+  assert.ok(unseen.length > 0);
+  const next = await convo.send('ดูงานอื่น');
+  const nextVisible = next.opportunityLinks.map(link => link.opportunityId);
+  assert.equal(next.jobSearch.excluded, firstVisible.length);
+  assert.ok(nextVisible.every(id => !firstVisible.includes(id)));
+  assert.ok(unseen.every(id => nextVisible.includes(id)));
+});
+
 test('JOB-04 empty results disclose filters and offer explicit widening', async () => {
   const { api, searched } = await openCatalogueChat({ server: { chatJobDataMode: 'real' } });
   await person(api);
