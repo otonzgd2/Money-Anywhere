@@ -219,7 +219,7 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const a1 = await call('postConversationMessage', { params: { id: cid }, body: { text: 'เงินฉันอยู่ไหน' }, expect: 200 });
   check('assistant answers from the money tool with real totals', a1.data.toolCalls.some(x => x.tool === 'get_money_overview') && a1.data.reply.includes('7200'));
   const a2 = await call('postConversationMessage', { params: { id: cid }, body: { text: 'หางานใกล้บ้าน' }, expect: 200 });
-  check('a write is proposed, not done', a2.data.pendingActions.length === 1 && a2.data.pendingActions[0].tool === 'create_task');
+  check('a write is proposed, not done', a2.data.pendingActions.length >= 1 && a2.data.pendingActions.every(action => action.tool === 'create_task'));
   const before = (await call('listTasks')).data.items.length;
   const d1 = await call('decideConversationAction', { params: { id: cid, actionId: a2.data.pendingActions[0].id }, body: { decision: 'confirm' }, expect: 200 });
   const after1 = (await call('listTasks')).data.items.length;

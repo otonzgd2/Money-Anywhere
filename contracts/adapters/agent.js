@@ -20,6 +20,16 @@ function guardReferences(reply, results) {
     .replace(phoneLike, value => phones.has(value) ? value : 'ดูเบอร์ติดต่อในแอป');
 }
 
+function guardPromises(reply, pending) {
+  const has = tool => pending.some(action => action.tool === tool);
+  return String(reply || '').split(/(?<=[.!?。！？\n])|(?=เดี๋ยว|ฉันจะ|เราจะ)/).filter(sentence => {
+    if (/(?:จะ|เดี๋ยว|กำลัง|ได้|แล้ว|ระบบส่ง).{0,24}(?:แจ้งเตือน|ตั้งเตือน)|(?:แจ้งเตือน|ตั้งเตือน).{0,20}(?:ให้|แล้ว|เมื่อ)/.test(sentence)) return has('snooze_task');
+    if (/สมัคร(?:งาน|รายการ)?(?:นี้)?.{0,15}ให้/.test(sentence)) return false;
+    if (/บันทึก.{0,24}(?:ให้.*แล้ว|เรียบร้อยแล้ว|แล้ว)/.test(sentence)) return has('create_task');
+    return true;
+  }).join('').trim();
+}
+
 const PREF_RE = /(ไม่สะดวก[^.?!]*|ไม่อยาก[^.?!]*|ชอบ[^.?!]*|ไม่มีรถ[^.?!]*|ขาไม่ดี[^.?!]*|ทำได้แค่[^.?!]*|ว่างแค่[^.?!]*)/;
 const CLAIM_PREFIX = 'ดูวิธีรับ ';
 const moneyGuide = /^(เงินฉันอยู่ไหน|เอกสารที่ยังขาด|ไปรับเงินยังไง|ดูวิธีรับ .+)[?？]?$/;
@@ -247,5 +257,5 @@ function createAgent(opts = {}) {
     }
   };
 }
-module.exports = { createAgent, guardMoney, rulesAgent, goalTarget, formatGoal, moneyGuide,
+module.exports = { createAgent, guardMoney, guardPromises, rulesAgent, goalTarget, formatGoal, moneyGuide,
   moneySummaryQuery, unpaidPlansQuery, planStatusQuery, matchingMoneyPlans, planPaymentStatus };

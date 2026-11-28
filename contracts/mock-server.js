@@ -24,7 +24,7 @@ const crypto = require('crypto');
 const { execSync } = require('child_process');
 const { URL } = require('url');
 const { createAi } = require('./adapters/ai');
-const { createAgent, rulesAgent: runRulesAgent, formatGoal, moneyGuide, moneySummaryQuery,
+const { createAgent, guardPromises, rulesAgent: runRulesAgent, formatGoal, moneyGuide, moneySummaryQuery,
   unpaidPlansQuery, planStatusQuery, matchingMoneyPlans, planPaymentStatus } = require('./adapters/agent');
 const { taxDemoPersonas } = require('./adapters/demo-tax');
 const { govPrefillPersona, govPrefillSourceIds, loadDemoTangRatCard } = require('./adapters/gov-prefill-demo');
@@ -303,11 +303,11 @@ function createServer(opts = {}) {
     if (d.aiUse.n >= aiDailyLimit) return { ai: rulesAi, agent: rulesAgent, limited: true };
     d.aiUse.n++; return { ai, agent };
   }
-  function logAi(device, kind, out) {
+  function logAi(device, kind, out, trace = {}) {
     if (!aiLogFile || !out) return;
     try {
       fs.mkdirSync(path.dirname(path.resolve(aiLogFile)), { recursive: true });
-      fs.appendFileSync(aiLogFile, JSON.stringify({ at: nowIso(), kind, device: hashDevice(device), provider: kind === 'agent' ? agent.provider : ai.provider, aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId }) + '\n');
+      fs.appendFileSync(aiLogFile, JSON.stringify({ at: nowIso(), kind, device: hashDevice(device), provider: kind === 'agent' ? agent.provider : ai.provider, aiStatus: out.aiStatus, aiInvocationId: out.aiInvocationId, ...trace }) + '\n');
     } catch (e) { console.error('ai log: ' + e.message); }
   }
   const curConsent = d => d.consents[d.consents.length - 1];
@@ -388,13 +388,14 @@ function createServer(opts = {}) {
     return key ? bangkokDistricts.find(district => district.key === key) : undefined;
   };
 
-  function readJobSearch(text, d, previous = {}) {
+  function readJobSearch(text, d, previous = {}, useProfile = true) {
     const named = districtsIn(text);
     const home = homeDistrict(d);
-    const district = named[0] || (!previous.district && home);
+    const district = named[0] || (useProfile && !previous.district && home);
     const skills = [...new Set(opportunityValues().flatMap(o => o.skills || []))]
       .sort((a, b) => normalizeJobText(b).length - normalizeJobText(a).length);
-    const skill = skills.find(value => normalizeJobText(value) && normalizeJobText(text).includes(normalizeJobText(value)));
+    const skill = skills.find(value => normalizeJobText(value) && normalizeJobText(text).includes(normalizeJobText(value)))
+      || (text.includes('ขับรถ') ? skills.find(value => normalizeJobText(value) === normalizeJobText('ขับรถยนต์')) : undefined);
     const shift = [['กลางคืน', 'night'], ['เช้า', 'morning'], ['บ่าย', 'afternoon'], ['เย็น', 'evening']].find(([word]) => text.includes(word))?.[1];
     return { ...previous, ...(district ? { district: district.name, districtSource: named.length ? 'text' : 'profile' } : {}),
       ...(skill ? { skill } : {}), ...(shift ? { shift } : {}),
@@ -573,7 +574,7 @@ function createServer(opts = {}) {
       plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
         parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => Number.isInteger(a.target) && a.target > 0 && a.target <= 1000000 ? goalPlan(d, a.target, context) : { error: 'invalid monthly goal' } },
       list_tasks: { mode: 'read', description: 'งานในแผนของผู้ใช้', parameters: { type: 'object', properties: {} }, run: () => ({ items: d.tasks.map(taskOut) }) },
-      get_profile: { mode: 'read', description: 'ทักษะ เวลาว่าง และข้อจำกัดสำหรับหางาน', parameters: { type: 'object', properties: {} }, run: () => { const { skills, hoursPerWeek, constraints } = d.profile || {}; return { skills, hoursPerWeek, constraints }; } },
+      get_profile: { mode: 'read', description: 'ทักษะ เวลาว่าง และข้อจำกัดสำหรับหางาน', parameters: { type: 'object', properties: {} }, run: () => { const { skills, hoursPerWeek, constraints } = d.profile || {}; return { skills: skills?.filter(safeForModel), hoursPerWeek: safeForModel(hoursPerWeek) ? hoursPerWeek : undefined, constraints: safeForModel(constraints) ? constraints : undefined }; } },
       save_income_goal: { mode: 'confirm', description: 'บันทึกเป้ารายเดือนที่ผู้ใช้เลือก',
         label: a => 'บันทึกเป้ารายเดือน ' + moneyText(a.target) + ' บาท',
         exec: a => { d.profile = { ...d.profile, incomeGoalPerMonth: a.target }; return [200, d.profile]; } },
@@ -788,7 +789,7 @@ function createServer(opts = {}) {
   const planLinks = plans => plans.filter(plan => plan.outcome?.result !== 'received').map(plan => ({ taskId: plan.id, title: plan.title }));
   const benefitContext = topic => ({ taxYear: topic.taxYear, newExit: topic.newExit });
   const promptAge = /^(?:อายุ\s*)?\d{1,3}\s*(?:ปี)?(?:แล้ว)?(?:\s*(?:ค่ะ|ครับ|คะ))?$/;
-  const safeForModel = value => typeof value === 'string' && !['injection', 'sensitive'].includes(guard.check(value).kind);
+  const safeForModel = value => typeof value === 'string' && guard.mask(value) === value && !['injection', 'sensitive'].includes(guard.check(value).kind);
 
   function setStep(d, c, step) {
     if (!step) { c.expect = null; return; }
@@ -870,7 +871,7 @@ function createServer(opts = {}) {
       quickReplies: stepQuick(c.expect) || intentOptions, step: c.expect || undefined }];
   });
 
-  on('POST', '/v1/ai/conversations/{id}/messages', async ({ d, device, p, body }) => {
+  on('POST', '/v1/ai/conversations/{id}/messages', async ({ d, device, p, body, req }) => {
     const gate = need(d, 'ai'); if (gate) return gate;
     const c = d.conversations[p.id]; if (!c) return E(404, 'NOT_FOUND', 'ไม่พบการคุยนี้');
     if (!body || typeof body.text !== 'string' || !body.text.trim() || (body.stepId !== undefined && typeof body.stepId !== 'string')) {
@@ -881,10 +882,7 @@ function createServer(opts = {}) {
     const text = (guardMode === 'soft' ? guard.mask(raw) : raw).slice(0, 1000);
     const masked = text !== raw.slice(0, 1000);
     const displayed = c.expect;
-    const previousAiReply = c.lastTurnUsedAi ? c.history.at(-1)?.content : undefined;
-    c.lastTurnUsedAi = false;
-    const turnNumber = c.turnNumber = (c.turnNumber || 0) + 1;
-    assistantRequests.get(c)?.abort();
+    let previousAiReply, turnNumber;
     const today = day();
     const savedPlans = () => d.tasks.filter(task => task.moneyId);
     const withQueuedTopic = options => c.queue?.length ? ['ไปเรื่องถัดไป', ...options] : options;
@@ -901,11 +899,22 @@ function createServer(opts = {}) {
     c.skipped ||= [];
     c.queue ||= [];
 
-    function details(out, tools, query = text) {
+    setStep(d, c, currentQuestion(d, c));
+    if (body.stepId && body.stepId !== c.expect?.id) {
+      return turn(c.expect?.question || 'คำถามนี้ปิดแล้ว เลือกเรื่องที่อยากทำต่อได้เลยค่ะ', 'unclear');
+    }
+    previousAiReply = c.lastTurnUsedAi ? c.history.at(-1)?.content : undefined;
+    c.lastTurnUsedAi = false;
+    turnNumber = c.turnNumber = (c.turnNumber || 0) + 1;
+    assistantRequests.get(c)?.abort();
+
+    function details(out, tools, query = text, turnIds = [], returnedIds = turnIds) {
       const plans = savedPlans();
       const related = moneySummaryQuery.test(query) ? plans : matchingMoneyPlans(plans, { ...out, text: query });
-      const alreadySaved = new Set(), pendingActions = [];
-      for (const action of out.pending || []) {
+      const alreadySaved = new Set(), pendingActions = [], jobActions = new Map();
+      const candidates = [...(out.pending || []).filter(action => !action.args?.opportunityId || (returnedIds.includes(action.args.opportunityId) && !turnIds.includes(action.args.opportunityId))),
+        ...turnIds.filter(id => !d.tasks.some(task => task.opportunityId === id)).map(id => ({ tool: 'create_task', args: { opportunityId: id } }))];
+      for (const action of candidates) {
         if (tools[action.tool]?.mode !== 'confirm') continue;
         if (action.tool === 'update_facts') {
           const facts = action.args?.facts;
@@ -918,11 +927,31 @@ function createServer(opts = {}) {
           if (!money.route(action.args.moneyId, facts, govData(d))?.claimable) continue;
         }
         const id = 'pa' + d.seq++;
-        c.pending[id] = { ...action, ...(action.tool === 'save_income_goal' ? { goalVersion: c.goalVersion } : {}) };
+        c.pending[id] = { ...action, turnNumber, ...(action.tool === 'save_income_goal' ? { goalVersion: c.goalVersion } : {}) };
         pendingActions.push({ id, tool: action.tool, label: action.label || tools[action.tool].label(action.args || {}) });
+        if (action.args?.opportunityId) jobActions.set(action.args.opportunityId, id);
       }
       const savedNote = [...alreadySaved].map(task => 'บันทึกแผน ' + task.title + ' ไว้แล้ว · ' + planPaymentStatus(task));
-      return { reply: [out.reply, ...savedNote].join('\n'), toolCalls: (out.toolCalls || []).map(t => ({ tool: t.tool })),
+      const replyText = guardPromises(out.reply, pendingActions);
+      const ordered = turnIds.map((id, index) => {
+        const o = findOpportunity(id);
+        if (!o) return null;
+        const mention = [id, o.title].map(value => replyText.indexOf(value)).filter(pos => pos >= 0);
+        return { o, index, mention: mention.length ? Math.min(...mention) : Infinity };
+      }).filter(Boolean).sort((a, b) => a.mention - b.mention || a.index - b.index);
+      const opportunityLinks = ordered.slice(0, 3).map(({ o: item }) => {
+        const o = opportunityResponse(item, req), url = URL.parse(o.provenance.sourceUrl || '');
+        const checked = o.checkedAt || o.provenance.linkCheckedAt;
+        const task = d.tasks.find(t => t.opportunityId === o.id);
+        return { opportunityId: o.id, title: o.title, dataStatus: o.provenance.dataStatus,
+          district: o.location.district, workMode: o.location.workMode ?? (o.location.isRemote ? 'remote' : undefined),
+          money: o.money, sourceUrl: url && ['http:', 'https:'].includes(url.protocol) ? url.href : undefined,
+          sourceStatus: o.provenance.linkStatus === 'broken' ? 'unavailable' : o.provenance.linkStatus === 'ok' ? 'ok' : 'unknown',
+          checkedAt: checked && !Number.isNaN(Date.parse(checked)) ? new Date(checked).toISOString() : undefined,
+          ...(task ? { savedTaskId: task.id } : { actionId: jobActions.get(o.id) }) };
+      });
+      const mockNote = opportunityLinks.some(link => link.dataStatus === 'mock') ? ['รายการที่มีป้าย DEMO / MOCK เป็นข้อมูลตัวอย่าง ไม่ใช่ประกาศจริง'] : [];
+      return { reply: [replyText, ...savedNote, ...mockNote].filter(Boolean).join('\n'), ...(turnIds.length ? { opportunityLinks } : {}), toolCalls: (out.toolCalls || []).map(t => ({ tool: t.tool })),
         pendingActions, planLinks: planLinks(related), quickReplies: stepQuick(c.expect) || (c.queue.length ? defaultReplies() : out.quickReplies) || defaultReplies() };
     }
 
@@ -1029,21 +1058,23 @@ function createServer(opts = {}) {
       const excludedJobs = moreJobs ? new Set(js.shownIds || []) : new Set();
       const returnedJobs = new Set(excludedJobs);
       let searchRan = false, shiftUnknown = false;
+      const turnIds = new Set(), allTurnIds = new Set();
       const spareHours = regular ? sideHours() : undefined;
       const tools = agentTools(d, device, { ...benefitContext(benefit || {}), remote: income && c.topic.remote,
         sideJob: regular, spareHours, excludedJobs, jobArea: income ? c.topic.jobArea : undefined, jobSearch: js });
       const allowed = income ? Object.fromEntries(Object.entries(tools).filter(([key]) =>
         ['search_opportunities', 'create_task', 'get_profile'].includes(key))) : { ...tools };
+      if (['injection', 'sensitive'].includes(kind)) delete allowed.remember;
       delete allowed.save_income_goal;
       delete allowed.plan_income_goal;
-      if (income) {
-        delete allowed.get_profile;
+      if (income) delete allowed.get_profile;
+      if (allowed.search_opportunities) {
         const searchJobs = allowed.search_opportunities.run;
         allowed.search_opportunities.run = args => {
           const result = searchJobs(args);
           searchRan = true;
           shiftUnknown ||= result.items.some(item => item.shiftUnknown);
-          for (const item of result.items) returnedJobs.add(item.id);
+          for (const item of result.items) { returnedJobs.add(item.id); allTurnIds.add(item.id); if (findOpportunity(item.id)?.mapGroup === 'job') turnIds.add(item.id); }
           return result;
         };
       }
@@ -1106,14 +1137,14 @@ function createServer(opts = {}) {
       if (income && searchRan && returnedJobs.size === excludedJobs.size) out.reply = 'ยังไม่พบงาน' + (js.district ? 'ในเขต' + js.district : 'ในพื้นที่นี้') + (js.skill ? 'ที่ตรงทักษะ' + js.skill : '') + 'ค่ะ';
       if (income && shiftUnknown) out.reply += '\nบางประกาศไม่ระบุกะ';
       if (guardMode === 'soft') out.reply = guard.mask(out.reply || '');
-      const { reply, ...extra } = details(out, allowed, query);
+      const { reply, ...extra } = details(out, allowed, query, [...turnIds], [...allTurnIds]);
       if (income) {
         js.shownIds = [...returnedJobs];
         c.topic.jobResultIds = js.shownIds;
         extra.jobSearch = { ...js, shownIds: undefined, excluded: excludedJobs.size, resultCount: returnedJobs.size - excludedJobs.size };
         extra.quickReplies = returnedJobs.size > excludedJobs.size ? jobReplies() : ['ค้นทั้งกรุงเทพฯ', 'ไม่จำกัดทักษะ', 'ดูงานทำจากบ้าน'];
       }
-      const memoryAdded = income || benefit ? [] : (out.memory || []).filter(note => safeForModel(note) && guard.check(note).kind === 'in_scope').map(note => {
+      const memoryAdded = income || benefit || ['injection', 'sensitive'].includes(kind) ? [] : (out.memory || []).filter(note => safeForModel(note) && guard.check(note).kind === 'in_scope').map(note => {
         const item = { id: 'm' + d.seq++, text: note.slice(0, 200), source: 'ai', at: nowIso() };
         d.memory.push(item);
         return item;
@@ -1123,7 +1154,8 @@ function createServer(opts = {}) {
         c.history = c.history.slice(-8);
         c.lastTurnUsedAi = true;
       }
-      logAi(device, 'agent', out);
+      const mentionedIds = [...turnIds].filter(id => { const o = findOpportunity(id); return out.reply.includes(id) || (o && out.reply.includes(o.title)); });
+      logAi(device, 'agent', out, { turnNumber, jobSearch: extra.jobSearch, tools: (out.toolCalls || []).map(call => call.tool), turnIds: [...turnIds], mentionedIds, pendingActionIds: extra.pendingActions.map(action => action.id) });
       return turn(reply + waiting(), kind, { ...extra, memoryAdded, aiStatus: deterministic ? 'guarded' : out.aiStatus });
     }
 
@@ -1143,11 +1175,6 @@ function createServer(opts = {}) {
       return turn('แอปเช็กสิทธิให้เจ้าของโปรไฟล์นี้ค่ะ ถ้าต้องการตรวจของตัวคุณเอง บอกได้เลย');
     }
 
-    // Refresh against the current data while keeping the identifier of the question the user saw.
-    setStep(d, c, currentQuestion(d, c));
-    if (body.stepId && body.stepId !== c.expect?.id) {
-      return turn(c.expect?.question || 'คำถามนี้ปิดแล้ว เลือกเรื่องที่อยากทำต่อได้เลยค่ะ', 'unclear');
-    }
     if (guardMode === 'soft' && ['sensitive', 'injection', 'guarantee', 'off_topic', 'scam'].includes(policy.kind) && !topics.some(topic => topic.id === 'income')) return runAssistant(text, policy.kind);
     const asked = c.expect;
     const sameQuestion = displayed?.id === asked?.id && asked;
@@ -1209,7 +1236,8 @@ function createServer(opts = {}) {
       return askSideJobHours();
     }
     if (explicit && explicit.id === 'income' && c.topic?.id === 'income' && !resumeQueue) {
-      c.topic.remote ||= explicit.remote;
+      if (districtsIn(text).length && !explicit.remote) { c.topic.remote = false; if (c.topic.jobSearch) delete c.topic.jobSearch.workMode; }
+      else c.topic.remote ||= explicit.remote;
       c.topic.limitedTravel ||= explicit.limitedTravel;
     } else if (explicit) {
       selectTopic(explicit, topics.slice(1));
@@ -1231,10 +1259,10 @@ function createServer(opts = {}) {
       const incomeText = resumeQueue ? text : thaiDigits(text).slice(explicit.index);
       const input = resumeQueue ? explicit.goal : parseGoal(incomeText, today);
       if (input.amount !== undefined || input.kind || input.denied || input.ambiguous || input.skip || !jobRequest.test(incomeText)) return goalReply(input);
-      if (workSafety) return turn('ระวังงานที่ขอมัดจำค่ะ ตรวจชื่อบริษัทกับช่องทางทางการก่อน ดูงานอื่นที่ระบุเงื่อนไขชัดและสมัครได้โดยไม่โอนเงิน');
+      if (workSafety && guardMode === 'strict') return turn('ระวังงานที่ขอมัดจำค่ะ ตรวจชื่อบริษัทกับช่องทางทางการก่อน ดูงานอื่นที่ระบุเงื่อนไขชัดและสมัครได้โดยไม่โอนเงิน');
       if (explicit.remote && !d.profile?.skills?.length) return incomeAsk('jobSkills', 'ถ้าจะทำงานจากบ้าน คุณถนัดงานอะไรบ้าง?', ['ดูทางเลือก']);
       if (explicit.remote && !d.profile?.hoursPerWeek) return incomeAsk('jobHours', 'คุณมีเวลาทำงานจากบ้านประมาณกี่ชั่วโมงต่อสัปดาห์?', ['ดูทางเลือก']);
-      c.topic.jobSearch = readJobSearch(text, d, c.topic.jobSearch);
+      c.topic.jobSearch = readJobSearch(text, d, c.topic.jobSearch, c.topic.jobArea?.district !== null);
       if (c.topic.remote) c.topic.jobSearch.workMode = 'remote';
       if (!c.topic.remote) {
         const named = districtsIn(text);
@@ -1288,7 +1316,7 @@ function createServer(opts = {}) {
         else if (named.length === 1) c.topic.jobArea = { district: named[0] };
         else if (named.length) return askJobDistrict('หมายถึงเขตไหนคะ?', named.map(district => district.name));
         else return askJobDistrict('ยังไม่รู้จักเขตนี้ พิมพ์ชื่อเขตในกรุงเทพฯ เช่น บางนา');
-        c.topic.jobSearch = readJobSearch(text, d, c.topic.jobSearch);
+        c.topic.jobSearch = readJobSearch(text, d, c.topic.jobSearch, c.topic.jobArea?.district !== null);
         if (!c.topic.jobArea?.district) { delete c.topic.jobSearch.district; delete c.topic.jobSearch.districtSource; }
         c.incomeQuestion = null;
         setStep(d, c, null);
@@ -1393,6 +1421,14 @@ function createServer(opts = {}) {
     if (action.tool === 'save_income_goal' && action.goalVersion !== c.goalVersion) return E(409, 'CONFLICT', 'เป้าหมายเปลี่ยนแล้ว กรุณาใช้ข้อเสนอล่าสุด');
     let response = [200, { status: 'rejected' }];
     if (body.decision === 'confirm') {
+      if (action.tool === 'create_task' && action.args?.opportunityId) {
+        const id = action.args.opportunityId;
+        const o = findOpportunity(id) || jobCatalogue?.getClosed(id);
+        if (!o) { logAi(device, 'agent', { aiStatus: 'guarded' }, { turnNumber: action.turnNumber, actionId: p.actionId, decision: 'confirm', result: 'not_found' }); return E(404, 'NOT_FOUND', 'ไม่พบโอกาสที่จะบันทึก'); }
+        if (['closed', 'expired'].includes(o.status) || ['closed', 'expired'].includes(o.availability)
+          || o.provenance.linkStatus === 'broken' || (o.provenance.expiresAt && new Date(o.provenance.expiresAt) <= new Date()))
+          { logAi(device, 'agent', { aiStatus: 'guarded' }, { turnNumber: action.turnNumber, actionId: p.actionId, decision: 'confirm', result: 'closed' }); return E(409, 'CONFLICT', 'ประกาศนี้ปิดรับแล้ว ไม่ได้บันทึก'); }
+      }
       const [status, result] = agentTools(d, device)[action.tool].exec(action.args);
       if (status >= 300) return [status, result];
       response = [200, { status: 'done', result }];
@@ -1400,6 +1436,7 @@ function createServer(opts = {}) {
     delete c.pending[p.actionId];
     c.decisions ||= {};
     c.decisions[p.actionId] = { decision: body.decision, response };
+    logAi(device, 'agent', { aiStatus: 'guarded' }, { turnNumber: action.turnNumber, actionId: p.actionId, decision: body.decision, result: response[1].status });
     return response;
   });
 

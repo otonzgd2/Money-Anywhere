@@ -252,6 +252,120 @@
       }
     },
     {
+      "name": "Start job search conversation",
+      "request": {
+        "method": "POST",
+        "path": "/v1/ai/conversations",
+        "headers": {},
+        "body": {
+          "mode": "guided"
+        }
+      },
+      "status": 201,
+      "response": {
+        "conversationId": "conv6"
+      }
+    },
+    {
+      "name": "Search Bang Na mock jobs in chat",
+      "request": {
+        "method": "POST",
+        "path": "/v1/ai/conversations/conv6/messages",
+        "headers": {},
+        "body": {
+          "text": "หางานแถวบางนา"
+        }
+      },
+      "status": 200,
+      "response": {
+        "aiStatus": "fallback_rules",
+        "reply": "งานใกล้คุณ:\n1. เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา (15000-19000 บาท/เดือน (สมมติ) ตามประกาศ)\n2. เจ้าหน้าที่บริการลูกค้า · เขตบางนา (16000-20500 บาท/เดือน (สมมติ) ตามประกาศ)\n3. เจ้าหน้าที่รับสินค้าเข้าคลัง · เขตบางนา (14500-18000 บาท/เดือน (สมมติ) ตามประกาศ)\n4. ผู้ช่วยบัญชีเจ้าหนี้ · เขตบางนา (16500-22000 บาท/เดือน (สมมติ) ตามประกาศ)\n5. เจ้าหน้าที่ประสานงานหน้าร้าน · เขตบางนา (15000-21000 บาท/เดือน (สมมติ) ตามประกาศ)\nรายการที่มีป้าย DEMO / MOCK เป็นข้อมูลตัวอย่าง ไม่ใช่ประกาศจริง",
+        "jobSearch": {
+          "district": "บางนา",
+          "districtSource": "text",
+          "excluded": 0,
+          "resultCount": 5
+        },
+        "opportunityLinks": [
+          {
+            "opportunityId": "mock_bangkok_catalogue_d20-job_full-01",
+            "title": "เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา",
+            "dataStatus": "mock",
+            "district": "บางนา",
+            "workMode": "onsite",
+            "money": {
+              "basis": "listing",
+              "min": 15000,
+              "max": 19000,
+              "unit": "บาท/เดือน (สมมติ)"
+            },
+            "sourceUrl": "http://demo.invalid/docs/mockups/opportunity-info.html?id=mock_bangkok_catalogue_d20-job_full-01",
+            "sourceStatus": "unknown",
+            "actionId": "pa8"
+          },
+          {
+            "opportunityId": "mock_bangkok_catalogue_d20-job_full-02",
+            "title": "เจ้าหน้าที่บริการลูกค้า · เขตบางนา",
+            "dataStatus": "mock",
+            "district": "บางนา",
+            "workMode": "onsite",
+            "money": {
+              "basis": "listing",
+              "min": 16000,
+              "max": 20500,
+              "unit": "บาท/เดือน (สมมติ)"
+            },
+            "sourceUrl": "http://demo.invalid/docs/mockups/opportunity-info.html?id=mock_bangkok_catalogue_d20-job_full-02",
+            "sourceStatus": "unknown",
+            "actionId": "pa9"
+          },
+          {
+            "opportunityId": "mock_bangkok_catalogue_d20-job_full-03",
+            "title": "เจ้าหน้าที่รับสินค้าเข้าคลัง · เขตบางนา",
+            "dataStatus": "mock",
+            "district": "บางนา",
+            "workMode": "onsite",
+            "money": {
+              "basis": "listing",
+              "min": 14500,
+              "max": 18000,
+              "unit": "บาท/เดือน (สมมติ)"
+            },
+            "sourceUrl": "http://demo.invalid/docs/mockups/opportunity-info.html?id=mock_bangkok_catalogue_d20-job_full-03",
+            "sourceStatus": "unknown",
+            "actionId": "pa10"
+          }
+        ],
+        "pendingActions": [
+          {
+            "id": "pa8",
+            "tool": "create_task",
+            "label": "บันทึกเข้าแผนของฉัน: เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา"
+          },
+          {
+            "id": "pa9",
+            "tool": "create_task",
+            "label": "บันทึกเข้าแผนของฉัน: เจ้าหน้าที่บริการลูกค้า · เขตบางนา"
+          },
+          {
+            "id": "pa10",
+            "tool": "create_task",
+            "label": "บันทึกเข้าแผนของฉัน: เจ้าหน้าที่รับสินค้าเข้าคลัง · เขตบางนา"
+          },
+          {
+            "id": "pa11",
+            "tool": "create_task",
+            "label": "บันทึกเข้าแผนของฉัน: ผู้ช่วยบัญชีเจ้าหนี้ · เขตบางนา"
+          },
+          {
+            "id": "pa12",
+            "tool": "create_task",
+            "label": "บันทึกเข้าแผนของฉัน: เจ้าหน้าที่ประสานงานหน้าร้าน · เขตบางนา"
+          }
+        ]
+      }
+    },
+    {
       "name": "Save the catalogue item",
       "request": {
         "method": "POST",
@@ -264,7 +378,7 @@
       },
       "status": 201,
       "response": {
-        "id": "t6",
+        "id": "t13",
         "title": "เจ้าหน้าที่ธุรการสำนักงาน · เขตบางนา",
         "districtCode": "1047",
         "status": "active",
@@ -281,7 +395,7 @@
       "name": "Complete the first step",
       "request": {
         "method": "POST",
-        "path": "/v1/tasks/t6/events",
+        "path": "/v1/tasks/t13/events",
         "headers": {
           "Idempotency-Key": "qa-step-01"
         },
@@ -291,7 +405,7 @@
       },
       "status": 201,
       "response": {
-        "id": "t6",
+        "id": "t13",
         "doneCount": 1
       }
     },
@@ -299,7 +413,7 @@
       "name": "Retry the same event",
       "request": {
         "method": "POST",
-        "path": "/v1/tasks/t6/events",
+        "path": "/v1/tasks/t13/events",
         "headers": {
           "Idempotency-Key": "qa-step-01"
         },
@@ -309,7 +423,7 @@
       },
       "status": 201,
       "response": {
-        "id": "t6",
+        "id": "t13",
         "doneCount": 1
       }
     }

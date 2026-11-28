@@ -87,6 +87,17 @@ async function capture() {
       method: 'POST', body: { text: skip, stepId: answer.step.id }, project: turnFields,
     });
     assert.notEqual(skipped.step?.fact, answer.step.fact);
+    const jobsStart = await call('Start job search conversation', '/v1/ai/conversations', {
+      method: 'POST', status: 201, body: { mode: 'guided' },
+      project: ({ conversationId }) => ({ conversationId }),
+    });
+    const jobsTurn = await call('Search Bang Na mock jobs in chat', `/v1/ai/conversations/${jobsStart.conversationId}/messages`, {
+      method: 'POST', body: { text: 'หางานแถวบางนา' },
+      project: ({ aiStatus, reply, jobSearch, opportunityLinks, pendingActions }) =>
+        ({ aiStatus, reply, jobSearch, opportunityLinks, pendingActions }),
+    });
+    assert.ok(jobsTurn.opportunityLinks.length);
+    assert.ok(jobsTurn.opportunityLinks.every(link => link.dataStatus === 'mock'));
     const task = await call('Save the catalogue item', '/v1/tasks', {
       method: 'POST', status: 201, body: { opportunityId: catalogue.items[0].id, districtCode: '1047' },
       project: ({ id, title, category, districtCode, status, doneCount, steps }) =>

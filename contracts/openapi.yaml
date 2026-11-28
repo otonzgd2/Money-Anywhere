@@ -1226,6 +1226,23 @@ components:
             resultCount: { type: integer }
         toolCalls: { type: array, items: { type: object, required: [tool], properties: { tool: { type: string } } }, description: "Read tools the agent used, for transparency" }
         pendingActions: { type: array, items: { $ref: '#/components/schemas/PendingAction' } }
+        opportunityLinks:
+          type: array
+          items:
+            type: object
+            required: [opportunityId, title, dataStatus]
+            properties:
+              opportunityId: { type: string }
+              title: { type: string }
+              dataStatus: { type: string, enum: [live, curated, open_data, mock] }
+              district: { type: string }
+              workMode: { type: string }
+              money: { $ref: '#/components/schemas/Money' }
+              sourceUrl: { type: string, format: uri }
+              sourceStatus: { type: string, enum: [ok, unknown, unavailable] }
+              checkedAt: { type: string, format: date-time }
+              actionId: { type: string }
+              savedTaskId: { type: string }
         planLinks:
           type: array
           description: "แผนรับเงินที่บันทึกในโปรไฟล์ของแชต และผู้ใช้ยังไม่ได้แจ้งว่าได้รับเงิน"
