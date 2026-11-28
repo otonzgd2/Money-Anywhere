@@ -1,6 +1,6 @@
 # สเปกปิดช่องว่าง 100 คะแนน
 
-สเปกนี้แปลง [แผนแก้ 3 ชุด](full-score-change-plan.md) เป็นงานที่ลงมือได้ ทุกชุดมีจุดแก้ในโค้ด สัญญา API เคสทดสอบ และข้อในเกณฑ์ 25 ข้อของ [ตารางตรวจรับ](evidence-acceptance.md) ที่ชุดนั้นปิด เขียนจาก `main` ที่ `76e9646` และสำรวจโค้ดจริงก่อนเขียน
+สเปกนี้แปลง [แผนแก้ 3 ชุด](https://github.com/otonzgd2/Money-Anywhere/blob/main/docs/competition/skillwar/full-score-change-plan.md) เป็นงานที่ลงมือได้ ทุกชุดมีจุดแก้ในโค้ด สัญญา API เคสทดสอบ และข้อในเกณฑ์ 25 ข้อของ [ตารางตรวจรับ](https://github.com/otonzgd2/Money-Anywhere/blob/main/docs/competition/skillwar/evidence-acceptance.md) ที่ชุดนั้นปิด เขียนจาก `main` ที่ `76e9646` และสำรวจโค้ดจริงก่อนเขียน
 
 Baseline ที่รันจริงที่ `76e9646`: `npm --prefix contracts test` ผ่าน 248/248 ครบ 50 operations, `test-thang-rot-guard.js` ผ่าน 132/132, `test-thang-rot-manual.js` ผ่าน 33/33 รอบนี้ยังไม่ได้รัน `flutter test` กับ `flutter analyze`
 

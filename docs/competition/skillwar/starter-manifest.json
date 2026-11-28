@@ -1,5 +1,5 @@
 {
-  "baseline": "8efb63bb57e88fcb8cfd489d155ffe9cba025401",
+  "baseline": "8e2c8d6af2d6b6063b1ebed405b7e21ffd8c160f",
   "groups": {
     "blueprint": {
       "use": "Pre-event specifications, interface contracts and QA. Example responses are test evidence only.",
@@ -8,6 +8,7 @@
         "docs/competition/skillwar/scorecard.md",
         "docs/competition/skillwar/requirements.md",
         "docs/competition/skillwar/dev-spec.md",
+        "docs/competition/skillwar/full-score-spec.md",
         "docs/competition/skillwar/event-runbook.md",
         "docs/competition/skillwar/kiro-build.md",
         "docs/competition/skillwar/data-dictionary.md",
@@ -30,6 +31,13 @@
         "docs/product/sources/bangkok-benefits-2026-11-27.html",
         "docs/product/sources/thai-senior-benefits-2026-11-27.md",
         "docs/product/sources/thai-senior-benefits-2026-11-27.html",
+        "app/assets/thang-rot/app-logo.png",
+        "app/assets/thang-rot/benefit-child.png",
+        "app/assets/thang-rot/benefit-disability.png",
+        "app/assets/thang-rot/benefit-refund.png",
+        "app/assets/thang-rot/benefit-senior.png",
+        "app/assets/thang-rot/benefit-unemployment.png",
+        "app/assets/thang-rot/benefit-wages.png",
         "app/assets/thang-rot/d-mytax.png",
         "app/assets/thang-rot/sso-plus.png",
         "app/assets/thang-rot/thaid.png",

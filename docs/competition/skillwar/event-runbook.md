@@ -45,7 +45,7 @@ git status --short
 
 ## รัน baseline สำหรับซ้อม
 
-ใช้ checkout ของ repo เตรียมงานที่มีชุดเอกสารนี้และตรวจ commit ด้วย `git log -1 --oneline` หากเทียบพฤติกรรมที่บันทึกไว้ ให้เปิด worktree เพิ่มที่ [commit ฐาน](https://github.com/otonzgd2/Money-Anywhere/tree/8efb63bb57e88fcb8cfd489d155ffe9cba025401) ใช้ Node 24.22.1, Flutter 3.50.1, Dart 3.14.0 และ Android SDK/NDK ตาม Gradle ของแอป
+ใช้ checkout ของ repo เตรียมงานที่มีชุดเอกสารนี้และตรวจ commit ด้วย `git log -1 --oneline` หากเทียบพฤติกรรมที่บันทึกไว้ ให้เปิด worktree เพิ่มที่ [commit ฐานของคะแนนเริ่มต้น](https://github.com/otonzgd2/Money-Anywhere/tree/8efb63bb57e88fcb8cfd489d155ffe9cba025401) ส่วนพฤติกรรมแชตและ AI ที่ปิดช่องว่างแล้วใช้ [`8e2c8d6`](https://github.com/otonzgd2/Money-Anywhere/tree/8e2c8d6) ใช้ Node 24.22.1, Flutter 3.50.1, Dart 3.14.0 และ Android SDK/NDK ตาม Gradle ของแอป
 
 ```powershell
 Set-Location D:/Kiro/MoneyAnywhere

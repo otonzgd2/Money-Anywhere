@@ -8,7 +8,7 @@
 | [Requirements](requirements.md) | นิยามขอบเขต Persona และเงื่อนไขตรวจรับ |
 | [Dev spec](dev-spec.md) | สเปกถอดจาก Flutter, mock API และข้อมูลของ Demo |
 | [สเปกปิดช่องว่าง 100 คะแนน](full-score-spec.md) | ชุดแก้ S0–S4 งานหลักฐาน P1–P8 ผลตัดสิน D1–D3 และเคสตรวจรับ |
-| [Handoff ให้ dev](../../handoff/full-score-dev-handoff.md) | สถานะล่าสุด จุดแก้ในโค้ด และลำดับทำงานของชุดแก้เต็ม 100 คะแนน |
+| [Handoff ให้ dev](https://github.com/otonzgd2/Money-Anywhere/blob/main/docs/handoff/full-score-dev-handoff.md) | สถานะล่าสุด จุดแก้ในโค้ด และลำดับทำงานของชุดแก้เต็ม 100 คะแนน |
 | [พจนานุกรมข้อมูล](data-dictionary.md) | ฟิลด์ที่ใช้จริง ที่มา ข้อจำกัด และตัวอย่าง API |
 | [คู่มือวันงาน](event-runbook.md) | โหลดข้อมูลตั้งต้น เปิดงานใน Kiro ทดสอบ สร้าง repo ส่งงาน และซ้อมนำเสนอ |
 | [ใบงาน Kiro](kiro-build.md) | Prompt และงานก่อสร้างที่ปรับตามโจทย์ขยายในวันแข่ง |
@@ -19,5 +19,6 @@
 ## ฐานอ้างอิง
 
 - กติกาใช้ Participant Booklet ฉบับ 17 หน้า รวมหน้าปก เลขหน้าในเอกสารชุดนี้นับจากหน้าปก ไฟล์ต้นฉบับมี SHA-256 `13489d153c505d00fd580b9cee546bef58db9beb66ef83bd987ef898ca5dc8bf`
-- สเปกและการประเมินใช้ GitHub `main` ที่ commit `8efb63bb57e88fcb8cfd489d155ffe9cba025401` ณ วันที่ 28 พฤศจิกายน 2569. [ต้นไม้ไฟล์ของ Demo](https://github.com/otonzgd2/Money-Anywhere/tree/8efb63bb57e88fcb8cfd489d155ffe9cba025401)
+- การประเมินคะแนนเริ่มต้นใช้ GitHub `main` ที่ commit `8efb63bb57e88fcb8cfd489d155ffe9cba025401` ณ วันที่ 28 พฤศจิกายน 2569. [ต้นไม้ไฟล์ของ Demo](https://github.com/otonzgd2/Money-Anywhere/tree/8efb63bb57e88fcb8cfd489d155ffe9cba025401)
+- Dev spec, requirements, QA และตัวอย่าง API อัปเดตตามพฤติกรรมแชตและ AI บน `main` ที่ `8e2c8d6` ณ วันที่ 29 พฤศจิกายน 2569 (API 0.16.0) ซึ่งรวมชุดแก้ใน [สเปกปิดช่องว่าง](full-score-spec.md) แล้ว [ต้นไม้ไฟล์](https://github.com/otonzgd2/Money-Anywhere/tree/8e2c8d6)
 - Demo reference เป็นเป้าทดสอบความเทียบเท่า ส่วนผลงานส่งแข่งต้องสะท้อนสิ่งที่ทีมพัฒนาด้วย Kiro และโจทย์ที่ผู้จัดย้ำในวันงาน ดูวิธีเก็บหลักฐานใน [คู่มือวันงาน](event-runbook.md)
