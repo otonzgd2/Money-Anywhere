@@ -20,6 +20,16 @@ function guardReferences(reply, results) {
     .replace(phoneLike, value => phones.has(value) ? value : 'ดูเบอร์ติดต่อในแอป');
 }
 
+// The chat bubble renders plain text, so Markdown from the model would show as raw symbols.
+function plainText(reply) {
+  return String(reply || '')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/^(\s*)[-*]\s+/gm, '$1• ');
+}
+
 function guardPromises(reply, pending) {
   const has = tool => pending.some(action => action.tool === tool);
   return String(reply || '').split(/(?<=[.!?。！？\n])|(?=เดี๋ยว|ฉันจะ|เราจะ)/).filter(sentence => {
@@ -217,7 +227,7 @@ function createAgent(opts = {}) {
           signal?.throwIfAborted();
           if (!msg.tool_calls || !msg.tool_calls.length) {
             if (typeof msg.content !== 'string' || !msg.content.trim()) throw new Error('Empty model reply');
-            const reply = guardReferences(guardMoney(msg.content, toolJson), results);
+            const reply = plainText(guardReferences(guardMoney(msg.content, toolJson), results));
             return { aiStatus: 'ok', reply, toolCalls: calls, pending, memory: mem, quickReplies: [], savedMoneyIds };
           }
           if (response) {
