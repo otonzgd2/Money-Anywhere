@@ -470,6 +470,73 @@ test('TURN-02 ผู้ใช้เลือกเงินก้อนแล้
   assert.equal((await api('GET', '/v1/me/profile')).incomeGoalPerMonth, 3000);
 });
 
+test('choosing a saved goal offers next steps and does not print the same plan again', async () => {
+  const api = client();
+  await person(api, { profile: { incomeGoalPerMonth: 5000 } });
+  const convo = await chat(api);
+  assert.equal((await convo.send('วางแผนหาเงินเพิ่ม')).step.fact, 'savedGoal');
+  const plan = await convo.send('ใช้เป้าเดิม');
+  assert.equal(usedTool(plan, 'plan_income_goal'), true);
+  assert.ok(plan.quickReplies.includes('หางานใกล้บ้าน'));
+  assert.ok(plan.quickReplies.includes('เปลี่ยนเป้าหมาย'));
+  assert.ok(!plan.quickReplies.includes('วางแผนหาเงินเพิ่ม'));
+
+  const again = await convo.send('วางแผนหาเงินเพิ่ม');
+  assert.notEqual(again.reply, plan.reply);
+  assert.equal(usedTool(again, 'plan_income_goal'), false);
+  assert.equal((await convo.send('เปลี่ยนเป้าหมาย')).step.fact, 'goalAmount');
+});
+
+test('a regular-job disclosure updates the current side-income plan and asks for spare hours', async () => {
+  const api = client();
+  await api('POST', '/v1/demo/personas/gov-prefill');
+  await person(api, { profile: { incomeGoalPerMonth: 5000, district: 'ปทุมวัน' } });
+  const earlierWork = (await api('GET', '/v1/me/facts')).work;
+  const convo = await chat(api);
+  await convo.send('วางแผนหาเงินเพิ่ม');
+  const original = await convo.send('ใช้เป้าเดิม');
+  assert.match(original.reply, /งานแพ็คของ รายวัน/);
+
+  const availability = await convo.send('ฉันมีงานประจำอยู่แล้ว');
+  assert.match(availability.reply, /นอกเวลางานประจำ/);
+  assert.equal(availability.step?.fact, 'sideJobHours');
+  assert.equal(usedTool(availability, 'plan_income_goal'), false);
+
+  const revised = await convo.send('4 ชั่วโมงต่อสัปดาห์');
+  assert.equal(usedTool(revised, 'plan_income_goal'), true);
+  assert.match(revised.reply, /5,000/);
+  assert.match(revised.reply, /งานเสริม|งานประจำ/);
+  assert.doesNotMatch(revised.reply, /งานแพ็คของ รายวัน|ผู้ช่วยร้านอาหาร|5,196/);
+  assert.equal((await api('GET', '/v1/me/facts')).work, earlierWork);
+});
+
+test('a follow-up asking for other jobs stays with the search and gets different candidates', async () => {
+  const searched = [];
+  const api = client(await openServer(localAi, {
+    provider: 'test',
+    async respond({ tools }) {
+      const { items } = await tools.search_opportunities.run({ group: 'job', limit: 1 });
+      searched.push(items.map(item => item.id));
+      return {
+        aiStatus: 'ok', reply: items.map(item => item.title).join('\n') || 'ยังไม่พบงานอื่นในระยะนี้',
+        toolCalls: [{ tool: 'search_opportunities' }],
+      };
+    },
+  }));
+  await person(api, { profile: { district: 'ปทุมวัน' } });
+  const convo = await chat(api);
+  const first = await convo.send('หางานใกล้บ้าน');
+  assert.ok(first.quickReplies.includes('ดูงานอื่น'));
+  const second = await convo.send('มีงานอื่นไหม');
+  assert.equal(second.aiStatus, 'ok');
+  assert.equal(second.guard.kind, 'in_scope');
+  assert.equal(second.step, undefined);
+  assert.equal(usedTool(second, 'search_opportunities'), true);
+  assert.equal(searched[0].length, 1);
+  assert.equal(searched[1].length, 1);
+  assert.notEqual(searched[0][0], searched[1][0]);
+});
+
 test('TURN-03 ขอประเมินสิทธิให้คนอื่นในเทิร์นที่กำลังถามอายุ', async () => {
   const api = client(observed);
   await person(api);

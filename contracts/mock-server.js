@@ -50,6 +50,22 @@ const readJson = f => JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8'));
 const nowIso = () => new Date().toISOString();
 const daysAgo = d => d ? Math.max(0, Math.round((Date.now() - new Date(d)) / 864e5)) : undefined;
 const HOURS = { 'ไม่เกิน 10': 8, '10-20': 15, '20-40': 30, 'เต็มเวลา': 40 };
+const sideJob = opportunity => opportunity.category === 'job_part' || opportunity.category === 'freelance';
+const regularJobStatement = /^(?:(?:ตอนนี้|ปัจจุบัน|ฉัน|ผม|หนู|เรา)\s*)*(?:มีงานประจำ|ทำงานประจำ)(?=อยู่|แล้ว|\s|ค่ะ|ครับ|$)/;
+const moreJobRequest = /^(?:มีงาน(?:อื่น|อีก)|(?:ขอ|ช่วย)?(?:หา|ดู|แนะนำ)งานอื่น)(?:อีก)?(?:ได้ไหม|ไหม|มั้ย)?(?:\s*(?:ค่ะ|ครับ|คะ))?[?？]?$/;
+
+function advertisedShiftHours(opportunity) {
+  for (const condition of opportunity.conditions || []) {
+    const duration = /(\d+(?:\.\d+)?)(?:\s*[-–]\s*(\d+(?:\.\d+)?))?\s*(?:ชม\.?|ชั่วโมง)\s*\/\s*วัน/.exec(condition);
+    if (duration) return Number(duration[2] || duration[1]);
+    const shift = /(?:กะ|เวลา).*?(\d{1,2}):([0-5]\d)\s*[-–]\s*(\d{1,2}):([0-5]\d)/.exec(condition);
+    if (shift && Number(shift[1]) < 24 && Number(shift[3]) < 24) {
+      const start = Number(shift[1]) * 60 + Number(shift[2]);
+      const end = Number(shift[3]) * 60 + Number(shift[4]);
+      return ((end - start + 1440) % 1440) / 60 || undefined;
+    }
+  }
+}
 const OPPORTUNITY_DATA_MODES = new Map([['real', new Set(['live', 'curated', 'open_data'])], ['mock', new Set(['mock'])]]);
 let COMMIT = process.env.GIT_COMMIT;
 if (!COMMIT) { try { COMMIT = execSync('git rev-parse --short HEAD', { cwd: DIR, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { COMMIT = 'unknown'; } }
@@ -482,7 +498,18 @@ function createServer(opts = {}) {
       get_money_route: { mode: 'read', description: 'ขั้นตอนรับเงินของรายการหนึ่ง พร้อมแผนเดิมและผลที่ผู้ใช้แจ้งถ้ามี', parameters: { type: 'object', properties: { moneyId: { type: 'string' } }, required: ['moneyId'] },
         run: a => { const route = money.route(a.moneyId, facts(), govData(d), d.docsReady[a.moneyId]); return route ? { ...route, savedPlan: savedMoneyPlan(a.moneyId) } : { error: 'not found' }; } },
       search_opportunities: { mode: 'read', description: 'ค้นหาโอกาสใกล้ผู้ใช้', parameters: { type: 'object', properties: { q: { type: 'string' }, group: { type: 'string' }, limit: { type: 'integer' } } },
-        run: a => { const q = new URLSearchParams(); if (a.q) q.set('q', a.q); if (a.group) q.set('group', a.group); if (context.remote) q.set('workMode', 'remote'); const r = search(d, q); return { items: r.xs.slice(0, Math.min(5, a.limit || 3)).map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) }; } },
+        run: a => {
+          const q = new URLSearchParams();
+          if (a.q) q.set('q', a.q);
+          if (context.sideJob || a.group) q.set('group', context.sideJob ? 'job' : a.group);
+          if (context.remote) q.set('workMode', 'remote');
+          const { xs } = search(d, q);
+          const items = xs.filter(o => (!context.sideJob || (sideJob(o) &&
+            (context.spareHours === undefined || (advertisedShiftHours(o) ?? 0) <= context.spareHours)))
+            && !context.excludedJobs?.has(o.id))
+            .slice(0, Math.min(5, a.limit || 3));
+          return { items: items.map(o => ({ id: o.id, title: o.title, money: o.money, distanceKm: o.location.distanceKm, dataStatus: o.provenance.dataStatus })) };
+        } },
       plan_income_goal: { mode: 'read', description: 'วางแผนให้ได้รายได้ต่อเดือนตามเป้าที่ผู้ใช้บอก (บาท) จากเงินสวัสดิการที่น่าจะได้ งาน และทักษะของผู้ใช้ ใช้ตัวเลขจากผลนี้เท่านั้น',
         parameters: { type: 'object', properties: { target: { type: 'integer', description: 'บาทต่อเดือน' } }, required: ['target'] }, run: a => Number.isInteger(a.target) && a.target > 0 && a.target <= 1000000 ? goalPlan(d, a.target, context) : { error: 'invalid monthly goal' } },
       list_tasks: { mode: 'read', description: 'งานในแผนของผู้ใช้', parameters: { type: 'object', properties: {} }, run: () => ({ items: d.tasks.map(taskOut) }) },
@@ -798,7 +825,12 @@ function createServer(opts = {}) {
     assistantRequests.get(c)?.abort();
     const today = day();
     const savedPlans = () => d.tasks.filter(task => task.moneyId);
-    const defaultReplies = () => c.queue?.length ? ['ไปเรื่องถัดไป', ...intentOptions] : intentOptions;
+    const withQueuedTopic = options => c.queue?.length ? ['ไปเรื่องถัดไป', ...options] : options;
+    const defaultReplies = () => withQueuedTopic(intentOptions);
+    const planReplies = () => withQueuedTopic(['หางานใกล้บ้าน', 'เปลี่ยนเป้าหมาย', intentOptions[0]]);
+    const jobReplies = () => withQueuedTopic(['ดูงานอื่น', intentOptions[1], intentOptions[0]]);
+    const hasRegularJob = () => c.hasRegularJob === true || effectiveFacts(d).work === 'ทำงานประจำ';
+    const sideHours = () => c.sideJobHours ?? partTimeHoursOf(d);
     const waiting = () => c.expect ? '\nกลับมาที่คำถาม: ' + c.expect.question : '';
     const turn = (reply, kind = 'in_scope', extra = {}) => [200, { aiStatus: 'guarded', reply,
       toolCalls: [], pendingActions: [], planLinks: [], memoryAdded: [], guard: { kind, policyVersion: guard.version },
@@ -847,6 +879,11 @@ function createServer(opts = {}) {
       return turn(question, kind);
     }
 
+    function askSideJobHours() {
+      return incomeAsk('sideJobHours', 'คุณมีงานประจำอยู่แล้ว เราดูเฉพาะงานเสริมได้ค่ะ นอกเวลางานประจำ คุณว่างกี่ชั่วโมงต่อสัปดาห์?',
+        ['ไม่เกิน 10', '10-20', 'ยังไม่แน่ใจ']);
+    }
+
     function incomeIdeas() {
       c.incomeQuestion = null;
       setStep(d, c, null);
@@ -886,19 +923,25 @@ function createServer(opts = {}) {
       }
       if (!goal.kind) return incomeAsk('goalPeriod', 'ต้องการ ' + moneyText(goal.amount) + ' บาทเป็นเงินก้อน หรืออยากมีเพิ่มเดือนละ ' + moneyText(goal.amount) + ' บาท?', ['เงินก้อน', 'รายเดือน'], kind);
       if (goal.deadline === null || goal.deadline < today) return incomeAsk('goalDeadline', 'กำหนดใช้เงินคือวันไหน? พิมพ์วันที่แบบ ปี-เดือน-วัน หรือบอกว่าใช้พรุ่งนี้ค่ะ', undefined, kind);
+      const regular = hasRegularJob();
+      const spareHours = regular ? sideHours() : undefined;
+      if (goal.kind === 'monthly' && regular && spareHours === undefined) return askSideJobHours();
       c.incomeQuestion = null;
       setStep(d, c, null);
       if (goal.kind === 'once') {
         const deadline = goal.deadline ? ' ภายใน ' + new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(goal.deadline + 'T00:00:00Z')) : '';
         return turn('เป้าเงินก้อน ' + moneyText(goal.amount) + ' บาท' + (goal.expense ? ' สำหรับ' + goal.expense : '') + deadline +
-          '\nลองดูงานรายครั้งที่จ่ายทันกำหนด หรือรับงานตามทักษะที่ทำเสร็จได้ในเวลาที่มี ดูเงื่อนไขจ่ายเงินในประกาศก่อนสมัครค่ะ', kind);
+          '\nลองดูงานรายครั้งที่จ่ายทันกำหนด หรือรับงานตามทักษะที่ทำเสร็จได้ในเวลาที่มี ดูเงื่อนไขจ่ายเงินในประกาศก่อนสมัครค่ะ', kind,
+          { quickReplies: planReplies() });
       }
-      const context = { includeBenefits: c.topic.includeBenefits === true, remote: c.topic.remote === true };
+      const context = { includeBenefits: c.topic.includeBenefits === true, remote: c.topic.remote === true,
+        sideJob: regular, spareHours };
       const tools = agentTools(d, device, context);
       const plan = tools.plan_income_goal.run({ target: goal.amount });
       const pending = goal.amount === d.profile?.incomeGoalPerMonth ? [] : [{ tool: 'save_income_goal', args: { target: goal.amount } }];
       const { reply, ...extra } = details({ reply: formatGoal(plan), pending, toolCalls: [{ tool: 'plan_income_goal' }] }, tools);
-      return turn(reply, kind, extra);
+      const intro = regular ? 'แผนงานเสริมสำหรับเวลาว่าง ' + spareHours + ' ชั่วโมงต่อสัปดาห์ เช็กกะจริงกับผู้ประกาศก่อนสมัครค่ะ\n' : '';
+      return turn(intro + reply, kind, { ...extra, quickReplies: planReplies() });
     }
 
     function selectTopic(topic, rest = []) {
@@ -913,20 +956,38 @@ function createServer(opts = {}) {
       }
     }
 
-    async function runAssistant(query, kind, { deterministic = false, income = false, benefit } = {}) {
-      const tools = agentTools(d, device, { ...benefitContext(benefit || {}), remote: income && c.topic.remote });
+    async function runAssistant(query, kind, { deterministic = false, income = false, moreJobs = false, benefit } = {}) {
+      const regular = income && hasRegularJob();
+      const excludedJobs = moreJobs ? new Set(c.topic.jobResultIds) : new Set();
+      const returnedJobs = new Set(excludedJobs);
+      const spareHours = regular ? sideHours() : undefined;
+      const tools = agentTools(d, device, { ...benefitContext(benefit || {}), remote: income && c.topic.remote,
+        sideJob: regular, spareHours, excludedJobs });
       const allowed = income ? Object.fromEntries(Object.entries(tools).filter(([key]) =>
         ['search_opportunities', 'create_task', 'get_profile'].includes(key))) : { ...tools };
       delete allowed.save_income_goal;
       delete allowed.plan_income_goal;
-      if (income) delete allowed.get_profile;
+      if (income) {
+        delete allowed.get_profile;
+        const searchJobs = allowed.search_opportunities.run;
+        allowed.search_opportunities.run = args => {
+          const result = searchJobs(args);
+          for (const item of result.items) returnedJobs.add(item.id);
+          return result;
+        };
+      }
       if (benefit) {
         const routeTool = allowed.get_money_route;
         for (const key of Object.keys(allowed)) if (!['get_money_route', 'create_task'].includes(key)) delete allowed[key];
         allowed.get_money_route = { ...routeTool, run: () => routeTool.run({ moneyId: benefit.id }) };
       }
-      const narrowed = income ? query === 'หางานใกล้บ้าน' ? query : 'ช่วยคิดทางเลือกหารายได้จากทักษะ' + (c.topic.remote ? 'ที่ทำจากบ้าน' : '')
+      const narrowed = income ? moreJobs || query === 'หางานใกล้บ้าน' ? 'หางานใกล้บ้าน' : 'ช่วยคิดทางเลือกหารายได้จากทักษะ' + (c.topic.remote ? 'ที่ทำจากบ้าน' : '')
         + (c.topic.limitedTravel ? ' เดินทางไกลไม่สะดวก' : '') : benefit && !shortAnswer.test(query) ? 'ช่วยอธิบายขั้นตอนของ ' + money.programs.find(program => program.id === benefit.id).title : query;
+      const stepPrompt = ['แอปเลือกหัวข้อและคำถามแล้ว ให้สรุปทางเลือกจากเครื่องมือโดยไม่ถามคัดกรองอีก',
+        moreJobs && 'ค้นงานอื่นจาก search_opportunities หากไม่พบให้บอกว่ายังไม่พบงานอื่นในพื้นที่นี้',
+        regular && 'ผู้ใช้มีงานประจำ เสนอเฉพาะงานเสริมจากผลค้นหา และให้ตรวจว่ากะไม่ชนงานประจำก่อนสมัคร',
+        regular && spareHours === undefined && 'ยังไม่รู้เวลาว่าง ให้รายงานเฉพาะค่าจ้างตามประกาศต่อหน่วย และอย่าคำนวณรายได้ต่อเดือนจากจำนวนชั่วโมงหรือวันที่สมมติ'
+      ].filter(Boolean).join(' ');
       const consent = d.conversations[p.id];
       const gov = d.gov;
       const controller = new AbortController();
@@ -939,10 +1000,10 @@ function createServer(opts = {}) {
           : await aiFor(d).agent.respond({ text: narrowed, tools: allowed,
             history: income ? [] : c.history, memory: [],
             profile: income ? { skills: d.profile?.skills?.filter?.(safeForModel),
-              hoursPerWeek: safeForModel(d.profile?.hoursPerWeek) ? d.profile.hoursPerWeek : undefined,
+              hoursPerWeek: regular ? spareHours : safeForModel(d.profile?.hoursPerWeek) ? d.profile.hoursPerWeek : undefined,
               constraints: safeForModel(d.profile?.constraints) ? d.profile.constraints : undefined } : {},
             signal: controller.signal, fallback,
-            systemPrompt: guard.systemPrompt('แอปเลือกหัวข้อและคำถามแล้ว ให้สรุปทางเลือกจากเครื่องมือโดยไม่ถามคัดกรองอีก') });
+            systemPrompt: guard.systemPrompt(stepPrompt) });
       } catch {
         if (!controller.signal.aborted) out = await fallback();
       } finally {
@@ -969,6 +1030,10 @@ function createServer(opts = {}) {
         return runAssistant('เงินฉันอยู่ไหน', 'in_scope', { deterministic: true });
       }
       const { reply, ...extra } = details(out, allowed, query);
+      if (income) {
+        c.topic.jobResultIds = [...returnedJobs];
+        extra.quickReplies = returnedJobs.size > excludedJobs.size ? jobReplies() : defaultReplies();
+      }
       const memoryAdded = income || benefit ? [] : (out.memory || []).filter(note => safeForModel(note) && guard.check(note).kind === 'in_scope').map(note => {
         const item = { id: 'm' + d.seq++, text: note.slice(0, 200), source: 'ai', at: nowIso() };
         d.memory.push(item);
@@ -985,6 +1050,7 @@ function createServer(opts = {}) {
 
     const policy = guard.check(raw);
     const topics = topicRequests(text);
+    const regularJobReported = policy.kind === 'in_scope' && regularJobStatement.test(text);
     const joinedRequest = /(?:แล้ว|และ|แต่|ช่วยหางานอื่น)/.test(text);
     const workSafety = /มัดจำ/.test(text) && /งาน|นายจ้าง/.test(text);
     const hardRefusal = ['sensitive', 'injection', 'guarantee'].includes(policy.kind);
@@ -1024,7 +1090,37 @@ function createServer(opts = {}) {
       return runAssistant(text === 'ดูรายการสิทธิทั้งหมด' ? 'เงินฉันอยู่ไหน' : text, 'in_scope', { deterministic: true });
     }
 
+    if (regularJobReported) c.hasRegularJob = true;
     const explicit = topics[0];
+    if (regularJobReported && !explicit && !asked?.moneyId) {
+      if (c.topic?.id !== 'income') selectTopic({ id: 'income' }, c.queue);
+      if (sideHours() === undefined) return askSideJobHours();
+      if (c.goal?.amount && c.goal.kind) return goalReply({});
+      return turn('คุณมีงานประจำอยู่แล้ว เลือกดูงานเสริมหรือกำหนดเป้ารายได้เพิ่มได้ค่ะ', 'in_scope',
+        { quickReplies: withQueuedTopic(['หางานใกล้บ้าน', intentOptions[1]]) });
+    }
+    if (policy.kind === 'in_scope' && c.topic?.id === 'income' && c.topic.jobResultIds && moreJobRequest.test(text)) {
+      c.incomeQuestion = null;
+      setStep(d, c, null);
+      return runAssistant(text, 'in_scope', { income: true, moreJobs: true });
+    }
+    if (sameQuestion?.fact === 'sideJobHours' && !explicit) {
+      const answer = thaiDigits(text).replace(/\s*(?:ค่ะ|ครับ|คะ)$/, '').trim();
+      const hours = HOURS[answer] ?? Number(/^(\d{1,2})(?:\s*(?:ชม\.?|ชั่วโมง)(?:\s*(?:ต่อ|\/)\s*สัปดาห์)?)?$/.exec(answer)?.[1]);
+      if (hours > 0 && hours <= 40 && answer !== 'เต็มเวลา') {
+        c.sideJobHours = hours;
+        c.incomeQuestion = null;
+        setStep(d, c, null);
+        if (c.goal?.amount && c.goal.kind) return goalReply({});
+        return turn('บันทึกไว้สำหรับการคุยครั้งนี้ว่าคุณว่าง ' + hours + ' ชั่วโมงต่อสัปดาห์ค่ะ', 'in_scope',
+          { quickReplies: withQueuedTopic(['หางานใกล้บ้าน', intentOptions[1]]) });
+      }
+      if (answer === 'ยังไม่แน่ใจ') {
+        return turn('ดูประกาศงานเสริมก่อนได้ค่ะ ฉันจะคำนวณรายได้เมื่อทราบเวลาว่างของคุณ', 'in_scope',
+          { quickReplies: withQueuedTopic(['หางานใกล้บ้าน', intentOptions[0]]) });
+      }
+      return askSideJobHours();
+    }
     if (explicit && explicit.id === 'income' && c.topic?.id === 'income' && !resumeQueue) {
       c.topic.remote ||= explicit.remote;
       c.topic.limitedTravel ||= explicit.limitedTravel;
@@ -1041,6 +1137,10 @@ function createServer(opts = {}) {
     }
 
     if (explicit?.id === 'income') {
+      if (text === intentOptions[1] && !c.incomeQuestion && c.goal?.amount && c.goal.kind) {
+        return turn('แผนตามเป้าที่คุยกันอยู่ด้านบนค่ะ เลือกดูงานใกล้บ้านหรือเปลี่ยนเป้าหมายได้เลย', 'in_scope',
+          { quickReplies: planReplies() });
+      }
       const incomeText = resumeQueue ? text : thaiDigits(text).slice(explicit.index);
       const input = resumeQueue ? explicit.goal : parseGoal(incomeText, today);
       if (input.amount !== undefined || input.kind || input.denied || input.ambiguous || input.skip || !jobRequest.test(incomeText)) return goalReply(input);
@@ -1048,6 +1148,7 @@ function createServer(opts = {}) {
       if (explicit.remote && !d.profile?.skills?.length) return incomeAsk('jobSkills', 'ถ้าจะทำงานจากบ้าน คุณถนัดงานอะไรบ้าง?', ['ดูทางเลือก']);
       if (explicit.remote && !d.profile?.hoursPerWeek) return incomeAsk('jobHours', 'คุณมีเวลาทำงานจากบ้านประมาณกี่ชั่วโมงต่อสัปดาห์?', ['ดูทางเลือก']);
       setStep(d, c, null);
+      c.incomeQuestion = null;
       return runAssistant(text, 'in_scope', { income: true });
     }
     if (explicit) {
@@ -1134,7 +1235,7 @@ function createServer(opts = {}) {
         return turn(c.expect?.question || intentQuestion, 'answer');
       }
       if (asked.moneyId) {
-        const value = answerValue(asked, text);
+        const value = asked.fact === 'work' && regularJobReported ? 'ทำงานประจำ' : answerValue(asked, text);
         if (value !== undefined) {
           const context = benefitContext(c.topic);
           const { conflicts } = profileFacts(d, context);
@@ -1192,6 +1293,7 @@ function createServer(opts = {}) {
 
   // Planner
   const hoursOf = d => HOURS[(d && d.profile && d.profile.hoursPerWeek) || ''];
+  const partTimeHoursOf = d => d.profile?.hoursPerWeek === 'เต็มเวลา' ? undefined : hoursOf(d);
   on('GET', '/v1/plans/options', ({ d, q }) => [200, { items: planOptions(d, (q.get('opportunityIds') || '').split(',').filter(Boolean)) }]);
   on('GET', '/v1/plans/goal', ({ d, q }) => {
     const t = q.has('target') ? +q.get('target') : d.profile && d.profile.incomeGoalPerMonth;
@@ -1200,21 +1302,23 @@ function createServer(opts = {}) {
   });
   // "I want X baht this month": benefits the person likely qualifies for (sourced rates) + the best-fitting
   // earning options for their skills and free time, until the low end reaches the goal. Ranges, never a promise.
-  function goalPlan(d, target, { includeBenefits = true, remote = false } = {}) {
-    const skills = (d.profile && d.profile.skills) || [], h = hoursOf(d);
-    const facts = includeBenefits ? effectiveFacts(d) : {};
+  function goalPlan(d, target, { includeBenefits = true, remote = false, sideJob: sideJobOnly = false, spareHours } = {}) {
+    const knownFacts = effectiveFacts(d);
+    const regular = sideJobOnly || knownFacts.work === 'ทำงานประจำ';
+    const skills = d.profile?.skills || [], h = regular ? spareHours ?? partTimeHoursOf(d) : hoursOf(d);
+    const facts = includeBenefits ? knownFacts : {};
     const mList = includeBenefits ? money.list(facts, govData(d)).items : [];
     const benefits = mList.filter(i => ['likely', 'verified'].includes(i.status) && i.kind === 'monthly' && typeof i.amount.value === 'number')
       .map(i => ({ kind: 'benefit', id: i.id, title: i.title, net: [i.amount.value, i.amount.value], numberSource: 'official', dataStatus: i.dataStatus,
         why: i.status === 'verified' ? 'ยืนยันจากหน่วยงาน' : 'เงินสวัสดิการที่น่าจะมีสิทธิ์ ยังไม่ยืนยัน', action: { type: 'money_route', id: i.id } }));
     const ideas = ref.skillIdeas.map(i => ({ kind: 'skill', id: i.id, title: i.title, net: [i.grossPerMonth[0] - i.costPerMonth[1], i.grossPerMonth[1] - i.costPerMonth[0]],
       numberSource: 'estimate', dataStatus: 'mock', requires: i.skills, matched: i.skills.filter(s => skills.includes(s)), assumptions: i.assumptions, why: 'ประมาณการ ยังไม่มีผู้ซื้อยืนยัน', action: { type: 'idea', id: i.id } }));
-    const jobs = jobOptions(d, remote);
+    const jobs = regular && h === undefined ? [] : jobOptions(d, { remote, regular, hours: h });
     // Skill matches first, then (for people 60+) jobs that accept older workers, then the higher low end.
     // Free time limits how many earning options fit.
     const older = facts.ageBand && facts.ageBand !== 'ต่ำกว่า 60';
     // Only options the person can do: no special skill needed, or at least one of their skills matches.
-    const pool = [...ideas, ...jobs].filter(x => !(x.requires || []).length || x.matched.length)
+    const pool = (regular && h === undefined ? [] : [...ideas, ...jobs]).filter(x => !(x.requires || []).length || x.matched.length)
       .filter((x, i, a) => a.findIndex(y => y.title === x.title) === i)
       .sort((a, b) => (b.matched.length > 0) - (a.matched.length > 0) || (older ? (!!b.forOlder) - (!!a.forOlder) : 0) || b.net[0] - a.net[0]);
     const room = h === undefined ? 2 : h >= 40 ? 3 : h >= 15 ? 2 : 1;
@@ -1227,23 +1331,35 @@ function createServer(opts = {}) {
     if (includeBenefits && !Object.keys(facts).length) missing.push({ id: 'money_check', text: 'ยังไม่ได้เช็คเงินที่ควรได้จากรัฐ อาจมีเงินเพิ่ม' });
     else if (mList.some(i => i.status === 'need')) missing.push({ id: 'money_check', text: 'ยังมีคำถามเรื่องเงินจากรัฐที่ยังไม่ได้ตอบ อาจมีเงินเพิ่ม' });
     if (!skills.length) missing.push({ id: 'skills', text: 'ยังไม่รู้ทักษะของคุณ บอกทักษะแล้วแผนจะตรงตัวขึ้น' });
-    if (h === undefined) missing.push({ id: 'hours', text: 'ยังไม่รู้เวลาว่างต่อสัปดาห์ จึงคิดไว้ไม่เกิน 2 ทาง' });
+    if (h === undefined) missing.push({ id: 'hours', text: regular ? 'บอกเวลาว่างนอกงานประจำก่อนประเมินรายได้เสริม' : 'ยังไม่รู้เวลาว่างต่อสัปดาห์ จึงคิดไว้ไม่เกิน 2 ทาง' });
     return { target, parts, total, gap: Math.max(0, target - total[0]), reach: total[0] >= target ? 'likely' : total[1] >= target ? 'maybe' : 'short',
       missing, hoursPerWeek: h, note: 'เป็นการวางแผนจากเกณฑ์ที่ประกาศ ค่าจ้างในประกาศ และประมาณการ ไม่ใช่รายได้ที่รับประกัน งานและลูกค้าต้องหาเองตามขั้นในแผน' };
   }
   // Monthly range for every job listing that states a wage, from the person's free time (default 20 h/week).
   // A full-time monthly job only fits with 30+ free hours. Travel cost is not deducted (said in assumptions).
-  function jobOptions(d, remote = false) {
-    const h = hoursOf(d), hw = h === undefined ? 20 : h, skills = (d.profile && d.profile.skills) || [];
+  function jobOptions(d, { remote, regular, hours }) {
+    const hw = hours ?? 20, skills = d.profile?.skills || [];
     const best = new Map();
     for (const o of opportunityValues()) {
       if (o.mapGroup !== 'job' || o.suspicious || o.money.basis !== 'listing' || typeof o.money.min !== 'number') continue;
+      if (regular && !sideJob(o)) continue;
       if (remote && o.location.workMode !== 'remote' && !o.location.isRemote) continue;
+      const shift = regular ? advertisedShiftHours(o) : undefined;
+      if (shift > hw) continue;
       const unit = o.money.unit || '';
       let f, basis;
       if (/เดือน/.test(unit)) { if (hw < 30 && o.category === 'job_full') continue; f = 1; basis = 'ค่าจ้างรายเดือนตามประกาศ'; }
-      else if (/วัน/.test(unit)) { const days = Math.min(6, Math.max(1, Math.round(hw / 8))); f = days * 4.33; basis = days + ' วัน/สัปดาห์ ตามเวลาว่าง ' + hw + ' ชม.'; }
-      else if (/ชั่วโมง/.test(unit)) { f = hw * 4.33; basis = hw + ' ชม./สัปดาห์ ตามเวลาว่าง'; }
+      else if (/วัน/.test(unit)) {
+        const days = Math.min(6, regular ? Math.floor(hw / (shift || 8)) : Math.max(1, Math.round(hw / 8)));
+        if (!days) continue;
+        f = days * 4.33;
+        basis = days + ' วัน/สัปดาห์ ตามเวลาว่าง ' + hw + ' ชม.';
+      }
+      else if (/ชั่วโมง/.test(unit)) {
+        const billableHours = shift ? Math.floor(hw / shift) * shift : hw;
+        f = billableHours * 4.33;
+        basis = billableHours + ' ชม./สัปดาห์ ตามเวลาว่าง';
+      }
       else continue;
       const net = [Math.round(o.money.min * f), Math.round((o.money.max || o.money.min) * f)];
       const x = { kind: 'job', id: o.id, title: o.title, net, numberSource: 'listing', dataStatus: o.provenance.dataStatus, forOlder: o.forOlder, requires: o.skills,
