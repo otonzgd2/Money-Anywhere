@@ -54,6 +54,7 @@ function govPrefillPersona(thaidConfig, selectedSources = govPrefillSourceIds, o
     if (thaid.birthdate) mock.claims.birthdate = thaid.birthdate;
     if (thaid.ageBandOnly) {
       delete mock.claims.birthdate;
+      delete mock.derived.age;
       mock.scopes = mock.scopes.filter(scope => scope !== 'birthdate');
     }
     const { displayName, ageBand, district, age } = mock.derived;
@@ -63,7 +64,7 @@ function govPrefillPersona(thaidConfig, selectedSources = govPrefillSourceIds, o
       pidMasked: mock.pidMasked, claims: mock.claims, derived: mock.derived
     };
     facts.ageBand = ageBand;
-    sources.push({ field: 'identity', label: 'ThaID', value: `อายุ ${age} ปี`, checkedAt: thaid.asOf });
+    sources.push({ field: 'identity', label: 'ThaID', value: age === undefined ? `ช่วงอายุ ${ageBand}` : `อายุ ${age} ปี`, checkedAt: thaid.asOf });
   }
   if (selected.has('tangRat')) {
     Object.assign(facts, tangRatFacts(tangRat));

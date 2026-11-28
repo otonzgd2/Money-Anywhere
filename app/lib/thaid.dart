@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
@@ -67,23 +69,18 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
 
 Future<void> disconnectThaid(BuildContext context, AppState app) async {
   try {
-    await app.api.delete('/v1/me/gov-link');
+    if (app.accounts.value.govLinked) {
+      await app.api.delete('/v1/me/gov-link');
+    }
+    app.accounts.forgetDemoThaid();
     app.chat.reset();
     app.bump();
     if (context.mounted) toast(context, 'ยกเลิกการเชื่อม ThaID และลบข้อมูลจากหน่วยงานแล้ว');
   } on ApiException catch (e) {
     if (context.mounted) toast(context, e.message);
-  }
-}
-
-/// ThaID identity (GovIdentity in openapi.yaml) when connected, otherwise null. Claim names follow ThaID.
-Future<Map<String, dynamic>?> govIdentity(Api api) async {
-  try {
-    final r = await api.get('/v1/me/gov-link');
-    final id = r['identity'];
-    return r['status'] == 'connected' && id is Map ? Map<String, dynamic>.from(id) : null;
-  } on ApiException {
-    return null;
+  } on FileSystemException {
+    app.bump();
+    if (context.mounted) toast(context, 'บันทึกการยกเลิกการเชื่อมไม่ได้ ลองใหม่');
   }
 }
 
@@ -98,8 +95,16 @@ class ThaidProfileIdentity {
   final Map<dynamic, dynamic> _derived;
 
   bool get mock => _data['dataStatus'] != 'live';
-  String? get displayName => _thaidText(_claims['name']) ?? _thaidText(_derived['displayName']);
+  String? get displayName =>
+      _thaidText(_claims['name']) ??
+      _thaidText(_derived['displayName']) ??
+      _thaidText([
+        ?_thaidText(_claims['given_name']),
+        ?_thaidText(_claims['family_name']),
+      ].join(' '));
   String? get district => _thaidText(_address['locality']) ?? _thaidText(_derived['district']);
+  String? get ageBand => _thaidText(_derived['ageBand']);
+  String? get ageText => age == null ? ageBand : '$age ปี';
 
   String? get maskedId {
     final tail = RegExp(r'(\d{2})-?(\d)$').firstMatch(_thaidText(_data['pidMasked']) ?? '');

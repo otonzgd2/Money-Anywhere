@@ -1,15 +1,25 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
 import 'chat.dart';
 import 'common.dart';
+import 'connected_accounts.dart';
+import 'connected_account_row.dart';
 import 'demo_sources_screen.dart';
 import 'income_plan_screen.dart';
-import 'profile_overview_screen.dart';
+import 'opportunity_assessment.dart';
 import 'profile_screen.dart';
 import 'thaid.dart';
 
-const purposeLabel = {'ai': 'ให้ AI ช่วยวิเคราะห์', 'reminders': 'เตือนงานค้าง', 'location': 'ใช้ตำแหน่งค้นหา'};
+const purposeLabel = {
+  'ai': 'ให้ AI ช่วยวิเคราะห์',
+  'reminders': 'เตือนงานค้าง',
+  'location': 'ใช้ตำแหน่งค้นหา',
+  'gov': 'ใช้ข้อมูลจาก ThaID',
+};
 
 /// Tab 👤 ฉัน (ui-states.md S9): settings, consent (takes effect at once), AI memory, my data, delete, help, demo.
 class MeTab extends StatefulWidget {
@@ -19,21 +29,24 @@ class MeTab extends StatefulWidget {
   State<MeTab> createState() => _MeTabState();
 }
 
-typedef _DemoCase = ({String label, String subtitle, String path, String route});
+typedef _DemoCase = ({
+  String label,
+  String subtitle,
+  String path,
+  String route,
+});
 
 class _MeTabState extends State<MeTab> {
   Map<String, bool>? purposes;
   int history = 0;
-  String? profileRoute;
-  Future<ProfileSnapshot?>? profileSummary;
-  List<_DemoCase> demoCases = const [];
+  Future<PersonalProfile?>? profileSummary;
+  final accountsHeading = GlobalKey();
+  final accountsFocus = FocusNode();
+  int loadGeneration = 0;
   bool openingDemo = false;
   List<Map<String, dynamic>> memory = [];
   ApiException? error;
   bool loaded = false;
-  bool userMode = false;
-  Map<String, dynamic>? governmentConnections;
-  GovState gov = GovState.disabled;
   Api get api => widget.app.api;
 
   @override
@@ -46,50 +59,61 @@ class _MeTabState extends State<MeTab> {
   @override
   void dispose() {
     widget.app.changed.removeListener(_load);
+    accountsFocus.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final Future<ProfileSnapshot?> summary = ProfileSnapshot.load(api);
+    if (widget.app.deletingData) return;
+    final generation = ++loadGeneration;
+    unawaited(widget.app.accounts.refresh(force: true));
+    final Future<PersonalProfile?> summary = PersonalProfile.load(api);
+    final profile = summary.onError<ApiException>((_, _) => null);
     setState(() {
-      profileSummary = summary.onError<ApiException>((_, _) => null);
+      profileSummary = profile;
     });
     try {
       final c = await api.get('/v1/me/consents');
       final cur = c['current'] as Map<String, dynamic>?;
       final m = await api.get('/v1/me/memory');
       final s = await api.get('/v1/me/settings');
-      if (!mounted) return;
+      if (!mounted || generation != loadGeneration) return;
       widget.app.largeText.value = s['largeText'] == true;
-      gov = await govState(api);
-      final config = await api.get('/v1/app-config').onError<ApiException>((_, _) => const <String, dynamic>{});
-      if (!mounted) return;
       setState(() {
-        if (config.isNotEmpty) {
-          userMode = config['mode'] == 'user';
-          governmentConnections = config['governmentConnections'] as Map<String, dynamic>?;
-          profileRoute = _profileRoute(config);
-          demoCases = _demoCases(config);
-        }
-        purposes = cur == null ? null : (cur['purposes'] as Map).map((k, v) => MapEntry('$k', v == true));
+        purposes = cur == null
+            ? null
+            : (cur['purposes'] as Map).map((k, v) => MapEntry('$k', v == true));
         history = ((c['items'] as List?) ?? const []).length;
         memory = (m['items'] as List).cast<Map<String, dynamic>>();
         error = null;
         loaded = true;
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() { error = e; loaded = true; });
+      if (mounted && generation == loadGeneration) {
+        setState(() {
+          error = e;
+          loaded = true;
+        });
+      }
     }
   }
 
   Future<void> _togglePurpose(String id, bool v) async {
     try {
       await api.setConsent({...?purposes, id: v});
+      if (id == 'gov' && !v && widget.app.accounts.value.demoEnabled) {
+        widget.app.accounts.forgetDemoThaid();
+      }
       widget.app.bump();
       if (id == 'ai' && !v) widget.app.chat.reset(); // withdrawing AI clears the chat and AI memory (server does too)
-      if (mounted) toast(context, v ? 'ยินยอมแล้ว' : 'ถอนความยินยอมแล้ว มีผลทันที');
+      if (mounted) {
+        toast(context, v ? 'ยินยอมแล้ว' : 'ถอนความยินยอมแล้ว มีผลทันที');
+      }
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
+    } on FileSystemException {
+      widget.app.bump();
+      if (mounted) toast(context, 'บันทึกการยกเลิกการเชื่อมไม่ได้ ลองใหม่');
     }
   }
 
@@ -135,31 +159,60 @@ class _MeTabState extends State<MeTab> {
   }
 
   Future<void> _deleteAll() async {
+    final app = widget.app;
+    if (app.deletingData) return;
     final yes = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('ลบข้อมูลทั้งหมด?'),
-        content: const Text('คำตอบ แผนรวมถึงแผน DEMO ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้'),
+        content: const Text(
+          'คำตอบ แผนรวมถึงแผน DEMO ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ยกเลิก')),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(context, true), child: const Text('ลบข้อมูล')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('ยกเลิก'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ลบข้อมูล'),
+          ),
         ],
       ),
     );
-    if (yes != true) return;
-    final demoApis = [for (final profile in DemoChatProfile.values) api.forDemo(profile.deviceSuffix)];
+    if (yes != true || !mounted || app.deletingData) return;
+    app.deletingData = true;
+    loadGeneration++;
+    app.accounts.beginDelete();
+    final demoApis = [
+      for (final profile in DemoChatProfile.values)
+        api.forDemo(profile.deviceSuffix),
+      api.forDemo(onboardingDemoDevice),
+    ];
     try {
-      await Future.wait([for (final client in [api, ...demoApis]) client.delete('/v1/me')]);
-      widget.app.chat.reset();
-      widget.app.goTab(0);
+      api.saveOnboardingChoices('');
+      await app.onboardingWrite;
+      await Future.wait([
+        for (final client in [api, ...demoApis]) client.delete('/v1/me'),
+      ]);
+      app.dataCleared.value++;
+      app.chat.reset();
+      app.goTab(0);
       if (mounted) toast(context, 'ลบข้อมูลและถอนความยินยอมแล้ว');
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
+    } on FileSystemException {
+      if (mounted) {
+        toast(context, 'ล้างตัวเลือกบนเครื่องไม่ได้ ลองลบข้อมูลอีกครั้ง');
+      }
     } finally {
       for (final client in demoApis) {
         client.close();
       }
-      widget.app.bump();
+      app.deletingData = false;
+      app.accounts.endDelete();
+      app.bump();
     }
   }
 
@@ -173,15 +226,6 @@ class _MeTabState extends State<MeTab> {
     } on ApiException catch (e) {
       if (mounted) toast(context, e.message);
     }
-  }
-
-  String? _profileRoute(Map<String, dynamic> config) {
-    if (config case {'routes': {'me': {'sections': final List sections}}}) {
-      for (final section in sections) {
-        if (section case {'type': 'profile_card', 'onTap': {'route': final String route}}) return route;
-      }
-    }
-    return null;
   }
 
   List<_DemoCase> _demoCases(Map<String, dynamic> config) {
@@ -248,72 +292,120 @@ class _MeTabState extends State<MeTab> {
         onTap: () => _openDemo(scenario),
       );
 
-  Widget _demoAccounts() {
-    return FutureBuilder<ProfileSnapshot?>(
-      future: profileSummary,
-      builder: (context, state) {
-        if (state.connectionState != ConnectionState.done) {
-          return const SizedBox.shrink();
-        }
-        final sample = state.data?.sample;
-        if (sample != null && sample.connections.isNotEmpty && gov != GovState.connected) {
-          return DemoConnectionDetails(
-            demo: sample,
-            onConnectThaid: gov == GovState.notConnected ? () => connectThaid(context, widget.app) : null,
-          );
-        }
-        return switch (gov) {
-          GovState.disabled => const ListTile(
-            title: Text('ThaID'),
-            subtitle: Text('server ปิดโหมดนี้อยู่'),
+  Widget _accounts(AccountsSnapshot snapshot) {
+    final theme = Theme.of(context);
+    final availability = snapshot.config['governmentConnections'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Focus(
+          key: accountsHeading,
+          focusNode: accountsFocus,
+          child: Semantics(
+            header: true,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 16, bottom: 3),
+              child: Text(
+                'บัญชีที่เชื่อมต่อ',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
-          GovState.notConnected => ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: const Text('เชื่อม ThaID'),
-            subtitle: const Text('โหมดสาธิต ใช้ข้อมูลจำลอง'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => connectThaid(context, widget.app),
+        ),
+        Semantics(
+          liveRegion: true,
+          child: Text(
+            'เชื่อมแล้ว ${snapshot.connectedCount} จาก ${DemoSource.values.length} บริการ'
+            '${snapshot.hasMock ? ' · ข้อมูลจำลอง' : ''}',
+            style: theme.textTheme.bodySmall,
           ),
-          GovState.connected => ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: const Text('ThaID เชื่อมแล้ว (ข้อมูลจำลอง)'),
-            trailing: TextButton(onPressed: () => disconnectThaid(context, widget.app), child: const Text('ยกเลิก')),
+        ),
+        const SizedBox(height: 8),
+        for (final source in DemoSource.values)
+          ConnectedAccountRow(
+            key: ValueKey(source),
+            source: source,
+            account: snapshot[source],
+            availability: availability is Map ? availability[source.id] : null,
+            onRetry: () => widget.app.accounts.refresh(retry: source),
+            onConnect:
+                source == DemoSource.thaid &&
+                    snapshot.govAvailable &&
+                    const {
+                      AccountStatus.disconnected,
+                      AccountStatus.skipped,
+                    }.contains(snapshot.thaid.status)
+                ? () => connectThaid(context, widget.app)
+                : null,
+            onDisconnect:
+                source == DemoSource.thaid &&
+                    (snapshot.demoEnabled || snapshot.govLinked)
+                ? () => disconnectThaid(context, widget.app)
+                : null,
           ),
-        };
-      },
+      ],
     );
   }
 
-  Widget _profileTile() {
-    return ListTile(
-      leading: const Text('🧑', style: TextStyle(fontSize: 22)),
-      title: const Text('โปรไฟล์ของฉัน'),
-      subtitle: FutureBuilder<ProfileSnapshot?>(
-        future: profileSummary,
-        builder: (context, state) {
-          if (state.connectionState != ConnectionState.done) {
-            return const Text('กำลังโหลดข้อมูลส่วนตัว…');
-          }
-          final profile = state.data;
-          if (profile == null) return const Text('โหลดข้อมูลส่วนตัวไม่ได้');
-          final facts = [
-            if (profile.age case final age?) 'อายุ $age ปี',
-            if (profile.district case final district?) 'เขตที่อยู่ $district',
-          ];
-          final summary = [
-            ?profile.displayName,
-            if (facts.isNotEmpty) facts.join(' · '),
-            if (profile.mock) 'DEMO / MOCK',
-          ];
-          return Text(summary.isEmpty ? 'แตะเพื่อเพิ่มข้อมูลส่วนตัว' : summary.join('\n'));
-        },
-      ),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => profileRoute == 'intake.manual'
-            ? ProfileScreen(app: widget.app)
-            : ProfileOverviewScreen(app: widget.app)),
+  void _showAccounts() {
+    Navigator.of(context).pop();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final heading = accountsHeading.currentContext;
+      if (heading == null || !mounted) return;
+      Scrollable.ensureVisible(
+        heading,
+        duration: const Duration(milliseconds: 240),
+      );
+      accountsFocus.requestFocus();
+    });
+  }
+
+  Widget _profileTile(AccountsSnapshot snapshot) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+        title: const Text('โปรไฟล์'),
+        subtitle: FutureBuilder<PersonalProfile?>(
+          future: profileSummary,
+          builder: (context, state) {
+            if (snapshot.thaid.status == AccountStatus.connected) {
+              return Text(
+                snapshot.thaid.mock
+                    ? 'ข้อมูลส่วนตัวจาก ThaID · DEMO / MOCK'
+                    : 'ข้อมูลส่วนตัวจาก ThaID',
+              );
+            }
+            if (widget.app.deletingData ||
+                state.connectionState != ConnectionState.done) {
+              return const Text('กำลังโหลดข้อมูลส่วนตัว…');
+            }
+            final profile = state.data;
+            if (profile == null) return const Text('โหลดข้อมูลส่วนตัวไม่ได้');
+            final summary = [
+              ?profile.displayName,
+              if (profile.district case final district?)
+                'เขตที่อาศัย $district',
+            ];
+            return Text(
+              summary.isEmpty
+                  ? 'แตะเพื่อเพิ่มข้อมูลส่วนตัว'
+                  : summary.join('\n'),
+            );
+          },
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: widget.app.deletingData
+            ? null
+            : () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      ProfileScreen(app: widget.app, onAccounts: _showAccounts),
+                ),
+              ),
       ),
     );
   }
@@ -326,47 +418,35 @@ class _MeTabState extends State<MeTab> {
   Widget _head(String s) => Padding(padding: const EdgeInsets.fromLTRB(4, 18, 4, 4), child: Text(s, style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF065F46))));
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ValueListenableBuilder<AccountsSnapshot>(
+    valueListenable: widget.app.accounts,
+    builder: _buildMe,
+  );
+
+  Widget _buildMe(BuildContext context, AccountsSnapshot snapshot, Widget? child) {
+    final demoCases = snapshot.demoEnabled ? _demoCases(snapshot.config) : const <_DemoCase>[];
     return Scaffold(
       appBar: AppBar(title: const Text('ฉัน')),
       body: ListView(padding: const EdgeInsets.all(12), children: [
         if (error != null && error!.isNetwork) OfflineCard(app: widget.app, onRetry: _load),
         _head('ข้อมูลของฉัน'),
-        _profileTile(),
+        _profileTile(snapshot),
         ListTile(
           leading: const Text('📈', style: TextStyle(fontSize: 22)),
           title: const Text('แผนรายได้'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => IncomePlanScreen(app: widget.app))),
         ),
-        _head('บัญชีที่เชื่อมต่อ'),
-        if (userMode) ...[
-          ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: const Text('ThaID'),
-            subtitle: Text(governmentConnections?['thaid'] == 'approval_required'
-                ? 'รอกรมการปกครองอนุมัติการเชื่อมต่อ'
-                : 'ยังไม่เปิดการเชื่อมต่อ'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.account_balance_outlined),
-            title: const Text('ทางรัฐ'),
-            subtitle: Text(governmentConnections?['tangRat'] == 'access_required'
-                ? 'รอสิทธิ์เข้าถึงข้อมูลจากหน่วยงานเจ้าของบริการ'
-                : 'ยังไม่เปิดการเชื่อมต่อ'),
-          ),
-        ] else ...[
-          _demoAccounts(),
-          for (final scenario in demoCases)
-            if (scenario.route == 'me.profile') _demoTile(scenario),
-        ],
+        _accounts(snapshot),
         ListTile(
           leading: const Text('🔌', style: TextStyle(fontSize: 22)),
-          title: const Text('แหล่งข้อมูลที่เชื่อมต่อ'),
-          subtitle: const Text('API ภาครัฐ เอกชน ข้อมูลจริง และข้อมูลจำลอง'),
+          title: const Text('แหล่งข้อมูลของแอป'),
+          subtitle: const Text('ที่มาของโอกาสและประกาศ'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SourcesScreen(app: widget.app))),
         ),
+        for (final scenario in demoCases)
+          if (scenario.route == 'me.profile') _demoTile(scenario),
         _head('การใช้งาน'),
         ValueListenableBuilder<bool>(
           valueListenable: widget.app.largeText,
@@ -378,7 +458,8 @@ class _MeTabState extends State<MeTab> {
         if (purposes != null) ...[
           const SwitchListTile(value: true, onChanged: null, title: Text('ข้อมูลที่จำเป็น (บังคับ)'), subtitle: Text('ถอนได้ด้วย "ลบข้อมูลทั้งหมด"')),
           for (final e in purposeLabel.entries)
-            SwitchListTile(value: purposes![e.key] == true, onChanged: (v) => _togglePurpose(e.key, v), title: Text(e.value)),
+            if (e.key != 'gov' || purposes!.containsKey('gov'))
+              SwitchListTile(value: purposes![e.key] == true, onChanged: (v) => _togglePurpose(e.key, v), title: Text(e.value)),
           ListTile(title: Text('ประวัติการให้ความยินยอม $history ครั้ง'), dense: true),
         ],
         ListTile(title: const Text('ประกาศความเป็นส่วนตัว'), trailing: const Icon(Icons.chevron_right), onTap: () => showNotice(context, widget.app)),
@@ -402,7 +483,7 @@ class _MeTabState extends State<MeTab> {
           title: const Text('รู้ทันมิจฉาชีพ'),
           onTap: () => _info('สัญญาณเตือน', '• ให้โอนเงินก่อน ค่ามัดจำ ค่าธรรมเนียม\n• ขอเลขบัตร รหัสผ่าน OTP ทางแชท\n• รายได้สูงผิดปกติ งานง่ายเกินจริง\n• เงินกู้คือหนี้ ไม่ใช่รายได้\nสงสัยโทรสายด่วนตำรวจไซเบอร์ 1441'),
         ),
-        if (!userMode) ...[
+        if (snapshot.demoEnabled) ...[
           _head('สำหรับสาธิต (DEMO)'),
           for (final scenario in demoCases)
             if (scenario.route == 'assistant') _demoTile(scenario),
@@ -424,14 +505,14 @@ class _MeTabState extends State<MeTab> {
           trailing: const Icon(Icons.edit),
           onTap: () => editServer(context, widget.app, () { widget.app.bump(); setState(() {}); }),
         ),
-        if (!userMode)
+        if (snapshot.demoEnabled)
           const Padding(padding: EdgeInsets.all(8), child: DemoPill(text: 'เวอร์ชันสาธิต · ผู้ใช้สมมติ · ไม่มีการเข้าสู่ระบบ')),
       ]),
     );
   }
 }
 
-/// ฉัน > แหล่งข้อมูลที่เชื่อมต่อ: every source the server uses, what kind it is, and its state (GET /v1/sources).
+/// ฉัน > แหล่งข้อมูลของแอป: every source the server uses, what kind it is, and its state (GET /v1/sources).
 class SourcesScreen extends StatefulWidget {
   const SourcesScreen({super.key, required this.app});
   final AppState app;
@@ -469,7 +550,7 @@ class _SourcesScreenState extends State<SourcesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('แหล่งข้อมูลที่เชื่อมต่อ')),
+      appBar: AppBar(title: const Text('แหล่งข้อมูลของแอป')),
       body: error != null
           ? Center(child: Text(error!))
           : items == null

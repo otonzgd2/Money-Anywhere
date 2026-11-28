@@ -263,6 +263,38 @@
   .opp-card { display:block; width:100%; border:0; background:transparent; color:inherit; text-align:left; padding:10px; }
   .opp-card-sub { display:block; white-space:pre-line; font-size:.8rem; margin-top:3px; color:var(--mut); }
   #v-opp :is(button,select,input,summary):focus-visible { outline:2px solid #174ea6; outline-offset:1px; }
+  .me-profile-link { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; text-align:left; width:100%; min-height:68px; padding:11px; border:1px solid #dce7df; border-radius:15px; background:#fff; color:#173d32; cursor:pointer; }
+  .me-profile-link strong, .me-profile-link .small { display:block; overflow-wrap:anywhere; }
+  .profile-monogram { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:#e6f4ec; color:#06513b; font-weight:750; }
+  .profile-card { padding:14px; border:1px solid #dce7df; border-radius:16px; box-shadow:none; }
+  .profile-identity[data-connected="true"] { background:#f0f7f3; border-color:#a9c8ba; }
+  .profile-section-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; margin-bottom:9px; }
+  .profile-section-head h2, #connectedAccounts h2 { margin:0; font-size:1rem; line-height:1.4; }
+  .profile-source-badge { color:#155744; background:#e2f1e8; border-radius:12px; padding:3px 8px; font-weight:700; font-size:.72rem; }
+  .profile-fields { display:grid; gap:10px; }
+  .profile-fields label, .profile-work-label { display:grid; gap:4px; color:#294c40; font-size:.84rem; font-weight:650; }
+  .profile-fields input, .profile-fields select { padding:8px 9px; min-height:40px; border:1px solid #a9bfb5; border-radius:9px; color:var(--ink); background:white; font:inherit; }
+  .profile-work-label { margin-top:12px; }
+  .profile-footnote { margin:8px 0 0; color:#49665a; font-size:.78rem; line-height:1.5; }
+  .profile-actions { flex:none; padding:8px 16px 12px; background:var(--bg); border-top:1px solid var(--line); }
+  .profile-save { background:#086348; margin:0; }
+  #connectedAccounts { margin:14px 0 8px; }
+  .account-count { margin:3px 0 9px; }
+  .account-stack { display:grid; gap:6px; }
+  .account-card { border:1px solid #dce7df; border-radius:12px; background:#fff; padding:0 9px; }
+  .account-card[data-state="connected"] { border-color:#a9c8ba; }
+  .account-row { display:grid; grid-template-columns:32px minmax(0,1fr); gap:8px; align-items:center; min-height:55px; padding:8px 0; }
+  .account-row img { width:32px; height:32px; object-fit:contain; }
+  .account-row strong, .account-status { display:block; line-height:1.45; overflow-wrap:anywhere; }
+  .account-row strong { color:#1c4437; font-size:.82rem; }
+  .account-status { color:#526b61; font-size:.72rem; }
+  .account-status[data-connected="true"] { color:#105b44; font-weight:700; }
+  .account-card summary { cursor:pointer; list-style:none; position:relative; padding-right:16px; }
+  .account-card summary::-webkit-details-marker { display:none; }
+  .account-card summary::after { content:"▾"; position:absolute; right:0; top:calc(50% - .55rem); color:#49665a; }
+  .account-card[open] summary::after { content:"▴"; }
+  .account-fields { padding:0 0 9px; margin:0; }
+  #v-profile :is(button,input,select):focus-visible, #v-me :is(button,summary):focus-visible { outline:2px solid #174ea6; outline-offset:2px; }
 </style>
 </head>
 <body>
@@ -328,7 +360,9 @@
     <div class="appbar"><button class="back" type="button" onclick="backFromTaskContact()" aria-label="กลับไปที่รายละเอียดแผน">←</button><div class="ttl">ข้อมูลติดต่อ</div></div>
     <div class="body" id="taskContactBody"></div>
   </div>
-  <div class="view" id="v-profile"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">โปรไฟล์และทักษะ</div></div><div class="body" id="profileBody"></div></div>
+  <div class="view" id="v-profile"><div class="appbar"><button type="button" class="back" onclick="back()" aria-label="ย้อนกลับ">←</button><div class="ttl">โปรไฟล์</div></div><div class="body" id="profileBody"></div>
+    <div class="profile-actions"><button class="btn profile-save" type="button" onclick="pSave()">บันทึกโปรไฟล์</button></div>
+  </div>
   <div class="view" id="v-plan"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">แผนรายได้</div></div><div class="body" id="planBody"></div></div>
   <div class="view" id="v-sources"><div class="appbar"><div class="back" onclick="back()">←</div><div class="ttl">แหล่งข้อมูลที่เชื่อมต่อ</div></div><div class="body" id="sourcesBody"></div></div>
 
@@ -573,24 +607,42 @@ function guardCheck(t, step) {
 
 /* Opening the mock follows Flutter startup. The provider choices are local to this page. */
 const MOCK_SOURCES = [
-  { name:'ThaID', logo:'thaid.png', detail:'อายุหรือช่วงอายุ และเขตตามทะเบียนบ้านจำลอง', facts:{ageBand:'60-69'} },
-  { name:'ทางรัฐ', logo:'thangrat.png', detail:'สถานะบัตรประจำตัวคนพิการจำลอง', facts:{disabilityCard:true} },
-  { name:'ประกันสังคม (SSO+)', logo:'sso-plus.png', detail:'มาตราผู้ประกันตนและประวัติส่งเงินสมทบจำลอง', facts:{ss33:true} },
-  { name:'D-MyTax', logo:'d-mytax.png', detail:'ปีภาษีและยอดหักภาษี ณ ที่จ่ายจำลอง', facts:{taxWithheld:true} },
+  { name:'ThaID', logo:'thaid.png', detail:'อายุหรือช่วงอายุ และเขตตามทะเบียนบ้านจำลอง', facts:{ageBand:'60-69'}, summary:'ชื่อ อายุ และเขตตามทะเบียนบ้าน', sample:[['ชื่อ-นามสกุล','นายสมศักดิ์ สมมติ'],['อายุ','65 ปี'],['เขตตามทะเบียนบ้าน','ปทุมวัน']] },
+  { name:'ทางรัฐ', logo:'thangrat.png', detail:'สถานะบัตรประจำตัวคนพิการจำลอง', facts:{disabilityCard:true}, summary:'สถานะบัตรประจำตัวคนพิการ', sample:[['บัตรประจำตัวคนพิการ','มีบัตรที่ใช้ได้']] },
+  { name:'ประกันสังคม (SSO+)', logo:'sso-plus.png', detail:'มาตราผู้ประกันตนและประวัติส่งเงินสมทบจำลอง', facts:{ss33:true}, summary:'มาตรา 33 และประวัติส่งเงินสมทบ', sample:[['มาตราผู้ประกันตน','มาตรา 33'],['ประวัติส่งเงินสมทบ','8 จาก 15 เดือนก่อนออกงาน']] },
+  { name:'D-MyTax', logo:'d-mytax.png', detail:'ปีภาษีและยอดหักภาษี ณ ที่จ่ายจำลอง', facts:{taxWithheld:true}, summary:'ข้อมูลภาษีหัก ณ ที่จ่าย', sample:[['ปีภาษี','2569'],['ภาษีหัก ณ ที่จ่าย','1,250 บาท']] },
 ];
 const ONBOARDING_KEY = 'thang-rot-mock-onboarding-v1';
 const MOCK_BASE_FACTS = {
   govPension:false, oldAgeGets:false, work:'ลาออกหรือหมดสัญญา',
   wage:12000, hasUnpaid:false, kidUnder6:false, welfareCard:false,
 };
-let onboardingChoices = '';
+function readMockConnections() {
+  try {
+    const saved = localStorage.getItem(ONBOARDING_KEY) || '';
+    return /^[ynd]{0,4}$/.test(saved) ? saved : '';
+  } catch { return ''; }
+}
+let onboardingChoices = readMockConnections();
+function saveMockConnections(choices) {
+  onboardingChoices = choices;
+  try { localStorage.setItem(ONBOARDING_KEY, choices); } catch {}
+}
+function refreshMockAssessment() {
+  const selected = MOCK_SOURCES.filter((_, index) => onboardingChoices[index] === 'y');
+  selectedAssessment = selected.length ? Object.assign({}, MOCK_BASE_FACTS, ...selected.map(source => source.facts)) : null;
+}
 let selectedAssessment = null;
+refreshMockAssessment();
 let startupMessage = '';
 let startupTimer;
 function openStartup(reset = false) {
-  let saved = '';
-  try { if (!reset) saved = localStorage.getItem(ONBOARDING_KEY) || ''; } catch {}
-  onboardingChoices = /^[yn]{0,4}$/.test(saved) ? saved : '';
+  if (reset) {
+    saveMockConnections('');
+    selectedAssessment = null;
+  } else {
+    onboardingChoices = readMockConnections();
+  }
   startupMessage = '';
   stack = ['startup'];
   go('startup');
@@ -613,14 +665,13 @@ function openNextMockSource() {
 }
 function chooseMockSource(choice) {
   if (cur() !== 'startup' || onboardingChoices.length === MOCK_SOURCES.length) return;
-  onboardingChoices += choice === 'all' ? 'n'.repeat(MOCK_SOURCES.length - onboardingChoices.length) : choice;
-  try { localStorage.setItem(ONBOARDING_KEY, onboardingChoices); } catch {}
+  const answer = choice === 'all' ? 'n'.repeat(MOCK_SOURCES.length - onboardingChoices.length) : choice;
+  saveMockConnections(onboardingChoices + answer);
   closeDlg();
   openNextMockSource();
 }
 function finishMockStartup() {
-  const selected = MOCK_SOURCES.filter((_, index) => onboardingChoices[index] === 'y');
-  selectedAssessment = selected.length ? Object.assign({}, MOCK_BASE_FACTS, ...selected.map(source => source.facts)) : null;
+  refreshMockAssessment();
   startupMessage = 'กำลังประเมินสิทธิ์และรายได้';
   bump();
   startupTimer = setTimeout(() => {
@@ -1450,15 +1501,48 @@ RENDER.oppd = () => {
 
 /* ================= S9 me tab, P7-P9, P12 sources (me_tab.dart) ================= */
 const PURPOSE_L = { ai:'ให้ AI ช่วยวิเคราะห์', reminders:'เตือนงานค้าง', location:'ใช้ตำแหน่งค้นหา' };
+const mockThaID = () => onboardingChoices[0] === 'y' ? MOCK_SOURCES[0] : null;
+function accountFields(fields) {
+  return `<dl class="plan-facts account-fields">${fields.map(([label,value]) =>
+    `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>`;
+}
+function connectedAccounts() {
+  const count = [...onboardingChoices].filter(choice => choice === 'y').length;
+  const rows = MOCK_SOURCES.map((source, index) => {
+    const choice = onboardingChoices[index];
+    const connected = choice === 'y';
+    const status = connected ? 'เชื่อมแล้ว · ' + source.summary : choice === 'n' ? 'ยังไม่เชื่อม · ข้ามตอนเริ่มต้น' : 'ยังไม่เชื่อม';
+    const row = `<img src="../../app/assets/thang-rot/${source.logo}" alt="">
+      <span><strong>${source.name}</strong><span class="account-status" data-connected="${connected}">${status}</span></span>`;
+    const disconnect = index === 0 ? '<button type="button" class="btn out" onclick="disconnectThaid()">ยกเลิกเชื่อม ThaID</button>' : '';
+    return connected
+      ? `<details class="account-card" data-state="connected"><summary class="account-row">${row}</summary>${accountFields(source.sample)}${disconnect}</details>`
+      : `<div class="account-card" data-state="unconnected"><div class="account-row">${row}</div></div>`;
+  });
+  return `<section id="connectedAccounts" aria-labelledby="connectedAccountsHeading">
+    <h2 id="connectedAccountsHeading" tabindex="-1">บัญชีที่เชื่อมต่อ</h2>
+    <p class="small account-count">เชื่อมแล้ว ${count} จาก ${MOCK_SOURCES.length} บริการ${count ? ' · ข้อมูลจำลอง' : ''}</p>
+    <div class="account-stack">${rows.join('')}</div>
+  </section>`;
+}
+function openConnectedAccounts() {
+  goTab('me');
+  const heading = $('connectedAccountsHeading');
+  heading.focus();
+  heading.scrollIntoView?.({block:'start'});
+}
 let memOpen = false;
 RENDER.me = () => {
   let h = offline ? offlineCard() : '';
-  h += sec('ข้อมูลของฉัน') + lt('🧑', 'โปรไฟล์และทักษะ', 'ทักษะ เวลาว่าง เป้ารายได้ เขตที่อยู่ ใช้หางานและวางแผนรายได้', "go('profile')", true) + lt('📈', 'แผนรายได้', '', "go('plan')", true);
-  h += sec('บัญชีที่เชื่อมต่อ');
-  if (!gov.flag) h += lt('', 'ThaID', 'server ปิดโหมดนี้อยู่');
-  else if (gov.connected) h += lt('🪪', 'ThaID เชื่อมแล้ว (ข้อมูลจำลอง)', '', '', false, '<button class="btn txt inl" onclick="disconnectThaid()">ยกเลิก</button>');
-  else h += lt('🪪', 'เชื่อม ThaID', 'โหมดสาธิต ใช้ข้อมูลจำลอง', 'connectThaid()', true);
-  h += lt('🔌', 'แหล่งข้อมูลที่เชื่อมต่อ', 'API ภาครัฐ เอกชน ข้อมูลจริง และข้อมูลจำลอง', "go('sources')", true);
+  h += sec('ข้อมูลของฉัน')
+    + `<button type="button" class="me-profile-link" onclick="go('profile')">
+      <span class="profile-monogram" aria-hidden="true">ฉัน</span>
+      <span><strong>โปรไฟล์</strong><span class="small">${mockThaID() ? 'ข้อมูลส่วนตัวจาก ThaID' : 'ข้อมูลส่วนตัวที่คุณแก้ไขได้'}</span></span>
+      <span aria-hidden="true">›</span>
+    </button>`
+    + lt('📈', 'แผนรายได้', '', "go('plan')", true);
+  h += connectedAccounts();
+  h += lt('🔌', 'แหล่งข้อมูลของแอป', 'ที่มาของโอกาสและประกาศ', "go('sources')", true);
   h += sec('การใช้งาน') + swRow('ตัวอักษรใหญ่', '', largeText, 'toggleLarge()');
   h += sec('ความเป็นส่วนตัวและข้อมูลของฉัน');
   if (!consent) h += lt('', 'ยังไม่ได้ให้ความยินยอม', 'จะถามเมื่อคุณกดบันทึกครั้งแรก หรือกดปุ่ม AI ที่หน้าแรก');
@@ -1490,7 +1574,15 @@ function resetDevice() { facts = {}; consent = null; consentHistory = 0; profile
 function deleteAll() {
   dialog('ลบข้อมูลทั้งหมด?', 'คำตอบ แผน ความยินยอม และสิ่งที่ AI จำไว้จะถูกลบ กู้คืนไม่ได้', [['ยกเลิก', 'txt', 'closeDlg()'], ['ลบข้อมูล', 'red', 'deleteAllYes()']]);
 }
-function deleteAllYes() { resetDevice(); $('persona').value = ''; goTab('home'); toast('ลบข้อมูลและถอนความยินยอมแล้ว'); }
+function deleteAllYes() {
+  resetDevice();
+  selectedAssessment = null;
+  onboardingChoices = '';
+  try { localStorage.removeItem(ONBOARDING_KEY); } catch {}
+  $('persona').value = '';
+  goTab('home');
+  toast('ลบข้อมูลและถอนความยินยอมแล้ว');
+}
 function helpDlg() { dialog('ใช้แอปใน 3 ขั้น', '<div style="white-space:pre-line">1. กดปุ่ม AI หรือเช็คเงินเอง ตอบทีละข้อ\n2. ดูเงินที่น่าจะได้ ที่ยื่น และเอกสาร\n3. กดบันทึกเป็นแผน แล้วทำทีละขั้นในแท็บ แผนของฉัน</div>', [['เข้าใจแล้ว', 'txt', 'closeDlg()']]); }
 function scamDlg() { dialog('สัญญาณเตือน', '<div style="white-space:pre-line">• ให้โอนเงินก่อน ค่ามัดจำ ค่าธรรมเนียม\n• ขอเลขบัตร รหัสผ่าน OTP ทางแชท\n• รายได้สูงผิดปกติ งานง่ายเกินจริง\n• เงินกู้คือหนี้ ไม่ใช่รายได้\nสงสัยโทรสายด่วนตำรวจไซเบอร์ 1441</div>', [['เข้าใจแล้ว', 'txt', 'closeDlg()']]); }
 function loadPersona(id) {
@@ -1513,29 +1605,83 @@ RENDER.sources = () => {
 /* ================= S10 profile and skills (profile_screen.dart) ================= */
 const SKILL_CHOICES = ['ทำอาหาร', 'ทำขนม/เบเกอรี่', 'ขับรถยนต์', 'ขับมอเตอร์ไซค์', 'ส่งของ/ส่งอาหาร', 'พิมพ์เอกสาร', 'กรอกข้อมูล', 'Excel/ตาราง', 'สอนพิเศษ', 'ภาษาอังกฤษ', 'ภาษาจีน', 'ดูแลผู้สูงอายุ', 'เลี้ยงเด็ก', 'ทำความสะอาด', 'ช่างซ่อม', 'ขายของออนไลน์', 'ขายหน้าร้าน', 'เย็บผ้า', 'ตัดผม', 'ทำสวน', 'รปภ.'];
 const HOUR_CHOICES = ['ไม่เกิน 10', '10-20', '20-40', 'เต็มเวลา'];
-const DISTRICTS = ['ปทุมวัน', 'บางกะปิ', 'ลาดพร้าว', 'บางนา', 'จตุจักร', 'ดินแดง', 'ห้วยขวาง', 'คลองเตย', 'บางรัก', 'สาทร', 'ธนบุรี', 'บางแค', 'มีนบุรี', 'ลาดกระบัง', 'ดอนเมือง', 'บางเขน'];
 let pd = null;
-ENTER.profile = () => { pd = profile ? JSON.parse(JSON.stringify(profile)) : { skills:[], hours:null, goal:null, district:null }; pd.extra = pd.skills.filter(s => !SKILL_CHOICES.includes(s)); $('profileBody').innerHTML = ''; };
+let profileEntering = false;
+ENTER.profile = () => {
+  profileEntering = true;
+  pd = { skills:[], hours:null, goal:null, district:null, ...profile, ageBand:facts.ageBand };
+  pd.skills = [...pd.skills];
+  pd.extra = pd.skills.filter(skill => !SKILL_CHOICES.includes(skill));
+  $('profileBody').innerHTML = '';
+};
 const allSkills = () => SKILL_CHOICES.concat(pd.extra);
-function pSkill(i) { const s = allSkills()[i]; pd.skills = pd.skills.includes(s) ? pd.skills.filter(x => x !== s) : pd.skills.concat(s); bump(); }
-function pAdd() { const v = $('pSkillIn').value.trim(); if (!v) return; if (!allSkills().includes(v)) pd.extra.push(v); if (!pd.skills.includes(v)) pd.skills.push(v); bump(); }
+function pSkill(i) {
+  const skill = allSkills()[i];
+  pd.skills = pd.skills.includes(skill) ? pd.skills.filter(x => x !== skill) : pd.skills.concat(skill);
+  bump();
+}
+function pAdd() {
+  const value = $('pSkillIn').value.trim();
+  if (!value) return;
+  if (!allSkills().includes(value)) pd.extra.push(value);
+  if (!pd.skills.includes(value)) pd.skills.push(value);
+  bump();
+}
+function profileOptions(options, selected) {
+  return '<option value="">เลือกภายหลัง</option>' + options.map(value =>
+    `<option value="${esc(value)}" ${selected === value ? 'selected' : ''}>${esc(value)}</option>`).join('');
+}
 function pSave() {
-  ensureConsent('เพื่อจำทักษะ เวลาว่าง และเป้ารายได้ ไว้ใช้หางานและวางแผนรายได้ให้คุณ', () => {
-    const g = +String($('pGoal').value).replace(/[^\d]/g, '');
-    profile = { skills:pd.skills.slice(), hours:pd.hours, district:pd.district, goal:g > 0 ? g : null };
-    toast('บันทึกโปรไฟล์แล้ว'); back();
+  const draft = pd;
+  const goal = +String($('pGoal').value).replace(/[^\d]/g, '');
+  ensureConsent('เพื่อบันทึกโปรไฟล์ไว้ใช้ประเมินสิทธิ์ หางาน และวางแผนรายได้', () => {
+    profile = {...profile, skills:draft.skills.slice(), hours:draft.hours, goal:goal > 0 ? goal : null};
+    if (!mockThaID()) {
+      profile.displayName = draft.displayName?.trim() || null;
+      profile.district = draft.district || null;
+      if (draft.ageBand) facts.ageBand = draft.ageBand;
+      else delete facts.ageBand;
+    }
+    toast('บันทึกโปรไฟล์แล้ว');
+    back();
   });
 }
 RENDER.profile = () => {
   if (!pd) ENTER.profile();
-  const goal = $('pGoal') ? $('pGoal').value : (pd.goal || '');
-  $('profileBody').innerHTML = '<b>ทำอะไรเป็นบ้าง (เลือกได้หลายอย่าง)</b><div class="chips">' + allSkills().map((s, i) => chipHtml(esc(s), pd.skills.includes(s), `pSkill(${i})`)).join('') + '</div>'
-    + '<div class="row" style="margin-top:8px"><input id="pSkillIn" class="grow" placeholder="ทักษะอื่น พิมพ์เอง" onkeydown="if(event.key===\'Enter\')pAdd()"><button class="btn txt inl" onclick="pAdd()">เพิ่ม</button></div>'
-    + '<div style="height:14px"></div><b>เวลาว่างต่อสัปดาห์ (ชั่วโมง)</b><div class="chips">' + HOUR_CHOICES.map(x => chipHtml(x, pd.hours === x, `pd.hours='${x}';bump()`)).join('') + '</div>'
-    + `<div style="height:14px"></div><b>อยากได้รายได้เดือนละเท่าไหร่ (บาท)</b><input id="pGoal" inputmode="numeric" placeholder="เช่น 10000" value="${esc(goal)}" style="margin-top:6px">`
-    + '<div style="height:14px"></div><b>อยู่แถวไหน (ใช้หางานใกล้บ้าน)</b><div class="chips">' + DISTRICTS.map(x => chipHtml(x, pd.district === x, `pd.district='${x}';bump()`)).join('') + '</div>'
-    + '<div class="small" style="margin-top:6px">Demo มีพิกัดกลางเขตโดยประมาณ 16 เขตในกรุงเทพ</div>'
-    + '<button class="btn" onclick="pSave()">บันทึก</button><p class="small">ไม่ต้องใส่ชื่อจริง เลขบัตร หรือเลขบัญชี ลบได้ทุกเมื่อที่ ฉัน > ลบข้อมูลทั้งหมด</p>';
+  const source = mockThaID();
+  const identity = source
+    ? accountFields(source.sample) + '<p class="profile-footnote">ข้อมูลจาก ThaID อ่านได้อย่างเดียว</p><button class="btn out" type="button" onclick="openConnectedAccounts()">ดูบัญชีที่เชื่อมต่อ</button>'
+    : `<div class="profile-fields">
+      <label for="pDisplayName">ชื่อที่ใช้ในแอป<input id="pDisplayName" maxlength="80" value="${esc(pd.displayName)}"
+        placeholder="เช่น ชื่อเล่น" oninput="pd.displayName=this.value"></label>
+      <label for="pAge">ช่วงอายุ<select id="pAge" onchange="pd.ageBand=this.value">${profileOptions(FACTS.ageBand.options,pd.ageBand)}</select></label>
+      <label for="pDistrict">เขตที่อาศัย<select id="pDistrict" onchange="pd.district=this.value">${profileOptions(OPP_DISTRICTS,pd.district)}</select></label>
+    </div>`;
+  const skills = allSkills().map((skill, index) => {
+    const selected = pd.skills.includes(skill);
+    return `<button class="chip${selected ? ' on' : ''}" type="button" aria-pressed="${selected}" onclick="pSkill(${index})">${esc(skill)}</button>`;
+  }).join('');
+  const hours = HOUR_CHOICES.map(value => {
+    const selected = pd.hours === value;
+    return `<button class="chip${selected ? ' on' : ''}" type="button" aria-pressed="${selected}" onclick="pd.hours='${value}';bump()">${value}</button>`;
+  }).join('');
+  $('profileBody').innerHTML = `<section class="card profile-card profile-identity" data-connected="${Boolean(source)}">
+    <div class="profile-section-head"><h2>ข้อมูลส่วนตัว</h2>
+      <span class="profile-source-badge">${source ? 'ThaID · DEMO / MOCK' : 'คุณกรอกเอง'}</span></div>
+    ${identity}</section>
+    <section class="card profile-card"><div class="profile-section-head"><h2>งานและรายได้</h2></div>
+      <b>ทักษะ</b><div class="chips">${skills}</div>
+      <div class="row" style="margin-top:8px"><input id="pSkillIn" class="grow" aria-label="ทักษะอื่น" placeholder="เพิ่มทักษะอื่น"
+        onkeydown="if(event.key==='Enter')pAdd()"><button type="button" class="btn txt inl" onclick="pAdd()">เพิ่ม</button></div>
+      <div class="profile-work-label">เวลาว่างต่อสัปดาห์ (ชั่วโมง)</div><div class="chips">${hours}</div>
+      <label class="profile-work-label" for="pGoal">เป้ารายได้ต่อเดือน (บาท)
+        <input id="pGoal" inputmode="numeric" placeholder="เช่น 10000" value="${esc(pd.goal)}" oninput="pd.goal=this.value">
+      </label>
+    </section>`;
+  if (profileEntering) {
+    $('profileBody').scrollTop = 0;
+    profileEntering = false;
+  }
 };
 
 /* ================= S11 income plan (income_plan_screen.dart, GET /v1/plans/goal) ================= */
@@ -1729,15 +1875,25 @@ function thaidAccept() {
 }
 function thaidDone() {
   closeDlg(); if (!gov.flag) { toast('server ปิดโหมด ThaID อยู่ (ตั้ง GOV_CONNECTED=1)'); return; }
-  gov.connected = true; bump(); toast('เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เงินที่หน่วยงานมีข้อมูลจะขึ้นว่า ยืนยันจากหน่วยงาน');
+  gov.connected = true;
+  saveMockConnections('y' + onboardingChoices.slice(1));
+  refreshMockAssessment();
+  bump(); toast('เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เงินที่หน่วยงานมีข้อมูลจะขึ้นว่า ยืนยันจากหน่วยงาน');
 }
-function disconnectThaid() { gov.connected = false; if (consent) consent.gov = false; bump(); toast('ยกเลิกการเชื่อม ThaID และลบข้อมูลจากหน่วยงานแล้ว'); }
+function disconnectThaid() {
+  gov.connected = false;
+  if (consent) consent.gov = false;
+  if (mockThaID()) saveMockConnections('d' + onboardingChoices.slice(1));
+  refreshMockAssessment();
+  bump();
+  toast('ยกเลิกเชื่อม ThaID แล้ว');
+}
 
 /* ================= side panel ================= */
 const SCREENS = [
   ['g', 'แท็บหลัก (แถบล่างแสดง)'], ['home', 'S1/S2 หน้าแรก'], ['opp', 'S6 โอกาส: รายการ / แผนที่'], ['plans', 'S7 แผนของฉัน'], ['me', 'S9 ฉัน'],
   ['g', 'หน้าเต็มจอ (ซ่อนแถบล่าง)'], ['chat', 'S3 แชท AI'], ['quick', 'S4 เช็คเงินเอง'], ['route', 'S5 เส้นทางรับเงิน'], ['oppd', 'S6b รายละเอียดโอกาส'], ['task', 'S8 รายละเอียดแผน'],
-  ['profile', 'S10 โปรไฟล์และทักษะ'], ['plan', 'S11 แผนรายได้'], ['sources', 'P12 แหล่งข้อมูลที่เชื่อมต่อ'],
+  ['profile', 'S10 โปรไฟล์'], ['plan', 'S11 แผนรายได้'], ['sources', 'P12 แหล่งข้อมูลที่เชื่อมต่อ'],
   ['g', 'Popup'], ['P1', 'P1 ขอความยินยอม'], ['P2', 'P2 ประกาศความเป็นส่วนตัว'], ['P4', 'P4 ไว้ทีหลัง'], ['P6', 'P6 กลับจากลิงก์ทางการ'], ['P7', 'P7 ลบข้อมูลทั้งหมด'], ['P11', 'P11 เชื่อม ThaID']
 ];
 function navGo(id) {

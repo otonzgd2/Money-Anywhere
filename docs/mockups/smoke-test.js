@@ -268,7 +268,7 @@ setTimeout(() => {
     ev('cDraft.adult=true; acceptConsent()'); check('then the (mock) identity step', inner('dlg').includes('กำลังยืนยันตัวตนกับ ThaID (จำลอง)') && ev('consent.gov') === true);
     ev('thaidDone()'); const s = text('moneySummary');
     check('connected: money from the agency, labelled verified and mock', ev('gov.connected') && inner('homeBody').includes('เชื่อม ThaID แล้ว') && s.includes('฿600 ต่อเดือน') && s.includes('ยืนยันจากหน่วยงาน'));
-    ev("goTab('me')"); check('me tab shows the linked account', inner('meBody').includes('ThaID เชื่อมแล้ว (ข้อมูลจำลอง)'));
+    ev("goTab('me')"); check('me tab shows the linked account', d.querySelector('#connectedAccounts details.account-card').textContent.includes('ThaID'));
     ev("disconnectThaid(); toggleGov(); goTab('home')"); check('flag off hides ThaID again', !inner('homeBody').includes('ThaID') && ev('gov.connected') === false);
     ev('toggleOffline()'); check('server down: red card with USB and Wi-Fi fixes', inner('homeBody').includes('📡 ต่อ server ไม่ได้') && inner('homeBody').includes('adb reverse tcp:8080 tcp:8080'));
     ev('editServer()'); check('change server address dialog', inner('dlg').includes('USB 127.0.0.1') && inner('dlg').includes('Wi-Fi 192.168.1.46'));
@@ -322,6 +322,68 @@ setTimeout(() => {
     check('missing catalogue item preserves the saved plan and its progress', text('taskBody').includes('ประกาศเดิม') && text('taskBody').includes('ยังโหลดรายละเอียดต้นทางไม่ได้') && text('taskBody').includes('ตรวจสอบประกาศ'));
     ev('taskContact()');
     check('missing catalogue item does not create a contact action', text('taskContactBody').includes('ยังไม่มีช่องทางติดต่อที่ตรวจสอบได้') && !d.querySelector('#taskContactBody a, #taskContactBody button'));
+  });
+
+  run('profile identity and connected accounts follow selection', () => {
+    function connect(choices) {
+      ev('openStartup(true); openNextMockSource()');
+      for (const choice of choices) ev('chooseMockSource(' + JSON.stringify(choice) + ')');
+      ev("goTab('me')");
+    }
+    const connected = () => [...d.querySelectorAll('#connectedAccounts [data-state="connected"]')];
+    const getField = id => d.getElementById(id);
+    connect(['all']);
+    check('skip all leaves four accounts with no values', connected().length === 0 &&
+      d.querySelectorAll('#connectedAccounts [data-state="unconnected"]').length === 4 &&
+      !d.querySelector('#connectedAccounts dl'));
+    d.querySelector('.me-profile-link').click();
+    check('without ThaID, identity fields are editable and separated from work preferences',
+      on('profile') && !getField('pDisplayName').readOnly && !!getField('pAge') && !!getField('pDistrict') &&
+      text('profileBody').includes('งานและรายได้'));
+    const change = (id, value, event) => {
+      const field = getField(id);
+      field.value = value;
+      field.dispatchEvent(new w.Event(event, {bubbles:true}));
+    };
+    change('pDisplayName','ชื่อเล่นทดสอบ','input');
+    change('pAge','70-79','change');
+    change('pDistrict','บางนา','change');
+    ev('setConsent({core:true}); pSave()');
+    check('manual identity saves using the same profile and age fact',
+      ev("profile.displayName === 'ชื่อเล่นทดสอบ' && profile.district === 'บางนา' && facts.ageBand === '70-79'"));
+
+    connect(['n','y','n','y']);
+    check('only selected Tang Rat and D-MyTax reveal source fields',
+      connected().map(card => card.querySelector('strong').textContent).join('|') === 'ทางรัฐ|D-MyTax'
+      && text('connectedAccounts').includes('เชื่อมแล้ว 2 จาก 4 บริการ')
+      && text('connectedAccounts').includes('1,250 บาท'));
+    d.querySelector('.me-profile-link').click();
+    check('other connections leave manual identity editable', getField('pDisplayName').value === 'ชื่อเล่นทดสอบ'
+      && getField('pAge').value === '70-79');
+
+    connect(['y','n','y','y']);
+    check('selected ThaID, SSO+ and D-MyTax match onboarding',
+      connected().map(card => card.querySelector('strong').textContent).join('|') === 'ThaID|ประกันสังคม (SSO+)|D-MyTax'
+      && !text('connectedAccounts').includes('มีบัตรที่ใช้ได้'));
+    d.querySelector('.me-profile-link').click();
+    check('ThaID identity displays name, age and registry district without identity form fields',
+      text('profileBody').includes('นายสมศักดิ์ สมมติ') && text('profileBody').includes('65 ปี') &&
+      text('profileBody').includes('ปทุมวัน') && !getField('pDisplayName') && !getField('pAge') && !getField('pDistrict'));
+    change('pGoal','18500','input');
+    ev("pd.displayName='attempted overwrite'; pSave()");
+    check('saving work preferences cannot replace manual or imported identity',
+      ev("profile.goal === 18500 && profile.displayName === 'ชื่อเล่นทดสอบ' && facts.ageBand === '70-79'"));
+    d.querySelector('.me-profile-link').click();
+    d.querySelector('#profileBody [onclick="openConnectedAccounts()"]').click();
+    check('account shortcut restores focus at the accounts heading', d.activeElement.id === 'connectedAccountsHeading');
+    ev('disconnectThaid()');
+    d.querySelector('.me-profile-link').click();
+    check('disconnect restores manual inputs and preserves other connections',
+      getField('pDisplayName').value === 'ชื่อเล่นทดสอบ' && ev("onboardingChoices === 'dnyy'"));
+    ev("goTab('me'); deleteAllYes(); goTab('me')");
+    check('delete-all also clears saved provider selections',
+      connected().length === 0 && text('connectedAccounts').includes('เชื่อมแล้ว 0 จาก 4 บริการ') &&
+      w.localStorage.getItem('thang-rot-mock-onboarding-v1') === null);
   });
 
   if (errors.length) results.push('FAIL window errors: ' + errors.join(' | '));

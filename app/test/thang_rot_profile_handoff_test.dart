@@ -13,6 +13,11 @@ class _ProvenanceApi extends Api {
     switch (path) {
       case '/v1/me/gov-link':
         return {'status': 'not_connected'};
+      case '/v1/app-config':
+        return {
+          'mode': 'demo',
+          'featureFlags': {'demo': true},
+        };
       case '/v1/me/facts':
         return {'disabilityCard': true, 'nationality': false};
       case '/v1/me/profile':
@@ -33,8 +38,6 @@ class _ProvenanceApi extends Api {
             },
           },
         };
-      case '/v1/demo/personas/gov-prefill':
-        throw ApiException(404, 'NOT_FOUND', 'No example in this fixture');
       default:
         throw StateError('Unexpected GET $path');
     }
@@ -42,25 +45,43 @@ class _ProvenanceApi extends Api {
 }
 
 void main() {
-  testWidgets('MAN-21 profile shows dated sources and distinguishes unknown from no', (tester) async {
-    final api = _ProvenanceApi();
-    addTearDown(api.close);
-    await tester.pumpWidget(
-      MaterialApp(home: ProfileOverviewScreen(app: AppState(api))),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'MAN-21 profile shows dated sources and distinguishes unknown from no',
+    (tester) async {
+      final api = _ProvenanceApi();
+      addTearDown(api.close);
+      tester.view.physicalSize = const Size(800, 1700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(home: ProfileOverviewScreen(app: AppState(api))),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('DEMO / MOCK'), findsOneWidget);
-    final datedCard = find.text('ใช่ · ทางรัฐ · ตรวจล่าสุด 27/11/2569 · DEMO / MOCK');
-    await tester.scrollUntilVisible(datedCard, 100);
-    expect(datedCard.hitTestable(), findsOneWidget);
-    expect(find.text('ไม่มี / ไม่ใช่ · คุณกรอกเอง · ตรวจล่าสุด 28/11/2569'), findsOneWidget);
+      final screening = find.text('ข้อมูลที่ใช้คัดกรอง');
+      final form = find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(screening, 100, scrollable: form);
+      await tester.tap(screening);
+      await tester.pumpAndSettle();
+      final datedCard = find.text(
+        'ใช่ · ทางรัฐ · ตรวจล่าสุด 27/11/2569 · DEMO / MOCK',
+      );
+      await tester.scrollUntilVisible(datedCard, 100, scrollable: form);
+      expect(datedCard.hitTestable(), findsOneWidget);
+      expect(
+        find.text('ไม่มี / ไม่ใช่ · คุณกรอกเอง · ตรวจล่าสุด 28/11/2569'),
+        findsOneWidget,
+      );
 
-    final noTaxRecord = find.ancestor(
-      of: find.text('ภาษีหัก ณ ที่จ่าย'),
-      matching: find.byType(ListTile),
-    );
-    await tester.scrollUntilVisible(noTaxRecord, 100);
-    expect(find.descendant(of: noTaxRecord, matching: find.text('ยังไม่มีข้อมูล')), findsOneWidget);
-  });
+      final noTaxRecord = find.ancestor(
+        of: find.text('ภาษีหัก ณ ที่จ่าย'),
+        matching: find.byType(ListTile),
+      );
+      await tester.scrollUntilVisible(noTaxRecord, 100, scrollable: form);
+      expect(
+        find.descendant(of: noTaxRecord, matching: find.text('ยังไม่มีข้อมูล')),
+        findsOneWidget,
+      );
+    },
+  );
 }

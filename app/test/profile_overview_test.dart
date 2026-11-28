@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:money_anywhere/api.dart';
 import 'package:money_anywhere/common.dart';
+import 'package:money_anywhere/connected_accounts.dart' show AccountStatus;
 import 'package:money_anywhere/demo_sources_screen.dart';
 import 'package:money_anywhere/me_tab.dart';
+import 'package:money_anywhere/opportunity_assessment.dart';
 import 'package:money_anywhere/profile_overview_screen.dart';
 
 const _demoResponse = <String, dynamic>{
@@ -46,38 +50,46 @@ class _ProfileApi extends Api {
     this.demoEnabled = false,
     this.userMode = false,
     this.identity,
+    this.choices = 'nnnn',
   });
   Map<String, dynamic>? profile;
   bool unavailable;
   final bool demoEnabled;
   final bool userMode;
-  final Map<String, dynamic>? identity;
+  Map<String, dynamic>? identity;
+  String choices;
+  final reads = <String>[];
+  final facts = <String, dynamic>{};
+  final deletes = <String>[];
+  bool failAge = false;
+
+  @override
+  String get onboardingChoices => choices;
+
+  @override
+  void saveOnboardingChoices(String choices) => this.choices = choices;
 
   @override
   Future<Map<String, dynamic>> get(String path) async {
+    reads.add(path);
     switch (path) {
       case '/v1/me/profile':
         if (unavailable) throw ApiException(0, 'NETWORK', 'Offline');
         return profile ?? (throw ApiException(404, 'NOT_FOUND', 'Empty'));
       case '/v1/me/facts':
-        return {};
+        return Map.of(facts);
       case '/v1/me/gov-link':
         return identity == null
             ? {'status': 'not_connected'}
             : {'status': 'connected', 'identity': identity};
-      case '/v1/demo/personas/gov-prefill':
-        if (!demoEnabled) {
-          throw ApiException(404, 'NOT_FOUND', 'Demo unavailable');
-        }
-        return _demoResponse;
       case '/v1/me/memory':
         return {'items': []};
       case '/v1/me/settings':
         return {'largeText': false};
       case '/v1/app-config':
         return {
+          'mode': userMode ? 'user' : 'demo',
           if (userMode) ...{
-            'mode': 'user',
             'governmentConnections': {
               'thaid': 'approval_required',
               'tangRat': 'access_required',
@@ -124,19 +136,42 @@ class _ProfileApi extends Api {
     expect(path, '/v1/me/profile');
     return profile = Map<String, dynamic>.from(body as Map);
   }
+
+  @override
+  Future<Map<String, dynamic>> patch(String path, Object body) async {
+    expect(path, '/v1/me/facts');
+    if (failAge) throw ApiException(503, 'TEST', 'บันทึกช่วงอายุไม่ได้');
+    final value = (body as Map)['ageBand'];
+    if (value == null) {
+      facts.remove('ageBand');
+    } else {
+      facts['ageBand'] = value;
+    }
+    return facts;
+  }
+
+  @override
+  Future<Map<String, dynamic>> delete(String path) async {
+    deletes.add(path);
+    if (path == '/v1/me/gov-link') identity = null;
+    return {};
+  }
 }
 
 class _SelectableDemoApi extends _ProfileApi {
-  _SelectableDemoApi() : super(demoEnabled: true);
+  _SelectableDemoApi({super.choices}) : super(demoEnabled: true);
 
   final previews = <Uri>[];
   final chatSelections = <Uri>[];
+  bool missingTangRat = false;
+  Completer<Map<String, dynamic>>? pending;
 
   @override
   Future<Map<String, dynamic>> get(String path) async {
     final uri = Uri.parse(path);
     if (uri.path == '/v1/demo/personas/gov-prefill' && uri.hasQuery) {
       previews.add(uri);
+      if (pending case final request?) return request.future;
       final sources = uri.queryParameters['sources']!.split(',');
       const fields = {
         'thaid': 'identity',
@@ -150,7 +185,9 @@ class _SelectableDemoApi extends _ProfileApi {
         if (sources.contains('thaid')) 'identity': _demoResponse['identity'],
         'sources': [
           for (final row in (_demoResponse['sources'] as List).cast<Map>())
-            if (sources.any((source) => fields[source] == row['field'])) row,
+            if (sources.any((source) => fields[source] == row['field']) &&
+                !(missingTangRat && row['field'] == 'disabilityCard'))
+              row,
         ],
       };
     }
@@ -219,7 +256,8 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
       await tester.pumpAndSettle();
       expect(find.text('บัญชีที่เชื่อมต่อ'), findsOneWidget);
-      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsOneWidget);
+      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
+      expect(api.previews, isEmpty);
       final menu = find.text('ทดลองเชื่อมแหล่งข้อมูล (DEMO)');
       expect(
         tester.getTopLeft(menu).dy,
@@ -288,7 +326,12 @@ void main() {
   testWidgets(
     'the Me tab shows live provider availability and hides demo connections in user mode',
     (tester) async {
-      final api = _ProfileApi(userMode: true);
+      final api = _ProfileApi(
+        userMode: true,
+        demoEnabled: true,
+        choices: 'yyyy',
+        identity: _demoResponse['identity'] as Map<String, dynamic>,
+      );
       tester.view.physicalSize = const Size(800, 1500);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -307,16 +350,25 @@ void main() {
       expect(find.text('สำหรับสาธิต (DEMO)'), findsNothing);
       expect(find.text('ทดลองเชื่อมแหล่งข้อมูล (DEMO)'), findsNothing);
       expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
+      expect(find.text('เชื่อมแล้ว 0 จาก 4 บริการ'), findsOneWidget);
+      expect(
+        api.reads.where((path) => path.startsWith('/v1/demo/personas')),
+        isEmpty,
+      );
     },
   );
 
   testWidgets(
-    'the Me profile keeps the saved details and opens the example separately',
+    'AC-18 edits all manual fields without loading a persona and retries a partial save',
     (tester) async {
-      final api = _ProfileApi(
-        profile: {'displayName': 'มาลี', 'district': 'ปทุมวัน'},
-        demoEnabled: true,
-      );
+      final api = _SelectableDemoApi()
+        ..profile = {
+          'goals': ['หางาน'],
+          'district': 'บางนา',
+          'lat': 13.66,
+          'lng': 100.60,
+        }
+        ..failAge = true;
       final app = AppState(api);
       tester.view.physicalSize = const Size(800, 1500);
       tester.view.devicePixelRatio = 1;
@@ -324,123 +376,192 @@ void main() {
       addTearDown(api.close);
       await tester.pumpWidget(MaterialApp(home: MeTab(app: app)));
       await tester.pumpAndSettle();
-      expect(find.text('มาลี\nเขตที่อยู่ ปทุมวัน'), findsOneWidget);
+      expect(find.text('เชื่อมแล้ว 0 จาก 4 บริการ'), findsOneWidget);
 
-      api.profile = {...api.profile!, 'displayName': 'มาลี แก้ไข'};
-      app.bump();
+      await tester.tap(find.text('โปรไฟล์'));
       await tester.pumpAndSettle();
-      expect(find.text('มาลี แก้ไข\nเขตที่อยู่ ปทุมวัน'), findsOneWidget);
-
-      await tester.tap(find.text('โปรไฟล์ของฉัน'));
+      final name = find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป');
+      await tester.enterText(name, 'มาลี');
+      await tester.tap(find.byKey(const ValueKey('ช่วงอายุ')));
       await tester.pumpAndSettle();
-      expect(find.text('มาลี แก้ไข'), findsOneWidget);
-      expect(find.text('บัตรประจำตัวคนพิการ'), findsNothing);
-      await tester.tap(find.text('ดูโปรไฟล์ตัวอย่าง'));
+      await tester.tap(find.text('70-79').last);
       await tester.pumpAndSettle();
-      expect(find.text('มาลี แก้ไข'), findsNothing);
-      expect(find.text('ข้อมูลส่วนตัว'), findsOneWidget);
-      expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
-      expect(find.text('DEMO / MOCK'), findsOneWidget);
-      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
-      expect(api.profile?['displayName'], 'มาลี แก้ไข');
-    },
-  );
+      await tester.tap(find.text('ทำอาหาร'));
+      await tester.tap(find.text('บันทึกโปรไฟล์'));
+      await tester.pumpAndSettle();
+      expect(find.text('บันทึกช่วงอายุไม่ได้'), findsOneWidget);
+      expect(find.text('บันทึกโปรไฟล์แล้ว'), findsNothing);
+      expect(api.facts, isEmpty);
 
-  testWidgets(
-    'an empty saved profile displays personal identity from the demo without connection details',
-    (tester) async {
-      await _openProfile(tester, _ProfileApi(demoEnabled: true));
+      api.failAge = false;
+      await tester.tap(find.text('บันทึกโปรไฟล์'));
+      await tester.pumpAndSettle();
+      expect(api.profile, containsPair('displayName', 'มาลี'));
+      expect(api.profile, containsPair('district', 'บางนา'));
+      expect(api.profile, containsPair('lat', 13.66));
+      expect(api.profile, containsPair('skills', ['ทำอาหาร']));
+      expect(api.profile, containsPair('goals', ['หางาน']));
+      expect(api.facts, containsPair('ageBand', '70-79'));
+      expect(api.previews, isEmpty);
 
-      expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
-      expect(find.text('ข้อมูลส่วนตัว'), findsOneWidget);
-      expect(find.text('65 ปี'), findsOneWidget);
-      expect(find.text('ที่อยู่ตามทะเบียนบ้าน'), findsOneWidget);
-      expect(find.text('XXX123'), findsOneWidget);
-      expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
-      expect(find.text('ยังไม่ได้ตั้งชื่อ'), findsNothing);
-      expect(find.textContaining('60-69'), findsNothing);
-      expect(find.text('วันออกบัตร'), findsNothing);
-      expect(find.text('วันบัตรหมดอายุ'), findsNothing);
-      expect(find.text('เขตที่อยู่'), findsNothing);
-    },
-  );
-
-  testWidgets(
-    'combines matching ThaID and saved profile details in one section',
-    (tester) async {
-      await _openProfile(
-        tester,
-        _ProfileApi(
-          profile: {'displayName': 'มาลี สมมติ', 'district': 'บางนา'},
-          identity: {
-            'dataStatus': 'mock',
-            'pidMasked': 'X-XXXX-XXXXX-45-6',
-            'claims': {
-              'birthdate': '${DateTime.now().year - 75}-01-01',
-              'address': {
-                'formatted': '99 ซอยทดสอบ เขตบางนา กรุงเทพมหานคร',
-                'locality': 'บางนา',
-              },
-              'date_of_issuance': '2021-04-12',
-            },
-            'derived': {
-              'displayName': 'มาลี สมมติ',
-              'ageBand': '70-79',
-              'district': 'บางนา',
-            },
-          },
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MeTab(key: const ValueKey('reopen'), app: AppState(api)),
         ),
       );
-
-      expect(find.text('ข้อมูลส่วนตัว'), findsOneWidget);
-      expect(find.text('มาลี สมมติ'), findsOneWidget);
-      expect(find.text('75 ปี'), findsOneWidget);
-      expect(find.text('99 ซอยทดสอบ เขตบางนา กรุงเทพมหานคร'), findsOneWidget);
-      expect(find.text('XXX456'), findsOneWidget);
-      expect(find.text('DEMO / MOCK'), findsOneWidget);
-      expect(find.text('70-79'), findsNothing);
-      expect(find.text('วันออกบัตร'), findsNothing);
-      expect(find.text('D-MyTax'), findsNothing);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('โปรไฟล์'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(name).controller?.text, 'มาลี');
+      expect(find.text('70-79'), findsOneWidget);
     },
   );
 
-  testWidgets('shows stored profile and refreshes after editing', (
+  testWidgets('AC-19 uses the confirmed ThaID result for both screens', (
     tester,
   ) async {
-    final api = _ProfileApi(
-      profile: {
-        'displayName': 'มาลี (สมมติ)',
-        'district': 'ปทุมวัน',
-        'skills': ['ทำอาหาร'],
-        'hoursPerWeek': '10-20',
-        'incomeGoalPerMonth': 12000,
-        'fromGov': ['ageBand'],
-      },
-    );
-    await _openProfile(tester, api);
-
-    expect(find.text('มาลี (สมมติ)'), findsOneWidget);
-    expect(find.text('ปทุมวัน'), findsOneWidget);
-    expect(find.text('อายุ'), findsNothing);
-    expect(find.text('ทำอาหาร'), findsOneWidget);
-    expect(find.text('DEMO / MOCK'), findsNothing);
-    expect(find.text('D-MyTax'), findsNothing);
-    expect(find.textContaining('12,000'), findsOneWidget);
-
-    await tester.tap(find.text('แก้ไขโปรไฟล์'));
+    final api = _SelectableDemoApi(choices: 'yynn');
+    tester.view.physicalSize = const Size(800, 1500);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    addTearDown(api.close);
+    await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'),
-      'ชื่อเล่นตัวอย่าง',
+    expect(api.previews.single.queryParameters['sources'], 'thaid,tangRat');
+    expect(
+      find.text('เชื่อมแล้ว 2 จาก 4 บริการ · ข้อมูลจำลอง'),
+      findsOneWidget,
     );
-    await tester.ensureVisible(find.text('บันทึก'));
-    await tester.tap(find.text('บันทึก'));
-    await tester.pumpAndSettle();
+    expect(
+      find.byType(ExpansionTile),
+      findsNWidgets(3),
+    ); // Two services and AI memory.
 
-    expect(api.profile?['displayName'], 'ชื่อเล่นตัวอย่าง');
-    expect(api.profile?['skills'], ['ทำอาหาร']);
-    expect(find.text('ชื่อเล่นตัวอย่าง'), findsOneWidget);
+    await tester.tap(find.text('โปรไฟล์'));
+    await tester.pumpAndSettle();
+    expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
+    expect(find.text('65 ปี'), findsOneWidget);
+    expect(find.text('เขตตามทะเบียนบ้าน'), findsOneWidget);
+    expect(find.text('ข้อมูลจาก ThaID อ่านได้อย่างเดียว'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsNothing);
+    expect(find.text('เลขบัตรประชาชน'), findsNothing);
+    await tester.tap(find.text('ดูบัญชีที่เชื่อมต่อ'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ทางรัฐ'));
+    await tester.pumpAndSettle();
+    expect(find.text('มีบัตร'), findsOneWidget);
+    expect(api.previews, hasLength(1));
   });
+
+  testWidgets(
+    'AC-20 shows SSO+ and the tax year and amount without locking the profile',
+    (tester) async {
+      final api = _SelectableDemoApi(choices: 'nnyy');
+      tester.view.physicalSize = const Size(800, 1500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(api.close);
+      await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
+      await tester.pumpAndSettle();
+      expect(
+        api.previews.single.queryParameters['sources'],
+        'socialSecurity,dMyTax',
+      );
+      await tester.tap(find.text('ประกันสังคม (SSO+)'));
+      await tester.tap(find.text('D-MyTax'));
+      await tester.pumpAndSettle();
+      expect(find.text('ส่งเงินสมทบ 8 จาก 15 เดือน'), findsOneWidget);
+      expect(find.text('ปีภาษี'), findsOneWidget);
+      expect(find.text('2569'), findsOneWidget);
+      expect(find.text('1,250 บาท'), findsOneWidget);
+      await tester.tap(find.text('โปรไฟล์'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'AC-21 shows missing claims and restores the manual fields after disconnect',
+    (tester) async {
+      final api = _ProfileApi(
+        demoEnabled: true,
+        profile: {
+          'displayName': 'มาลี',
+          'district': 'บางนา',
+          'skills': ['ทำอาหาร'],
+        },
+        identity: {
+          'dataStatus': 'mock',
+          'claims': {'name': 'ชื่อจากผู้ให้บริการ'},
+          'derived': {'ageBand': '70-79'},
+        },
+      )..facts['ageBand'] = 'ต่ำกว่า 60';
+      tester.view.physicalSize = const Size(800, 1500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      addTearDown(api.close);
+      await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('โปรไฟล์'));
+      await tester.pumpAndSettle();
+      expect(find.text('ชื่อจากผู้ให้บริการ'), findsOneWidget);
+      expect(find.text('70-79'), findsOneWidget);
+      expect(find.text('ไม่มีข้อมูลจาก ThaID'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsNothing);
+      await tester.tap(find.text('กรอกข้อมูล'));
+      await tester.tap(find.text('บันทึกโปรไฟล์'));
+      await tester.pumpAndSettle();
+      expect(api.profile, containsPair('displayName', 'มาลี'));
+      expect(api.profile, containsPair('skills', ['ทำอาหาร', 'กรอกข้อมูล']));
+      await tester.tap(find.text('ThaID'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ยกเลิกการเชื่อม ThaID'));
+      await tester.pumpAndSettle();
+      expect(api.deletes, ['/v1/me/gov-link']);
+      await tester.tap(find.text('โปรไฟล์'));
+      await tester.pumpAndSettle();
+      final field = tester.widget<TextField>(
+        find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'),
+      );
+      expect(field.controller?.text, 'มาลี');
+      expect(find.text('ต่ำกว่า 60'), findsOneWidget);
+      expect(find.text('บางนา'), findsOneWidget);
+    },
+  );
+
+  test(
+    'AC-22 retries a missing row and discards responses that predate deletion',
+    () async {
+      final api = _SelectableDemoApi(choices: 'yynn')..missingTangRat = true;
+      addTearDown(api.close);
+      final accounts = AppState(api).accounts;
+      addTearDown(accounts.dispose);
+      await accounts.refresh();
+      expect(accounts.value.connectedCount, 1);
+      expect(accounts.value[DemoSource.thangRat].status, AccountStatus.failed);
+      api.missingTangRat = false;
+      await accounts.refresh(retry: DemoSource.thangRat);
+      expect(api.previews.last.queryParameters['sources'], 'tangRat');
+      expect(accounts.value.connectedCount, 2);
+
+      final delayed = Completer<Map<String, dynamic>>();
+      api.pending = delayed;
+      final request = accounts.refresh(force: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(api.previews.last.queryParameters['sources'], 'thaid,tangRat');
+      accounts.beginDelete();
+      api.saveOnboardingChoices('');
+      accounts.endDelete();
+      await accounts.refresh(force: true);
+      delayed.complete(_demoResponse);
+      await request;
+      expect(accounts.value.connectedCount, 0);
+      expect(
+        accounts.value[DemoSource.thangRat].status,
+        AccountStatus.disconnected,
+      );
+    },
+  );
 
   testWidgets(
     'marks the demo profile and leaves source labels to connected accounts',
@@ -515,10 +636,10 @@ void main() {
   ) async {
     await _openProfile(tester, _ProfileApi());
 
-    expect(find.text('ยังไม่ได้ตั้งชื่อ'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsOneWidget);
     expect(find.text('อายุ'), findsNothing);
     expect(find.text('เลขบัตรประชาชน'), findsNothing);
-    expect(find.text('แก้ไขโปรไฟล์'), findsOneWidget);
+    expect(find.text('บันทึกโปรไฟล์'), findsOneWidget);
   });
 
   testWidgets('shows a retry button when the backend is unavailable', (
@@ -531,6 +652,6 @@ void main() {
     api.unavailable = false;
     await tester.tap(find.text('ลองใหม่'));
     await tester.pumpAndSettle();
-    expect(find.text('ยังไม่ได้ตั้งชื่อ'), findsOneWidget);
+    expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsOneWidget);
   });
 }

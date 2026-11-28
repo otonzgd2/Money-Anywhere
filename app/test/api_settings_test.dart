@@ -23,6 +23,21 @@ void main() {
     expect(restarted.deviceId, first.deviceId);
   });
 
+  test('cleared onboarding choices stay empty when a write was interrupted', () {
+    final first = Api(storageDirectory: directory);
+    addTearDown(first.close);
+    first.saveOnboardingChoices('yynn');
+    File('${directory.path}/money_anywhere_thang_rot_onboarding_v1.tmp')
+        .writeAsStringSync('yyyy');
+    first.saveOnboardingChoices('');
+
+    final restarted = Api(storageDirectory: directory);
+    addTearDown(restarted.close);
+    expect(restarted.onboardingChoices, isEmpty);
+    restarted.saveOnboardingChoices('nnnn');
+    expect(first.onboardingChoices, 'nnnn');
+  });
+
   test(
     'uses the last Wi-Fi default when a later build supplies no default',
     () {

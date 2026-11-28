@@ -8,32 +8,56 @@ import 'common.dart';
 enum DemoSource {
   thaid(
     'thaid',
+    'identity',
     'ThaID',
     'thaid.png',
     'อายุหรือช่วงอายุ และเขตตามทะเบียนบ้านจำลอง',
   ),
   thangRat(
     'tangRat',
+    'disabilityCard',
     'ทางรัฐ',
     'thangrat.png',
     'สถานะบัตรประจำตัวคนพิการจำลอง',
   ),
   socialSecurity(
     'socialSecurity',
+    'ss33',
     'ประกันสังคม (SSO+)',
     'sso-plus.png',
     'มาตราผู้ประกันตนและประวัติส่งเงินสมทบจำลอง',
   ),
   dMyTax(
     'dMyTax',
+    'taxWithheld',
     'D-MyTax',
     'd-mytax.png',
     'ปีภาษีและยอดหักภาษี ณ ที่จ่ายจำลอง',
   );
 
-  const DemoSource(this.id, this.label, this.image, this.description);
-  final String id, label, image, description;
+  const DemoSource(
+    this.id,
+    this.field,
+    this.label,
+    this.image,
+    this.description,
+  );
+  final String id, field, label, image, description;
+
+  String answer(String choices) => choices.length > index ? choices[index] : '';
+
+  static bool enabled(Map<String, dynamic> config) =>
+      config['mode'] == 'demo' &&
+      config['featureFlags'] is Map &&
+      config['featureFlags']['demo'] == true;
+
+  static String personaPath(Iterable<DemoSource> sources) => Uri(
+    path: '/v1/demo/personas/gov-prefill',
+    queryParameters: {'sources': sources.map((source) => source.id).join(',')},
+  ).toString();
 }
+
+const onboardingDemoDevice = 'thang-rot-onboarding';
 
 enum DemoChoice { use, skip, skipRemaining }
 
@@ -53,19 +77,17 @@ class OpportunityAssessment {
 
   static Future<OpportunityAssessment> load(
     Api api,
-    List<DemoSource> sources,
-  ) async {
+    List<DemoSource> sources, {
+    void Function(Future<Map<String, dynamic>>)? trackDemoWrite,
+  }) async {
     const timeout = Duration(seconds: 8);
     Future<Map<String, dynamic>> assessBenefits() async {
       if (sources.isEmpty) return api.get('/v1/money');
-      final demo = api.forDemo('thang-rot-onboarding');
+      final demo = api.forDemo(onboardingDemoDevice);
       try {
-        final query = Uri(
-          queryParameters: {'sources': sources.map((s) => s.id).join(',')},
-        );
-        final persona = await demo.post(
-          '/v1/demo/personas/gov-prefill?${query.query}',
-        );
+        final request = demo.post(DemoSource.personaPath(sources));
+        trackDemoWrite?.call(request);
+        final persona = await request;
         final facts = persona['facts'];
         if (persona['dataStatus'] != 'mock' || facts is! Map<String, dynamic>) {
           throw ApiException(0, 'DEMO_DATA', 'โหลดข้อมูลจำลองไม่ได้');

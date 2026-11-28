@@ -290,30 +290,47 @@ function createServer(opts = {}) {
   const day = () => bangkokDay(opts.clock ? opts.clock() : Date.now());
   const profileFacts = (d, context = {}) => resolveProfileFacts(d, { day: day(), govIdentity: govIdentity(d), ...context });
   const effectiveFacts = d => profileFacts(d).facts;
-  // ThaID identity fills the profile and age only where the person has not answered yet; remember what was filled
-  // so a disconnect can take it back (data from the government must not stay after the link is removed).
-  function applyIdentity(d, id) {
-    if (!id) return {};
-    const applied = {}, p = d.profile ? { ...d.profile } : {};
-    if (!p.displayName) { p.displayName = id.derived.displayName; applied.displayName = { value: p.displayName }; }
-    if (!p.district) { const g = geo.geocode(id.derived.district); if (g) { p.district = id.derived.district; p.lat = g.lat; p.lng = g.lng; applied.district = { value: p.district }; } }
-    if (Object.keys(applied).length) d.profile = p;
-    if (d.facts.ageBand !== id.derived.ageBand) applied.ageBand = { value: id.derived.ageBand, separate: true };
-    return applied;
+  const profileIdentityKeys = ['displayName', 'district', 'lat', 'lng'];
+  const registryFactKeys = new Set(['ageBand', 'ageAtLeast55', 'registryDistrict', 'registryProvince']);
+  function appliedIdentity(d, identity) {
+    const profile = d.profile || {};
+    return Object.fromEntries(['displayName', 'district', 'ageBand']
+      .filter(key => identity.derived[key] !== undefined && !(key === 'ageBand' ? d.facts : profile)[key])
+      .map(key => [key, { value: identity.derived[key], separate: true }]));
+  }
+  // Preserve the profile read shape for older clients. The fallback is projected
+  // from ThaID on read, while the stored profile belongs to the user.
+  function profileWithIdentity(d) {
+    const profile = { ...d.profile };
+    const applied = d.gov.applied || {};
+    if (applied.displayName?.separate) profile.displayName = applied.displayName.value;
+    if (applied.district?.separate) {
+      profile.district = applied.district.value;
+      const point = geo.geocode(profile.district);
+      if (point && typeof profile.lat !== 'number') {
+        profile.lat = point.lat;
+        profile.lng = point.lng;
+      }
+    }
+    return profile;
   }
   function dropGov(d) {
     if (d.gov.status === 'connected') cancelAssistantRequests(d);
     const a = (d.gov && d.gov.applied) || {}, p = d.profile;
-    if (p && a.displayName && p.displayName === a.displayName.value) delete p.displayName;
-    if (p && a.district && p.district === a.district.value) { delete p.district; delete p.lat; delete p.lng; }
+    // Older records copied the fallback into the user's stored profile.
+    if (p && a.displayName && !a.displayName.separate && p.displayName === a.displayName.value) delete p.displayName;
+    if (p && a.district && !a.district.separate && p.district === a.district.value) { delete p.district; delete p.lat; delete p.lng; }
     if (a.ageBand && !a.ageBand.separate && d.facts.ageBand === a.ageBand.value) { const f = { ...d.facts }; if (a.ageBand.prev === undefined) delete f.ageBand; else f.ageBand = a.ageBand.prev; d.facts = f; }
     d.gov = { status: 'not_connected' };
   }
   const govOut = d => ({ status: d.gov.status, provider: govAdapter.provider, mock: true, connectedAt: d.gov.connectedAt, ...(govIdentity(d) ? { identity: { ...d.gov.identity, applied: Object.keys(d.gov.applied || {}) } } : {}) });
   const taskOut = t => ({ id: t.id, opportunityId: t.opportunityId, moneyId: t.moneyId, districtCode: t.districtCode,
     title: t.title, steps: t.steps, doneCount: t.doneCount, status: t.status, reportedBy: 'user', dueText: t.dueText, blockReason: t.blockReason, outcome: t.outcome });
-  const searchPoint = (d, q) => q.has('lat') && q.has('lng') ? { lat: +q.get('lat'), lng: +q.get('lng') }
-    : d && d.profile && typeof d.profile.lat === 'number' ? { lat: d.profile.lat, lng: d.profile.lng } : { lat: fx.center.lat, lng: fx.center.lng };
+  function searchPoint(d, q) {
+    if (q.has('lat') && q.has('lng')) return { lat: +q.get('lat'), lng: +q.get('lng') };
+    const profile = d && govIdentity(d) ? profileWithIdentity(d) : d?.profile;
+    return typeof profile?.lat === 'number' ? { lat: profile.lat, lng: profile.lng } : fx.center;
+  }
   const opportunityLocations = o => o.locations?.length ? o.locations : [o.location];
   const hasMapLocation = o => o.provenance.dataStatus !== 'mock'
     && opportunityLocations(o).some(l => l.coordinateSource === 'database');
@@ -416,6 +433,7 @@ function createServer(opts = {}) {
       if (errors.length) return E(422, 'VALIDATION', 'ข้อมูลไม่ถูกต้อง', { missingFields: errors });
       d.answerDetails ||= {};
       for (const [key, value] of Object.entries(clean)) {
+        if (context.readOnly?.has(key)) continue;
         const taxYear = key === 'taxWithheld' ? context.taxYear || Number(day().slice(0, 4)) : undefined;
         if (key === 'ageBand' && d.gov.applied?.ageBand && !d.gov.applied.ageBand.separate) d.gov.applied.ageBand.separate = true;
         if (value === undefined) {
@@ -493,14 +511,22 @@ function createServer(opts = {}) {
   on('GET', '/v1/me/profile', ({ d }) => {
     const { details } = profileFacts(d, { includeProvenance: true });
     if (!d.profile && !Object.keys(details).length) return E(404, 'NOT_FOUND', 'ยังไม่มีโปรไฟล์');
-    return [200, { ...d.profile, factProvenance: details, ...(d.demoProfile ? { dataStatus: 'mock' } : {}),
-      ...(govIdentity(d) ? { fromGov: Object.keys(d.gov.applied || {}) } : {}) }];
+    const linked = govIdentity(d);
+    return [200, { ...(linked ? profileWithIdentity(d) : d.profile), factProvenance: details,
+      ...(d.demoProfile ? { dataStatus: 'mock' } : {}),
+      ...(linked ? { fromGov: Object.keys(d.gov.applied || {}) } : {}) }];
   });
   on('PUT', '/v1/me/profile', ({ d, body }) => {
     const gate = need(d, 'core'); if (gate) return gate;
     if (!body || typeof body !== 'object' || Array.isArray(body)) return E(422, 'VALIDATION', 'ข้อมูลไม่ถูกต้อง');
     const allowed = ['displayName', 'district', 'lat', 'lng', 'skills', 'hoursPerWeek', 'incomeGoalPerMonth', 'goals', 'constraints'];
     const p = Object.fromEntries(Object.entries(body).filter(([k]) => allowed.includes(k)));
+    if (govIdentity(d)) {
+      for (const key of profileIdentityKeys) {
+        if (Object.hasOwn(d.profile || {}, key)) p[key] = d.profile[key];
+        else delete p[key];
+      }
+    }
     if (p.district && typeof p.lat !== 'number') { const g = geo.geocode(p.district); if (g) { p.lat = g.lat; p.lng = g.lng; } }
     d.profile = p; return [200, p];
   });
@@ -526,7 +552,8 @@ function createServer(opts = {}) {
     return [200, d.settings];
   });
   on('GET', '/v1/me/facts', ({ d }) => [200, effectiveFacts(d)]);
-  on('PATCH', '/v1/me/facts', ({ d, body }) => svc.patchFacts(d, body));
+  on('PATCH', '/v1/me/facts', ({ d, body }) => svc.patchFacts(d, body,
+    { readOnly: govIdentity(d) ? registryFactKeys : undefined }));
   on('GET', '/v1/me/memory', ({ d }) => [200, { items: d.memory }]);
   on('POST', '/v1/me/memory', ({ d, body }) => {
     const gate = need(d, 'core'); if (gate) return gate;
@@ -548,7 +575,12 @@ function createServer(opts = {}) {
     const r = d.gov.status === 'pending' && d.gov.state === body?.state
       && govAdapter.finish(device, body.state, body.code, d.facts, d.profile || {}, opts.clock ? opts.clock() : Date.now());
     if (!r) return E(422, 'VALIDATION', 'state หรือ code ไม่ถูกต้อง');
-    d.gov = r; d.gov.applied = applyIdentity(d, r.identity); return [200, govOut(d)];
+    d.gov = r;
+    if (r.identity) {
+      d.gov.applied = appliedIdentity(d, r.identity);
+      d.profile ||= {};
+    }
+    return [200, govOut(d)];
   });
   on('DELETE', '/v1/me/gov-link', ({ d }) => { const g = govGate(); if (g) return g; dropGov(d); return [204]; });
 

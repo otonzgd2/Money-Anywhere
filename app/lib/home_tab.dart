@@ -6,7 +6,7 @@ import 'common.dart';
 import 'income_plan_screen.dart';
 import 'money.dart';
 import 'money_check.dart';
-import 'profile_overview_screen.dart';
+import 'opportunity_assessment.dart';
 import 'route_screen.dart';
 import 'task_screen.dart';
 import 'thaid.dart';
@@ -68,22 +68,36 @@ class _HomeTabState extends State<HomeTab> {
       final m = f.isNotEmpty ? await api.get('/v1/money') : null;
       final t = ok ? ((await api.get('/v1/tasks'))['items'] as List).cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
       final g = await govState(api);
-      final ProfileSnapshot? profile;
-      if (f.isEmpty && g != GovState.connected) {
-        final Future<ProfileSnapshot?> preview = ProfileSnapshot.load(api, knownFacts: f);
-        profile = await preview.onError<ApiException>((_, _) => null);
-      } else {
-        profile = null;
-      }
+      final choices = api.onboardingChoices;
+      final canOpenDemo = f.isEmpty && g != GovState.connected &&
+          (choices.isEmpty || choices.contains('y')) && await _hasDemoEntry();
       // Connected ThaID: show the money overview even before any answer (the agency data fills it).
       final m2 = m ?? (g == GovState.connected ? await api.get('/v1/money') : null);
       if (!mounted) return;
       setState(() {
         facts = f; overview = m2; tasks = t; consented = ok; gov = g;
-        hasDemoProfile = profile?.sample != null; error = null; loaded = true;
+        hasDemoProfile = canOpenDemo; error = null; loaded = true;
       });
     } on ApiException catch (e) {
       if (mounted) setState(() { error = e; loaded = true; });
+    }
+  }
+
+  Future<bool> _hasDemoEntry() async {
+    try {
+      if (!DemoSource.enabled(await api.get('/v1/app-config'))) return false;
+    } on ApiException {
+      return false;
+    }
+    try {
+      final profile = await api.get('/v1/me/profile');
+      return ![
+        'displayName', 'district', 'hoursPerWeek', 'constraints',
+      ].any((key) => profile[key] is String && (profile[key] as String).trim().isNotEmpty) &&
+          !['skills', 'goals'].any((key) => profile[key] is List && (profile[key] as List).isNotEmpty) &&
+          (profile['incomeGoalPerMonth'] is! num || profile['incomeGoalPerMonth'] <= 0);
+    } on ApiException catch (error) {
+      return error.status == 404;
     }
   }
 

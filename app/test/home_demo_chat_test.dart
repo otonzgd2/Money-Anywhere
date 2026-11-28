@@ -40,7 +40,7 @@ class _ChatApi extends Api {
         return {'items': []};
       case '/v1/me/settings':
       case '/v1/app-config':
-        return {};
+        return {'mode': 'demo', 'featureFlags': {'demo': true}};
       case '/v1/me/gov-link':
         return {'status': 'not_connected'};
       case '/v1/me/profile':

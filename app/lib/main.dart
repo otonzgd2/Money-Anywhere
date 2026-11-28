@@ -174,6 +174,7 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
   @override
   void initState() {
     super.initState();
+    widget.app.dataCleared.addListener(_clearAssessment);
     widget.app.goTab(1, group: 'all');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -181,6 +182,18 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
         _run();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    widget.app.dataCleared.removeListener(_clearAssessment);
+    super.dispose();
+  }
+
+  void _clearAssessment() {
+    setState(
+      () => assessment = const OpportunityAssessment(AssessmentStatus.ready),
+    );
   }
 
   Future<void> _loadTextSetting() async {
@@ -194,9 +207,12 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
   }
 
   Future<void> _run() async {
-    if (busy) return;
-    busy = true;
     final app = widget.app;
+    if (busy || app.deletingData) return;
+    busy = true;
+    final revision = app.dataCleared.value;
+    bool current() =>
+        mounted && revision == app.dataCleared.value && !app.deletingData;
     if (assessment != null) {
       setState(
         () =>
@@ -207,20 +223,24 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
       final config = await app.api
           .get('/v1/app-config')
           .timeout(const Duration(seconds: 5));
-      if (!mounted) return;
+      if (!current()) {
+        busy = false;
+        return;
+      }
       final flags = config['featureFlags'];
       if ((config['mode'] != 'demo' && config['mode'] != 'user') ||
           flags is! Map ||
           flags['demo'] is! bool) {
         throw ApiException(0, 'CONFIG', 'ตรวจโหมดแอปไม่ได้');
       }
-      app.startupDemoEnabled =
-          config['mode'] == 'demo' && flags['demo'] == true;
+      app.startupDemoEnabled = DemoSource.enabled(config);
     } on ApiException {
-      _unavailableConfig();
+      if (current()) _unavailableConfig();
+      busy = false;
       return;
     } on TimeoutException {
-      _unavailableConfig();
+      if (current()) _unavailableConfig();
+      busy = false;
       return;
     }
     final sources = <DemoSource>[];
@@ -228,15 +248,16 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
       if (app.startupDemoEnabled) {
         var choices = app.api.onboardingChoices;
         if (choices.length > DemoSource.values.length ||
-            !RegExp(r'^[yn]*$').hasMatch(choices)) {
+            !RegExp(r'^[ynd]*$').hasMatch(choices)) {
           choices = '';
         }
         while (mounted && choices.length < DemoSource.values.length) {
+          if (!mounted) return;
           final choice = await showDemoSource(
             context,
             DemoSource.values[choices.length],
           );
-          if (!mounted) return;
+          if (!current()) return;
           if (choice == null) continue;
           choices += switch (choice) {
             DemoChoice.use => 'y',
@@ -247,27 +268,34 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
           app.api.saveOnboardingChoices(choices);
         }
         sources.addAll(
-          DemoSource.values.where((source) => choices[source.index] == 'y'),
+          DemoSource.values.where((source) => source.answer(choices) == 'y'),
         );
       }
-      if (!mounted) return;
+      if (!current()) return;
       setState(() {
         assessing = true;
         storageError = false;
       });
-      final result = await OpportunityAssessment.load(app.api, sources);
-      if (mounted) setState(() => assessment = result);
+      final result = await OpportunityAssessment.load(
+        app.api,
+        sources,
+        trackDemoWrite: (request) => app.onboardingWrite = request.then<void>(
+          (_) {},
+          onError: (_, _) {},
+        ),
+      );
+      if (current()) setState(() => assessment = result);
     } on FileSystemException {
-      if (mounted) setState(() => storageError = true);
+      if (current()) setState(() => storageError = true);
     } on ApiException {
-      if (mounted) {
+      if (current()) {
         setState(
           () =>
               assessment = const OpportunityAssessment(AssessmentStatus.failed),
         );
       }
     } on TimeoutException {
-      if (mounted) {
+      if (current()) {
         setState(
           () =>
               assessment = const OpportunityAssessment(AssessmentStatus.failed),

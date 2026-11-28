@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'api.dart';
 import 'chat.dart';
+import 'connected_accounts.dart';
 
 enum DemoChatProfile {
   connected('gov-prefill-chat', 'DEMO · โปรไฟล์เชื่อม 4 แหล่ง'),
@@ -22,6 +23,10 @@ class AppState {
   AppState._demo(this.api, this.changed) : demo = true;
 
   final Api api;
+  late final ConnectedAccounts accounts = ConnectedAccounts(api);
+  final ValueNotifier<int> dataCleared = ValueNotifier(0);
+  Future<void>? onboardingWrite;
+  bool deletingData = false;
   final bool demo;
   bool startupDemoEnabled = false;
   bool get allowsDemo => demo || startupDemoEnabled;
@@ -99,7 +104,7 @@ class _ConsentSheetState extends State<_ConsentSheet> {
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(context).viewInsets.bottom),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('ก่อนบันทึก: ข้อมูลของคุณ', style: t.titleLarge?.copyWith(fontWeight: FontWeight.bold)),

@@ -146,6 +146,11 @@ class Api {
 
   void saveOnboardingChoices(String choices) {
     final target = _settings._file(_settings.directory, _onboardingKey);
+    if (choices.isEmpty) {
+      // Flush the cleared value on the existing file before deleting remotely.
+      target.writeAsStringSync('', flush: true);
+      return;
+    }
     final pending = File('${target.path}.tmp');
     pending.writeAsStringSync(choices, flush: true);
     pending.renameSync(target.path);

@@ -115,6 +115,7 @@ paths:
       operationId: putProfile
       tags: [Me]
       summary: "บันทึกโปรไฟล์ทั้งชุด ถ้าส่งเขตมาไม่มีพิกัด server หาพิกัดให้ (ต้องยินยอม core)"
+      description: "ระหว่างเชื่อม ThaID ค่าโปรไฟล์ส่วนตัวและพิกัดเดิมจะคงอยู่ การบันทึกงานและรายได้ไม่เปลี่ยนข้อมูลจาก ThaID"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Profile' } } } }
       responses:
@@ -136,6 +137,7 @@ paths:
       operationId: patchFacts
       tags: [Me]
       summary: "ตอบคำถามสถานการณ์ทีละข้อ ส่ง null เพื่อลบคำตอบ (ต้องยินยอม core)"
+      description: "ระหว่างเชื่อม ThaID การเขียนผ่านเส้นทางนี้คงช่วงอายุที่เคยกรอกและข้อมูลตามทะเบียนเดิม"
       parameters: [ { $ref: '#/components/parameters/DeviceId' } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Facts' } } } }
       responses:

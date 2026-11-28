@@ -617,6 +617,15 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   const gprof = await g('getProfile', { expect: 200 });
   check('ThaID fills empty profile fields and age (fromGov lists them)', gprof.data.displayName === idt.derived.displayName && gprof.data.district === idt.derived.district && gprof.data.fromGov.includes('ageBand') && (await g('getFacts')).data.ageBand === idt.derived.ageBand);
   check('gov-link GET returns the same identity', (await g('getGovLink')).data.identity.pidMasked === idt.pidMasked);
+  await g('putProfile', { body: { displayName: 'ชื่อเขียนทับ', district: 'บางนา', incomeGoalPerMonth: 9000 } });
+  await g('patchFacts', { body: { ageBand: '70-79', registryDistrict: 'บางนา' } });
+  const protectedProfile = (await g('getProfile')).data;
+  const protectedExport = (await g('exportMe')).data;
+  check('connected ThaID provides read-only fallbacks without storing them as manual fields',
+    protectedProfile.displayName === idt.derived.displayName && protectedProfile.district === idt.derived.district
+    && protectedProfile.incomeGoalPerMonth === 9000 && protectedExport.profile.displayName === undefined
+    && protectedExport.profile.district === undefined && protectedExport.facts.ageBand === undefined
+    && protectedExport.facts.registryDistrict === undefined);
   check('export includes the ThaID identity', (await g('exportMe')).data.govLink.identity.claims.given_name === idt.claims.given_name);
   const gm = await g('getMoneyOverview');
   const gi = Object.fromEntries(gm.data.items.map(i => [i.id, i]));
@@ -630,11 +639,21 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   // The ThaID mock answers per person: a young parent gets the child grant, not the mc_old-age allowance.
   const mc_gp2 = client(base2, { 'X-Device-Id': 'device-gov-parent' });
   await mc_gp2('createConsent', { body: consentBody({ gov: true }), expect: 201 });
+  await mc_gp2('putProfile', { body: { displayName: 'ชื่อเล่นเดิม', district: 'บางกะปิ', skills: ['ทำอาหาร'] } });
   await mc_gp2('patchFacts', { body: { ageBand: 'ต่ำกว่า 60', kidUnder6: true, lowIncome: true }, expect: 200 });
   const mc_st2 = await mc_gp2('startGovLink', { expect: 201 });
   await mc_gp2('finishGovLink', { body: { state: mc_st2.data.state, code: 'demo-bypass' }, expect: 200 });
   const mc_pm = Object.fromEntries((await mc_gp2('getMoneyOverview')).data.items.map(i => [i.id, i]));
   check('ThaID mock: records follow the person (child grant verified, no mc_old-age record under 60)', mc_pm.child_support.status === 'verified' && mc_pm.child_support.dataStatus === 'mock' && mc_pm.old_age.status !== 'verified');
+  await mc_gp2('putProfile', { body: { displayName: 'ชื่อเขียนทับ', district: 'บางนา', skills: ['พิมพ์เอกสาร'], incomeGoalPerMonth: 12000 } });
+  await mc_gp2('patchFacts', { body: { ageBand: null, kidUnder6: false } });
+  await mc_gp2('deleteGovLink', { expect: 204 });
+  const restoredProfile = (await mc_gp2('getProfile')).data;
+  const restoredFacts = (await mc_gp2('getFacts')).data;
+  check('disconnect restores the manual name, district and age while keeping work edits',
+    restoredProfile.displayName === 'ชื่อเล่นเดิม' && restoredProfile.district === 'บางกะปิ'
+    && restoredProfile.skills[0] === 'พิมพ์เอกสาร' && restoredProfile.incomeGoalPerMonth === 12000
+    && restoredFacts.ageBand === 'ต่ำกว่า 60' && restoredFacts.kidUnder6 === false);
 
   // Broad DEMO catalogue (mock adapters for government and private sources)
   const mc_s3 = createServer({ moreMock: true });
