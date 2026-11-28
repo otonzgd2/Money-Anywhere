@@ -85,7 +85,8 @@ adb install -r build/app/outputs/flutter-apk/app-debug.apk
 - ใช้ `http://10.0.2.2:8080` สำหรับ Android Emulator ที่ใช้ network mapping. มือถือ USB ใช้ loopback พร้อม `adb reverse`. สำหรับ Wi-Fi ให้กรอก base URL ของ IP เครื่องเซิร์ฟเวอร์ในแอปและตรวจ permission/network. ถ้ามีอุปกรณ์หลายตัวให้ใช้ `adb -s <serial>`
 - ให้ Windows checkout กับ `PUB_CACHE` อยู่ไดรฟ์เดียวกัน ถ้า Gradle ค้างที่ Kotlin incremental cache ให้ตั้ง `PUB_CACHE` ให้ตรงกับไดรฟ์ของ checkout แล้ว `flutter clean`, `flutter pub get` และ build ใหม่ เก็บ APK ที่สำเร็จพร้อม SHA
 - หากยังเกิด `Could not close incremental caches` ให้เพิ่ม `kotlin.incremental=false` และ `kotlin.compiler.execution.strategy=in-process` ชั่วคราวใน `app/android/gradle.properties` แล้ว build ใหม่ คืนค่าเดิมก่อน stage ไฟล์ วิธีนี้สร้าง debug APK ของ baseline สำเร็จบนเครื่องที่ใช้ตรวจ
-- `npm run mock:bangkok` เป็นชุด rules-only และ default `8082` ซึ่งคาดว่ามี SQLite ที่ path คนละชุดกับไฟล์ tracked วิธีเปิดด้านบนใช้สำเนา SQLite ที่เก็บใน Git โดยตรง
+- `npm run mock:bangkok` เป็นชุด rules-only และ default `8082` เปิดฐาน mock ที่เก็บใน Git ตามค่าเริ่มต้น ตั้ง `JOB_DB_FILE` เพื่อใช้ฐานสำเนาของทีม
+- เมื่อทีมข้อมูลตรวจสิทธิ์จัดเก็บและแสดงประกาศจาก feed แล้ว ให้ลงทะเบียนผู้ตรวจและวันตรวจจริงในฐานสำเนาด้วย `node contracts/fixtures/register-bkk-curated.js <catalogue.db> "<reviewer>" <YYYY-MM-DD>` จากนั้นตั้ง `JOB_FEEDS_FILE` ให้ใช้ provider `bkk_curated` และ `mock: false` ก่อนเปิด server ตามสเปก S0
 - ทดสอบ API ด้วย `npm.cmd --prefix contracts test`, `node contracts/test-thang-rot-guard.js`, `node contracts/test-thang-rot-manual.js` และ `node docs/competition/skillwar/capture-api-examples.cjs` จากราก repo สำหรับ capture ใช้ loopback, memory state และ rules
 
 ## สาธิตให้จบในเจ็ดนาที
