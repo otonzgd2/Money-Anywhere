@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.14.0
+  version: 0.15.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -344,6 +344,7 @@ paths:
         - { name: sort, in: query, schema: { type: string, enum: [near, money, fresh], default: near } }
         - { name: onlyMoney, in: query, schema: { type: boolean, default: false } }
         - { name: showSuspicious, in: query, schema: { type: boolean, default: false } }
+        - { name: includeDistrictPins, in: query, schema: { type: boolean, default: false }, description: "Includes approximate map markers for Bangkok demo districts across all matching pages." }
         - { $ref: '#/components/parameters/Limit' }
         - { $ref: '#/components/parameters/Cursor' }
       responses:
@@ -1101,6 +1102,17 @@ components:
         totalCount: { type: integer, minimum: 0, description: "Matching visible items across all pages." }
         hasMoreMapLocations: { type: boolean, description: "Whether a later result has database coordinates available for the map." }
         hiddenSuspicious: { type: integer }
+        districtPins:
+          type: array
+          description: "Approximate district markers for Bangkok demo opportunities that match the search, before pagination. Omitted unless requested."
+          items:
+            type: object
+            required: [district, lat, lng, count]
+            properties:
+              district: { type: string }
+              lat: { type: number, minimum: -90, maximum: 90 }
+              lng: { type: number, minimum: -180, maximum: 180 }
+              count: { type: integer, minimum: 1 }
         suggestions: { type: array, items: { $ref: '#/components/schemas/Suggestion' }, description: "Only when there are no results (FR-08)" }
         sourceWarnings: { type: array, items: { type: string }, description: "Providers whose last fetch failed. Details in /v1/sources." }
 

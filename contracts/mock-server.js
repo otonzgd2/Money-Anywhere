@@ -60,6 +60,20 @@ function km(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+function bangkokDistrictPins(items) {
+  const pins = new Map();
+  for (const { location, provenance } of items) {
+    if (provenance.provider !== BANGKOK_DEMO_PROVIDER || provenance.dataStatus !== 'mock' ||
+        location.precision !== 'city' || !location.district ||
+        !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) continue;
+    const { district, lat, lng } = location;
+    const pin = pins.get(district);
+    if (pin) pin.count++;
+    else pins.set(district, { district, lat, lng, count: 1 });
+  }
+  return [...pins.values()];
+}
+
 function createServer(opts = {}) {
   const ref = readJson('fixtures/reference.json');
   const fx = readJson('fixtures/opportunities.json');
@@ -616,7 +630,8 @@ function createServer(opts = {}) {
     return [200, { items: res.xs.slice(start, end).map(item => opportunityResponse(item, req)), totalCount: res.xs.length,
       nextCursor: end < res.xs.length ? Buffer.from(String(end)).toString('base64url') : undefined,
       hasMoreMapLocations: res.xs.slice(end).some(hasMapLocation),
-      hiddenSuspicious: res.hidden, suggestions: res.suggestions.length ? res.suggestions : undefined, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
+      hiddenSuspicious: res.hidden, districtPins: q.get('includeDistrictPins') === 'true' ? bangkokDistrictPins(res.xs) : undefined,
+      suggestions: res.suggestions.length ? res.suggestions : undefined, sourceWarnings: warn.length ? warn : undefined }, { 'X-Total-Count': String(res.xs.length) }];
   });
   on('GET', '/v1/opportunities/{id}', ({ p, q, req }) => {
     const o = findOpportunity(p.id) ?? (q.get('includeClosed') === 'true' ? jobCatalogue?.getClosed(p.id) : undefined);
@@ -1470,9 +1485,11 @@ function createServer(opts = {}) {
     }
     const sourceReport = /^\/docs\/sources\/((?:thai-senior-benefits|bangkok-benefits)-2026-11-27\.(html|md))$/.exec(u.pathname);
     const jobApplication = u.pathname === '/docs/mockups/job-application.html';
-    const opportunityInfo = demoOn && u.pathname === BANGKOK_INFO_PATH;
-    if (req.method === 'GET' && (sourceReport || jobApplication || opportunityInfo)) {
-      const file = jobApplication || opportunityInfo ? path.join(DIR, '..', 'docs', 'mockups', path.basename(u.pathname))
+    const opportunityPage = demoOn && [BANGKOK_INFO_PATH, '/docs/mockups/opportunity-map.html'].includes(u.pathname);
+    const districtMap = demoOn && u.pathname === '/docs/mockups/bangkok-district-map.json';
+    if (req.method === 'GET' && (sourceReport || jobApplication || opportunityPage || districtMap)) {
+      const file = districtMap ? path.join(DIR, 'fixtures', 'bangkok-district-map.json')
+        : jobApplication || opportunityPage ? path.join(DIR, '..', 'docs', 'mockups', path.basename(u.pathname))
         : path.join(DIR, '..', 'docs', 'product', 'sources', sourceReport[1]);
       let content;
       try {
@@ -1480,7 +1497,8 @@ function createServer(opts = {}) {
       } catch (error) {
         return error.code === 'ENOENT' ? send(...E(404, 'NOT_FOUND', 'ไม่พบไฟล์ในโปรเจกต์')) : send(...E(500, 'INTERNAL', 'เปิดไฟล์ไม่ได้'));
       }
-      res.writeHead(200, { 'Content-Type': path.extname(file) === '.html' ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8', 'Referrer-Policy': 'no-referrer' });
+      const type = districtMap ? 'application/json' : path.extname(file) === '.html' ? 'text/html' : 'text/plain';
+      res.writeHead(200, { 'Content-Type': type + '; charset=utf-8', 'Referrer-Policy': 'no-referrer' });
       return res.end(content);
     }
     let raw = ''; for await (const c of req) raw += c;

@@ -2,18 +2,10 @@
 // Run: node contracts/fixtures/seed-bangkok-opportunities.js <catalogue.db>
 const { createHash } = require('node:crypto');
 const { taxonomies, scamRules } = require('./reference.json');
+const { districts } = require('./bangkok-district-map.json');
 const {
   BANGKOK_DEMO_PROVIDER, BANGKOK_INFO_PATH, openJobDatabase, jobDedupKey, reviewScamSignals
 } = require('../adapters/job-catalogue');
-
-// Stable order for seed IDs. Names follow the Bangkok Metropolitan Administration's 50 districts.
-const districts = [
-  'คลองสาน', 'คลองสามวา', 'คลองเตย', 'คันนายาว', 'จตุจักร', 'จอมทอง', 'ดอนเมือง', 'ดินแดง', 'ดุสิต', 'ตลิ่งชัน',
-  'ทวีวัฒนา', 'ทุ่งครุ', 'ธนบุรี', 'บางกอกน้อย', 'บางกอกใหญ่', 'บางกะปิ', 'บางขุนเทียน', 'บางคอแหลม', 'บางซื่อ', 'บางนา',
-  'บางบอน', 'บางพลัด', 'บางรัก', 'บางเขน', 'บางแค', 'บึงกุ่ม', 'ปทุมวัน', 'ประเวศ', 'ป้อมปราบศัตรูพ่าย', 'พญาไท',
-  'พระนคร', 'พระโขนง', 'ภาษีเจริญ', 'มีนบุรี', 'ยานนาวา', 'ราชเทวี', 'ราษฎร์บูรณะ', 'ลาดกระบัง', 'ลาดพร้าว', 'วังทองหลาง',
-  'วัฒนา', 'สวนหลวง', 'สะพานสูง', 'สัมพันธวงศ์', 'สาทร', 'สายไหม', 'หนองจอก', 'หนองแขม', 'หลักสี่', 'ห้วยขวาง'
-];
 
 const scenarios = {
   welfare: {
@@ -188,9 +180,11 @@ const fixedLocations = {
 };
 const demoAttribution = 'DEMO / MOCK';
 const pad = number => String(number).padStart(2, '0');
+const hash = record => createHash('sha256').update(JSON.stringify(record)).digest('hex');
 
 function buildRows(now) {
-  return districts.flatMap((district, districtIndex) => taxonomies.categories.flatMap(({ id: category, mapGroup }) => {
+  // The fixture keeps the original seed order so IDs and Info links stay stable.
+  return districts.flatMap(({ name: district, lat, lng }, districtIndex) => taxonomies.categories.flatMap(({ id: category, mapGroup }) => {
     const { topics, organization, unit, knownText } = scenarios[category];
     const total = district === 'บางนา' ? 20 : 10;
     return Array.from({ length: total }, (_, index) => {
@@ -223,10 +217,11 @@ function buildRows(now) {
         search_text: (title + ' ' + organization).toLowerCase(),
         suspicious_reasons: JSON.stringify(reviewScamSignals(scamRules, topic + ' ' + detail))
       };
-      return {
-        ...record, dedup_key: jobDedupKey(record), suspicious: Number(record.suspicious_reasons !== '[]'),
-        content_hash: createHash('sha256').update(JSON.stringify(record)).digest('hex'), fetched_at: now, updated_at: now
-      };
+      const located = { ...record, lat, lng };
+      return { legacyHash: hash(record), row: {
+        ...located, dedup_key: jobDedupKey(record), suspicious: Number(record.suspicious_reasons !== '[]'),
+        content_hash: hash(located), fetched_at: now, updated_at: now
+      } };
     });
   }));
 }
@@ -240,8 +235,8 @@ function verifyCoverage(db) {
   }
   for (const district of districts) {
     for (const { id } of taxonomies.categories) {
-      const target = district === 'บางนา' ? 20 : 10;
-      if (totals.get(district + ':' + id) !== target) throw new Error('Unexpected Bangkok demo quota: ' + district + '/' + id);
+      const target = district.name === 'บางนา' ? 20 : 10;
+      if (totals.get(district.name + ':' + id) !== target) throw new Error('Unexpected Bangkok demo quota: ' + district.name + '/' + id);
     }
   }
 }
@@ -250,11 +245,14 @@ function seedBangkokOpportunities(file, time = new Date()) {
   const records = buildRows(time.toISOString());
   const db = openJobDatabase(file);
   try {
-    const columns = Object.keys(records[0]);
+    const columns = Object.keys(records[0].row);
     const insert = db.prepare('INSERT INTO job_posting (' + columns.join(', ') + ') VALUES ('
       + columns.map(column => ':' + column).join(', ') + ') ON CONFLICT (provider, external_id) DO NOTHING');
-    const stored = db.prepare('SELECT content_hash FROM job_posting WHERE provider = ? AND external_id = ?');
+    const stored = db.prepare('SELECT content_hash, loc_precision, lat, lng FROM job_posting WHERE provider = ? AND external_id = ?');
+    const addCoordinates = db.prepare("UPDATE job_posting SET lat = ?, lng = ?, content_hash = ?"
+      + " WHERE provider = ? AND external_id = ? AND content_hash = ? AND loc_precision = 'city' AND lat IS NULL AND lng IS NULL");
     let inserted = 0;
+    let located = 0;
     db.exec('BEGIN IMMEDIATE');
     try {
       db.prepare("INSERT INTO job_source (provider, name, kind, direction, attribution, data_status, state)"
@@ -265,12 +263,19 @@ function seedBangkokOpportunities(file, time = new Date()) {
       if (source.direction !== 'static' || source.data_status !== 'mock' || source.approved !== 0 || source.attribution !== demoAttribution) {
         throw new Error('Expected the Bangkok provider to be a static DEMO / MOCK source');
       }
-      for (const record of records) {
-        const result = insert.run(record);
-        if (!result.changes && stored.get(record.provider, record.external_id).content_hash !== record.content_hash) {
-          throw new Error('A Bangkok demo record differs from the seed: ' + record.id);
+      for (const { row, legacyHash } of records) {
+        if (insert.run(row).changes) {
+          inserted++;
+          continue;
         }
-        inserted += result.changes;
+        const existing = stored.get(row.provider, row.external_id);
+        if (existing.content_hash === row.content_hash && existing.loc_precision === 'city' &&
+            existing.lat === row.lat && existing.lng === row.lng) continue;
+        // Upgrade exactly the earlier seed. Keep the ID, dates, reports and review fields.
+        if (!addCoordinates.run(row.lat, row.lng, row.content_hash, row.provider, row.external_id, legacyHash).changes) {
+          throw new Error('A Bangkok demo record differs from the seed: ' + row.id);
+        }
+        located++;
       }
       verifyCoverage(db);
       db.exec('COMMIT');
@@ -278,7 +283,7 @@ function seedBangkokOpportunities(file, time = new Date()) {
       db.exec('ROLLBACK');
       throw error;
     }
-    return { districts: districts.length, categories: taxonomies.categories.length, total: records.length, inserted };
+    return { districts: districts.length, categories: taxonomies.categories.length, total: records.length, inserted, located };
   } finally {
     db.close();
   }

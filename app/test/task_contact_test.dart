@@ -15,14 +15,24 @@ const _listingTitle = 'ผู้ช่วยร้านอาหาร พา�
 const _demoPage = '$_baseUrl/docs/mockups/job-application.html';
 final _detailsDemoUrl = '$_demoPage#title=${Uri.encodeComponent(_listingTitle)}';
 const _jobUrl = 'https://careers.company.test/apply';
+const _bangkokInfo = 'http://localhost:8080/docs/mockups/opportunity-info.html?id=job-1';
 
 class _ContactApi extends Api {
-  _ContactApi({required this.moneyPlan, this.jobUrl, this.listingMissing = false, this.mock = false}) : super(baseUrl: _baseUrl);
+  _ContactApi({
+    required this.moneyPlan,
+    this.jobUrl,
+    this.listingMissing = false,
+    this.mock = false,
+    this.provider,
+    this.category = 'job_part',
+  }) : super(baseUrl: _baseUrl);
 
   final bool moneyPlan;
   final String? jobUrl;
   final bool listingMissing;
   final bool mock;
+  final String? provider;
+  final String category;
   int sourceReads = 0;
 
   Map<String, dynamic> get task => {
@@ -45,8 +55,8 @@ class _ContactApi extends Api {
       case '/v1/opportunities/job-1':
         sourceReads++;
         if (listingMissing) throw ApiException(404, 'NOT_FOUND', 'ไม่พบประกาศ');
-        return {'title': _listingTitle, 'category': 'job_part', 'mapGroup': 'job',
-          'provenance': {'dataStatus': mock ? 'mock' : 'curated', 'sourceUrl': jobUrl}};
+        return {'title': _listingTitle, 'category': category,
+          'provenance': {'dataStatus': mock ? 'mock' : 'curated', 'sourceUrl': jobUrl, 'provider': provider}};
       case '/v1/money/old_age': return {
         'title': 'เบี้ยยังชีพผู้สูงอายุ', 'status': 'likely', 'amount': {'value': 600},
         'documents': [{'text': 'บัตรประจำตัว', 'ready': false}], 'channels': [{'title': 'สำนักงานเขตตามทะเบียนบ้าน', 'kind': 'office'}],
@@ -150,6 +160,37 @@ void main() {
     await returnFromBrowser(tester);
     expect(find.text('กลับมาแล้ว 👋'), findsNothing);
   });
+
+  for (final category in ['job_part', 'grant']) {
+    testWidgets('Bangkok demo $category opens its record-specific Info page', (
+      tester,
+    ) async {
+      final opened = recordLinks();
+      final api = _ContactApi(
+        moneyPlan: false,
+        jobUrl: _bangkokInfo,
+        mock: true,
+        provider: 'mock_bangkok_catalogue',
+        category: category,
+      );
+      addTearDown(api.close);
+      final app = AppState(api)..startupDemoEnabled = true;
+      await tester.pumpWidget(
+        MaterialApp(home: OppScreen(app: app, opportunityId: 'job-1')),
+      );
+      await tester.pumpAndSettle();
+
+      final link = find.text(
+        category == 'job_part' ? 'รายละเอียดงาน' : 'ดูข้อมูลจำลอง',
+      );
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(opened, [_bangkokInfo]);
+      await returnFromBrowser(tester);
+      expect(find.text('กลับมาแล้ว 👋'), findsNothing);
+    });
+  }
 
   testWidgets('a broken link from job details opens the same demo HTML as a plan', (tester) async {
     final opened = recordLinks();

@@ -1038,19 +1038,30 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
     const firstMockPage = (await bangkokClient('searchOpportunities', {
       query: { district: 'บางนา', category: 'grant', dataMode: 'mock', limit: 1 }, expect: 200
     })).data;
-    check('unpinnable Bangkok demo pages remain pageable in list mode without advertising map locations',
+    check('Bangkok demo records remain pageable in list mode, with district markers available on request',
       firstMockPage.items.length === 1 && firstMockPage.totalCount === 20
-      && Boolean(firstMockPage.nextCursor) && firstMockPage.hasMoreMapLocations === false);
+      && Boolean(firstMockPage.nextCursor) && firstMockPage.hasMoreMapLocations === false
+      && firstMockPage.districtPins === undefined);
+    const overview = (await bangkokClient('searchOpportunities', {
+      query: { group: 'job', dataMode: 'mock', includeDistrictPins: true, limit: 1 }, expect: 200
+    })).data;
+    const areas = overview.districtPins;
+    check('Bangkok job map counts every matching district before pagination',
+      overview.items.length === 1 && areas.length === 50 && areas.reduce((sum, pin) => sum + pin.count, 0) === 1530
+      && areas.find(pin => pin.district === 'บางนา')?.count === 60
+      && areas.every(pin => Number.isFinite(pin.lat) && Number.isFinite(pin.lng)));
     const sample = bangNaGrants[0];
     const link = new URL(sample.provenance.sourceUrl);
     const info = await fetch(link);
-    check('Bangkok Info link uses the current origin and serves the demo page for the selected ID',
+    check('Bangkok Info link uses the current origin and serves the district-level demo record',
       link.origin === mockBase && link.pathname === BANGKOK_INFO_PATH && link.searchParams.get('id') === sample.id
+      && sample.location.precision === 'city' && Number.isFinite(sample.location.lat) && Number.isFinite(sample.location.lng)
       && info.ok && info.headers.get('content-type').startsWith('text/html') && (await info.text()).includes('DEMO / MOCK'));
     const realData = (await bangkokClient('searchOpportunities', {
-      query: { district: 'บางนา', category: 'grant', dataMode: 'real' }, expect: 200
-    })).data.items;
-    check('Bangkok demo records are excluded from real data searches', realData.every(item => item.provenance.provider !== BANGKOK_DEMO_PROVIDER));
+      query: { district: 'บางนา', category: 'grant', dataMode: 'real', includeDistrictPins: true }, expect: 200
+    })).data;
+    check('Bangkok demo records and district markers are excluded from real data searches',
+      realData.districtPins.length === 0 && realData.items.every(item => item.provenance.provider !== BANGKOK_DEMO_PROVIDER));
   } finally {
     if (jobServer?.listening) await new Promise(resolve => jobServer.close(resolve));
     if (fs.existsSync(jobDbFile)) fs.unlinkSync(jobDbFile);

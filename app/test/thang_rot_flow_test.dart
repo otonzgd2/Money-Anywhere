@@ -56,6 +56,7 @@ class FlowApi extends Api {
       assessmentFails = false,
       saveFails = false;
   bool? hasMoreMapLocations;
+  final districtCounts = <String, int>{};
   Completer<Map<String, dynamic>>? pendingSave;
   Map<String, dynamic>? previewFacts;
 
@@ -100,6 +101,19 @@ class FlowApi extends Api {
       case '/v1/opportunities':
         expect(uri.queryParameters['area'], 'bangkok');
         final category = uri.queryParameters['category'];
+        if (uri.queryParameters['includeDistrictPins'] == 'true') {
+          return {
+            'districtPins': [
+              if (districtCounts[category] case final count?)
+                {
+                  'district': 'บางนา',
+                  'lat': 13.68,
+                  'lng': 100.63,
+                  'count': count,
+                },
+            ],
+          };
+        }
         final candidates = entries.values
             .where((item) => category == null || item['category'] == category)
             .toList();
@@ -432,6 +446,39 @@ void main() {
       expect(find.text('ประกาศ full2'), findsOneWidget);
     },
   );
+
+  testWidgets('map combines demo district counts and opens the scoped list', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(720, 1080);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    api.hasMoreMapLocations = false;
+    api.districtCounts.addAll({'job_full': 20, 'job_part': 20});
+    final locations = api.entries['full1']!['locations'] as List;
+    (locations.first as Map)['coordinateSource'] = 'database';
+    final app = AppState(api)..oppGroup.value = 'job';
+    await tester.pumpWidget(MaterialApp(home: OppTab(app: app)));
+    await tester.pumpAndSettle();
+
+    await choose(tester, 'ดูแผนที่');
+    expect(find.byTooltip('ประกาศ full1'), findsOneWidget);
+    expect(find.text('DEMO · พิกัดรายเขต 1 เขต'), findsOneWidget);
+    final districtPin = find.byTooltip('เขตบางนา 40 รายการจำลอง');
+    expect(districtPin, findsOneWidget);
+    await tester.tap(districtPin);
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(OutlinedButton, 'เขตบางนา'), findsOneWidget);
+    expect(find.text('ดูแผนที่'), findsOneWidget);
+    expect(
+      api.calls.map(Uri.parse).any((uri) {
+        final query = uri.queryParameters;
+        return query['districtCode'] == '1047' && query['district'] == 'บางนา';
+      }),
+      isTrue,
+    );
+  });
 
   testWidgets(
     'AC-08 opens an ID with district context and handles missing IDs',

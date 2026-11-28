@@ -132,6 +132,23 @@ class _OppScreenState extends State<OppScreen> {
       sourceUnavailable = false;
     });
     try {
+      final info = bangkokDemoInfoUrl(
+        sourceUrl: data['sourceUrl'],
+        provider: data['provider'],
+        dataStatus: data['dataStatus'],
+        baseUrl: widget.app.api.baseUrl,
+        opportunityId: widget.id,
+      );
+      if (info != null) {
+        await openExternal(
+          context,
+          widget.app,
+          url: info,
+          title: title,
+          askAfterReturn: false,
+        );
+        return;
+      }
       final source = await reachableJobApplicationUrl(data);
       if (!mounted || ModalRoute.of(context)?.isCurrent != true) return;
       if (source != null) {
@@ -258,6 +275,15 @@ class _OppScreenState extends State<OppScreen> {
         ? matching
         : locations;
     final isJob = category?.isJob ?? data['mapGroup'] == 'job';
+    final info = isJob
+        ? null
+        : bangkokDemoInfoUrl(
+            sourceUrl: url,
+            provider: provenance['provider'],
+            dataStatus: dataStatus,
+            baseUrl: widget.app.api.baseUrl,
+            opportunityId: widget.id,
+          );
     final mock = widget.mockAssessment || dataStatus == 'mock';
     final organization = data['organization'] ?? data['payer'];
     final conditions = widget.isMoney
@@ -393,7 +419,9 @@ class _OppScreenState extends State<OppScreen> {
               ),
           ],
         ]),
-      if (!isJob && url is String && !mock)
+      if (info != null)
+        _sourceLink(info, title, 'ดูข้อมูลจำลอง')
+      else if (!isJob && url is String && !mock)
         _sourceLink(url, title, 'ดูประกาศต้นทาง'),
       if (!widget.isMoney)
         TextButton(onPressed: _report, child: const Text('รายงานประกาศนี้')),

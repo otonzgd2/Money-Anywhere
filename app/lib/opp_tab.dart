@@ -1,3 +1,4 @@
+import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
@@ -63,6 +64,7 @@ class _OppTabState extends State<OppTab> {
   final items = <String, Map<String, dynamic>>{};
   final cursors = <OpportunityCategory?, String?>{};
   final completeMapCategories = <OpportunityCategory?>{};
+  List<DistrictPin>? districtPins;
   final laneKeys = {
     for (final lane in OpportunityLane.values) lane: GlobalKey(),
   };
@@ -110,24 +112,24 @@ class _OppTabState extends State<OppTab> {
     });
   }
 
+  Iterable<OpportunityCategory?> get _categories => switch (lane) {
+    OpportunityLane.all => [null],
+    OpportunityLane.jobs when jobTypes.isNotEmpty =>
+      OpportunityLane.jobs.categories.where(jobTypes.contains),
+    OpportunityLane.other when group == 'skill' => [OpportunityCategory.skill],
+    _ => lane.categories,
+  };
+
   Future<void> _reload() {
     generation++;
     if (listScroll.hasClients) listScroll.jumpTo(0);
-    final Iterable<OpportunityCategory?> categories = switch (lane) {
-      OpportunityLane.all => [null],
-      OpportunityLane.jobs when jobTypes.isNotEmpty =>
-        OpportunityLane.jobs.categories.where(jobTypes.contains),
-      OpportunityLane.other when group == 'skill' => [
-        OpportunityCategory.skill,
-      ],
-      _ => lane.categories,
-    };
     setState(() {
       items.clear();
       completeMapCategories.clear();
+      districtPins = null;
       cursors
         ..clear()
-        ..addEntries(categories.map((category) => MapEntry(category, null)));
+        ..addEntries(_categories.map((category) => MapEntry(category, null)));
       error = null;
       loading = false;
       noPins = false;
@@ -137,17 +139,76 @@ class _OppTabState extends State<OppTab> {
     return _loadPages(allPages: mapView);
   }
 
+  Future<Map<String, dynamic>> _searchPage({
+    required OpportunityCategory? category,
+    required int limit,
+    String? cursor,
+    bool includeDistrictPins = false,
+  }) {
+    final code = district;
+    final scoped = bangkokDistricts[code];
+    final query = Uri(
+      queryParameters: {
+        'area': 'bangkok',
+        'limit': '$limit',
+        if (category != null) 'category': category.api,
+        'cursor': ?cursor,
+        if (submitted.isNotEmpty) 'q': submitted,
+        if (code != null && scoped != null) ...{
+          'districtCode': code,
+          'district': scoped,
+        },
+        if (includeDistrictPins) 'includeDistrictPins': 'true',
+      },
+    );
+    return widget.app.api.get('/v1/opportunities?${query.query}');
+  }
+
+  Future<List<DistrictPin>> _loadDistrictPins() async {
+    final pages = await Future.wait(
+      _categories.map(
+        (category) => _searchPage(
+          category: category,
+          limit: 1,
+          includeDistrictPins: true,
+        ),
+      ),
+    );
+    final totals = <String, DistrictPin>{};
+    for (final page in pages) {
+      final values = page['districtPins'];
+      if (values is! List) continue;
+      for (final value in values) {
+        if (value case {
+          'district': final String name,
+          'lat': final num lat,
+          'lng': final num lng,
+          'count': final int count,
+        }) {
+          totals[name] = (
+            district: name,
+            point: LatLng(lat.toDouble(), lng.toDouble()),
+            count: (totals[name]?.count ?? 0) + count,
+          );
+        }
+      }
+    }
+    return totals.values.toList();
+  }
+
   Future<void> _loadPages({bool allPages = false}) async {
     if (loading) return;
     final request = generation;
-    final q = submitted;
-    final code = district;
-    final scoped = bangkokDistricts[code];
     setState(() {
       loading = true;
       error = null;
     });
     try {
+      if (allPages && districtPins == null) {
+        final pins = await _loadDistrictPins();
+        if (!mounted || request != generation) return;
+        setState(() => districtPins = pins);
+      }
       do {
         final pages = await Future.wait(
           cursors.entries
@@ -155,26 +216,16 @@ class _OppTabState extends State<OppTab> {
                 (entry) =>
                     !allPages || !completeMapCategories.contains(entry.key),
               )
-              .map((entry) async {
-                final query = Uri(
-                  queryParameters: {
-                    'area': 'bangkok',
-                    'limit': allPages ? '100' : '24',
-                    if (entry.key case final category?)
-                      'category': category.api,
-                    'cursor': ?entry.value,
-                    if (q.isNotEmpty) 'q': q,
-                    if (code != null && scoped != null) ...{
-                      'districtCode': code,
-                      'district': scoped,
-                    },
-                  },
-                );
-                return MapEntry(
+              .map(
+                (entry) async => MapEntry(
                   entry.key,
-                  await widget.app.api.get('/v1/opportunities?${query.query}'),
-                );
-              }),
+                  await _searchPage(
+                    category: entry.key,
+                    cursor: entry.value,
+                    limit: allPages ? 100 : 24,
+                  ),
+                ),
+              ),
         );
         if (!mounted || request != generation) return;
         setState(() {
@@ -203,7 +254,7 @@ class _OppTabState extends State<OppTab> {
           cursors.keys.any(
             (category) => !completeMapCategories.contains(category),
           ));
-      if (mapView && _pins().isEmpty) {
+      if (mapView && _hasNoPins) {
         setState(() {
           mapView = false;
           noPins = true;
@@ -213,7 +264,7 @@ class _OppTabState extends State<OppTab> {
       if (mounted && request == generation) {
         setState(() {
           error = failure;
-          if (mapView && _pins().isEmpty) {
+          if (mapView && _hasNoPins) {
             mapView = false;
             noPins = true;
           }
@@ -301,6 +352,21 @@ class _OppTabState extends State<OppTab> {
     return pins.values.toList();
   }
 
+  bool get _hasNoPins => (districtPins?.isEmpty ?? true) && _pins().isEmpty;
+
+  void _openDistrict(String name) {
+    final code = bangkokDistricts.entries
+        .where((entry) => entry.value == name)
+        .firstOrNull
+        ?.key;
+    if (code == null) return;
+    setState(() {
+      district = code;
+      mapView = false;
+    });
+    _reload();
+  }
+
   void _toggleMap() {
     if (mapView) {
       setState(() => mapView = false);
@@ -357,6 +423,7 @@ class _OppTabState extends State<OppTab> {
   @override
   Widget build(BuildContext context) {
     final pins = mapView ? _pins() : <OpportunityPin>[];
+    final demoPins = districtPins ?? const <DistrictPin>[];
     return Scaffold(
       appBar: AppBar(
         title: const Text('โอกาส'),
@@ -396,6 +463,8 @@ class _OppTabState extends State<OppTab> {
                     children: [
                       _filters(),
                       if (error != null) const Text('โหลดพิกัดได้บางส่วน'),
+                      if (demoPins.isNotEmpty)
+                        Text('DEMO · พิกัดรายเขต ${demoPins.length} เขต'),
                       Expanded(
                         child: loading
                             ? const Center(
@@ -403,12 +472,14 @@ class _OppTabState extends State<OppTab> {
                                   semanticsLabel: 'กำลังโหลดพิกัด',
                                 ),
                               )
-                            : pins.isNotEmpty
+                            : pins.isNotEmpty || demoPins.isNotEmpty
                             ? OppMap(
                                 key: ValueKey(generation),
                                 pins: pins,
+                                districtPins: demoPins,
                                 onOpen: (pin) =>
                                     _open(pin.id, code: pin.districtCode),
+                                onOpenDistrict: _openDistrict,
                               )
                             : const SizedBox.shrink(),
                       ),
