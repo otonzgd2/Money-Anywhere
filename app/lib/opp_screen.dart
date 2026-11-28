@@ -6,6 +6,8 @@ import 'job_application.dart';
 import 'money.dart';
 import 'opportunity_assessment.dart';
 import 'opportunity_catalog.dart';
+import 'plan_info.dart';
+import 'thang_rot_theme.dart';
 
 class OppScreen extends StatefulWidget {
   const OppScreen({
@@ -132,18 +134,11 @@ class _OppScreenState extends State<OppScreen> {
       sourceUnavailable = false;
     });
     try {
-      final info = bangkokDemoInfoUrl(
-        sourceUrl: data['sourceUrl'],
-        provider: data['provider'],
-        dataStatus: data['dataStatus'],
-        baseUrl: widget.app.api.baseUrl,
-        opportunityId: widget.id,
-      );
-      if (info != null) {
+      if (widget.app.allowsDemo && data['dataStatus'] == 'mock') {
         await openExternal(
           context,
           widget.app,
-          url: info,
+          url: jobApplicationDemoUrl(widget.app.api.baseUrl, title),
           title: title,
           askAfterReturn: false,
         );
@@ -212,7 +207,7 @@ class _OppScreenState extends State<OppScreen> {
   }
 
   void _returnToOpportunities() {
-    widget.app.goTab(1);
+    widget.app.goTab(AppTab.opportunities);
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
@@ -220,7 +215,9 @@ class _OppScreenState extends State<OppScreen> {
   Widget build(BuildContext context) {
     final data = item;
     return Scaffold(
-      appBar: AppBar(title: const Text('รายละเอียด')),
+      appBar: AppBar(
+        title: Text(widget.isMoney ? 'รายละเอียดสิทธิ์' : 'รายละเอียดโอกาส'),
+      ),
       bottomNavigationBar: !loading && !unavailable && data != null
           ? _actions(data)
           : null,
@@ -265,7 +262,6 @@ class _OppScreenState extends State<OppScreen> {
     final source = provenance['attribution'] ?? provenance['provider'];
     final checked = data['checkedAt'] ?? provenance['linkCheckedAt'];
     final updated = provenance['updatedAt'];
-    final expires = data['expiresAt'] ?? provenance['expiresAt'];
     final url = data['sourceUrl'] ?? provenance['sourceUrl'];
     final locations = OpportunityLocation.of(data);
     final matching = locations.where(
@@ -275,33 +271,33 @@ class _OppScreenState extends State<OppScreen> {
         ? matching
         : locations;
     final isJob = category?.isJob ?? data['mapGroup'] == 'job';
-    final info = isJob
-        ? null
-        : bangkokDemoInfoUrl(
+    final info = widget.app.allowsDemo
+        ? bangkokDemoInfoUrl(
             sourceUrl: url,
             provider: provenance['provider'],
             dataStatus: dataStatus,
             baseUrl: widget.app.api.baseUrl,
             opportunityId: widget.id,
-          );
+          )
+        : null;
     final mock = widget.mockAssessment || dataStatus == 'mock';
     final organization = data['organization'] ?? data['payer'];
-    final conditions = widget.isMoney
-        ? [
-            for (final reason
-                in (data['reasons'] as List? ?? const []).whereType<Map>())
-              if (reason['text'] != null) '${reason['text']}',
-          ]
-        : (data['conditions'] as List? ?? const [])
-              .whereType<String>()
-              .toList();
+    final detail = PlanInfo(
+      {
+        if (widget.isMoney)
+          'moneyId': widget.id
+        else
+          'opportunityId': widget.id,
+        'districtCode': ?widget.districtCode,
+      },
+      data,
+      PlanSourceState.available,
+    );
+    final facts = detail.facts.where((row) => row.$1 != 'ผลประเมิน').toList();
+    final contacts = detail.contacts.toList();
 
     return [
       Card(
-        color: Color.alphaBlend(
-          color.withValues(alpha: .09),
-          Theme.of(context).colorScheme.surface,
-        ),
         margin: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -313,6 +309,10 @@ class _OppScreenState extends State<OppScreen> {
                 runSpacing: 4,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  OpportunityArtwork(
+                    category: category,
+                    moneyId: widget.isMoney ? widget.id : null,
+                  ),
                   if (category != null)
                     Chip(
                       backgroundColor: color,
@@ -336,7 +336,10 @@ class _OppScreenState extends State<OppScreen> {
                 Text(status),
               Text(
                 widget.isMoney ? benefitAmount(data) : oppMoney(data),
-                style: t.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: t.titleMedium?.copyWith(
+                  color: brandDark,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               if (widget.isMoney &&
                   data['amount'] is Map &&
@@ -346,11 +349,32 @@ class _OppScreenState extends State<OppScreen> {
           ),
         ),
       ),
-      if (data['description'] case final String description)
-        ..._section(t, 'รายละเอียดประกาศ', [Text(description)]),
-      if (conditions.isNotEmpty)
-        ..._section(t, 'เงื่อนไข', [
-          for (final line in conditions) Text('• $line'),
+      if (detail.summary != null || facts.isNotEmpty)
+        PlanSection(detail.layout?.label ?? 'รายละเอียด', [
+          if (detail.summary case final description?) Text(description),
+          for (final (label, value) in facts)
+            Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: label,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    TextSpan(text: '  $value'),
+                  ],
+                ),
+              ),
+            ),
+        ]),
+      if (detail.conditions.isNotEmpty)
+        PlanSection('เงื่อนไขและคุณสมบัติ', [
+          for (final line in detail.conditions) Text('• $line'),
+        ]),
+      if (detail.documents.isNotEmpty)
+        PlanSection('เอกสารที่ต้องเตรียม', [
+          for (final document in detail.documents) Text('• $document'),
         ]),
       if (shown.any(
         (location) =>
@@ -360,7 +384,7 @@ class _OppScreenState extends State<OppScreen> {
             location.travelInfo != null ||
             location.point != null,
       ))
-        ..._section(t, 'พื้นที่และการเดินทาง', [
+        PlanSection('พื้นที่และการเดินทาง', [
           for (final location in shown) ...[
             if (location.districtName case final district?)
               Text(district.startsWith('เขต') ? district : 'เขต$district'),
@@ -369,36 +393,37 @@ class _OppScreenState extends State<OppScreen> {
             if (location.travelInfo case final travel?) Text(travel),
             if (location.point case final point?)
               Text('พิกัด ${point.latitude}, ${point.longitude}'),
+            if (location.point case final point? when !mock)
+              _sourceLink(
+                Uri.https('www.google.com', '/maps/search/', {
+                  'api': '1',
+                  'query': '${point.latitude},${point.longitude}',
+                }).toString(),
+                title,
+                'นำทาง',
+              ),
           ],
         ]),
-      if (expires != null) ..._section(t, 'วันหมดอายุ', [Text(_date(expires))]),
-      if (data['contacts'] is List || data['channels'] is List)
-        ..._section(t, 'ช่องทางติดต่อ', [
-          for (final contact in (data['contacts'] as List? ?? const []))
-            if (contact is String)
-              Text(contact)
-            else if (contact is Map && contact['label'] is String) ...[
-              Text(contact['label'] as String),
-              if (contact['instructions'] case final String instructions)
-                Text(instructions),
-            ],
-          for (final channel
-              in (data['channels'] as List? ?? const []).whereType<Map>()) ...[
-            if (channel['title'] != null) Text('${channel['title']}'),
-            if (channel['detail'] != null) Text('${channel['detail']}'),
-            if (channel['url'] case final String link)
-              _sourceLink(
-                link,
-                '${channel['title'] ?? title}',
-                'เปิดช่องทางติดต่อ',
-              ),
+      if (contacts.isNotEmpty)
+        PlanSection('ช่องทางติดต่อ', [
+          for (final contact in contacts) ...[
+            Text(
+              contact.label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            if (contact.instructions case final instructions?)
+              Text(instructions),
+            if (contact.hours case final hours?) Text(hours),
+            if (!mock || widget.isMoney)
+              if (contact.destination case final link?)
+                _sourceLink(link.toString(), contact.label, contact.action),
           ],
         ]),
       if (source != null ||
           checked != null ||
           updated != null ||
           data['sources'] is List)
-        ..._section(t, 'แหล่งข้อมูล', [
+        PlanSection('แหล่งข้อมูล', [
           if (source != null) Text('$source'),
           if (!mock && dataStatus is String) Text(dataLabel(dataStatus)),
           if (checked != null)
@@ -494,17 +519,6 @@ class _OppScreenState extends State<OppScreen> {
     icon: const Icon(Icons.open_in_new),
     label: Text(label),
   );
-
-  List<Widget> _section(
-    TextTheme theme,
-    String name,
-    List<Widget> children,
-  ) => [
-    const SizedBox(height: 16),
-    Text(name, style: theme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-    const SizedBox(height: 4),
-    ...children,
-  ];
 
   String _date(Object value) => '$value'.split('T').first;
 }

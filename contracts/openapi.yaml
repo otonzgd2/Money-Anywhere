@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Money Anywhere API (draft)
-  version: 0.15.0
+  version: 0.16.0
   description: |
     Contract shared by the three team members. Draft for R&D; not yet approved in AI-DLC design.
     Conventions (see docs/design/api-review.md):
@@ -1479,6 +1479,10 @@ components:
         label: { type: string }
         value: { type: string }
         checkedAt: { type: string, format: date }
+        preview:
+          type: object
+          description: Display values from the selected synthetic source for onboarding. An unavailable value is omitted.
+          additionalProperties: { type: string }
 
     DemoProfilePreview:
       type: object

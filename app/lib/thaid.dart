@@ -25,12 +25,13 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
   final yes = await showDialog<bool>(
     context: context,
     builder: (_) => AlertDialog(
+      scrollable: true,
       title: const Text('🪪 เชื่อม ThaID ดึงสิทธิ์จากรัฐ'),
       content: const Text('ThaID จะส่งข้อมูลตัวตนให้แอป: ชื่อ-นามสกุล (ไทย/อังกฤษ), วันเกิด, เพศ, ที่อยู่ตามทะเบียนบ้าน, วันออกบัตรและวันหมดอายุ '
           'เลขบัตรประชาชนแอปเห็นแค่แบบปิดบัง\n\n'
           'แอปใช้ข้อมูลนี้เติมโปรไฟล์และช่วยตรวจสิทธิ์จากหน่วยงาน\n\n'
           'โหมดสาธิต: ยังเชื่อม ThaID จริงไม่ได้ (ต้องมีข้อตกลงกับผู้ให้บริการ) แอปจะข้ามขั้นยืนยันตัวตนและใช้ข้อมูลจำลองที่ทำงานเหมือนเชื่อมได้ ทุกรายการติดป้าย DEMO / MOCK\n\n'
-          'ยกเลิกการเชื่อมได้ทุกเมื่อที่แท็บ ฉัน'),
+          'ยกเลิกการเชื่อมได้ทุกเมื่อที่แท็บบัญชี'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('ไม่ใช่ตอนนี้')),
         FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('ยินยอมและเชื่อม')),
@@ -39,31 +40,45 @@ Future<bool> connectThaid(BuildContext context, AppState app) async {
   );
   if (yes != true || !context.mounted) return false;
   if (!await ensureConsent(context, app, why: 'เพื่อเก็บผลที่ได้จาก ThaID ไว้ในแอป')) return false;
+  DialogRoute<void>? progress;
   try {
     final cur = await app.api.currentPurposes() ?? {};
     await app.api.setConsent({...cur, 'core': true, 'gov': true});
     final s = await app.api.post('/v1/me/gov-link');
     if (context.mounted) {
-      showDialog<void>(
+      final dialog = DialogRoute<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => const AlertDialog(content: Row(children: [CircularProgressIndicator(), SizedBox(width: 16), Expanded(child: Text('กำลังยืนยันตัวตนกับ ThaID (จำลอง)...'))])),
+        builder: (_) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            scrollable: true,
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 12),
+              Text('กำลังยืนยันตัวตนกับ ThaID (จำลอง)…', textAlign: TextAlign.center),
+            ]),
+          ),
+        ),
       );
+      progress = dialog;
+      Navigator.of(context, rootNavigator: true).push(dialog);
     }
     // Bypass: a real app opens s['authUrl'] in the ThaID app and receives the code on the redirect.
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     await app.api.post('/v1/me/gov-link/callback', {'state': s['state'], 'code': 'demo-bypass'});
-    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-    app.chat.reset();
+    app.resetConversations();
     app.bump();
     if (context.mounted) toast(context, 'เชื่อม ThaID แล้ว (ข้อมูลจำลอง) เพิ่มข้อมูลยืนยันตัวตนในโปรไฟล์แล้ว');
     return true;
   } on ApiException catch (e) {
     if (context.mounted) {
-      Navigator.of(context, rootNavigator: true).popUntil((r) => r is! DialogRoute);
       toast(context, e.code == 'FEATURE_DISABLED' ? 'server ปิดโหมด ThaID อยู่ (ตั้ง GOV_CONNECTED=1)' : e.message);
     }
     return false;
+  } finally {
+    final dialog = progress;
+    if (dialog != null && dialog.isActive) dialog.navigator?.removeRoute(dialog);
   }
 }
 
@@ -73,7 +88,7 @@ Future<void> disconnectThaid(BuildContext context, AppState app) async {
       await app.api.delete('/v1/me/gov-link');
     }
     app.accounts.forgetDemoThaid();
-    app.chat.reset();
+    app.resetConversations();
     app.bump();
     if (context.mounted) toast(context, 'ยกเลิกการเชื่อม ThaID และลบข้อมูลจากหน่วยงานแล้ว');
   } on ApiException catch (e) {

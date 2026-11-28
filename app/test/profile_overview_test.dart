@@ -210,6 +210,9 @@ class _SelectionChatApi extends Api {
   Future<void> consent({required bool ai}) async => expect(ai, isTrue);
 
   @override
+  Future<Map<String, bool>?> currentPurposes() async => {'ai': true};
+
+  @override
   Future<Map<String, dynamic>> post(
     String path, [
     Object? body,
@@ -218,6 +221,9 @@ class _SelectionChatApi extends Api {
     if (path == '/v1/ai/conversations') {
       expect(body, {'mode': 'guided'});
       return {'conversationId': 'selected-demo', 'greeting': 'เริ่มทดสอบแชต'};
+    }
+    if (path == '/v1/ai/conversations/selected-demo/messages') {
+      return {'reply': 'รับข้อความทดสอบแล้ว'};
     }
     final uri = Uri.parse(path);
     expect(uri.path, '/v1/demo/personas/gov-prefill');
@@ -244,6 +250,18 @@ Future<void> _openProfile(
   await tester.pumpAndSettle();
 }
 
+Future<void> editPersonalProfile(WidgetTester tester) async {
+  final edit = find.text('แก้ไขโปรไฟล์');
+  await tester.tap(edit.evaluate().isEmpty ? find.text('กรอกโปรไฟล์') : edit);
+  await tester.pumpAndSettle();
+}
+
+Future<void> openAccountProfile(WidgetTester tester) async {
+  await tester.tap(find.byKey(const ValueKey('account-profile')));
+  await tester.pumpAndSettle();
+  await editPersonalProfile(tester);
+}
+
 void main() {
   testWidgets(
     'connected accounts opens the demo previews and a fresh chat per selection',
@@ -258,16 +276,9 @@ void main() {
       expect(find.text('บัญชีที่เชื่อมต่อ'), findsOneWidget);
       expect(find.text('1,250 บาท · ปีภาษี 2569'), findsNothing);
       expect(api.previews, isEmpty);
-      final menu = find.text('ทดลองเชื่อมแหล่งข้อมูล (DEMO)');
-      expect(
-        tester.getTopLeft(menu).dy,
-        greaterThan(tester.getTopLeft(find.text('บัญชีที่เชื่อมต่อ')).dy),
-      );
-      expect(
-        tester.getTopLeft(menu).dy,
-        lessThan(tester.getTopLeft(find.text('การใช้งาน')).dy),
-      );
-      await tester.tap(menu);
+      await tester.tap(find.text('สำหรับสาธิต (DEMO)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ทดลองเชื่อมแหล่งข้อมูล (DEMO)'));
       await tester.pumpAndSettle();
 
       expect(find.text('เลือก 4 จาก 4 แหล่ง'), findsOneWidget);
@@ -309,6 +320,12 @@ void main() {
         await tester.tap(find.text(source));
         await tester.pumpAndSettle();
         await tester.tap(find.text('ทดสอบแชต'));
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'ทดสอบ');
+        await tester.pump();
+        await tester.tap(find.byTooltip('ส่งข้อความ'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('ยอมรับและส่ง'));
         await tester.pumpAndSettle();
         expect(find.text('เริ่มทดสอบแชต'), findsOneWidget);
         await tester.pageBack();
@@ -378,8 +395,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('เชื่อมแล้ว 0 จาก 4 บริการ'), findsOneWidget);
 
-      await tester.tap(find.text('โปรไฟล์'));
-      await tester.pumpAndSettle();
+      await openAccountProfile(tester);
       final name = find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป');
       await tester.enterText(name, 'มาลี');
       await tester.tap(find.byKey(const ValueKey('ช่วงอายุ')));
@@ -403,6 +419,8 @@ void main() {
       expect(api.profile, containsPair('goals', ['หางาน']));
       expect(api.facts, containsPair('ageBand', '70-79'));
       expect(api.previews, isEmpty);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
 
       await tester.pumpWidget(
         MaterialApp(
@@ -410,8 +428,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('โปรไฟล์'));
-      await tester.pumpAndSettle();
+      await openAccountProfile(tester);
       expect(tester.widget<TextField>(name).controller?.text, 'มาลี');
       expect(find.text('70-79'), findsOneWidget);
     },
@@ -432,13 +449,9 @@ void main() {
       find.text('เชื่อมแล้ว 2 จาก 4 บริการ · ข้อมูลจำลอง'),
       findsOneWidget,
     );
-    expect(
-      find.byType(ExpansionTile),
-      findsNWidgets(3),
-    ); // Two services and AI memory.
+    expect(find.byType(ExpansionTile), findsNWidgets(2));
 
-    await tester.tap(find.text('โปรไฟล์'));
-    await tester.pumpAndSettle();
+    await openAccountProfile(tester);
     expect(find.text('นายสมศักดิ์ สมมติ'), findsOneWidget);
     expect(find.text('65 ปี'), findsOneWidget);
     expect(find.text('เขตตามทะเบียนบ้าน'), findsOneWidget);
@@ -474,8 +487,7 @@ void main() {
       expect(find.text('ปีภาษี'), findsOneWidget);
       expect(find.text('2569'), findsOneWidget);
       expect(find.text('1,250 บาท'), findsOneWidget);
-      await tester.tap(find.text('โปรไฟล์'));
-      await tester.pumpAndSettle();
+      await openAccountProfile(tester);
       expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsOneWidget);
     },
   );
@@ -502,24 +514,26 @@ void main() {
       addTearDown(api.close);
       await tester.pumpWidget(MaterialApp(home: MeTab(app: AppState(api))));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('โปรไฟล์'));
-      await tester.pumpAndSettle();
+      await openAccountProfile(tester);
       expect(find.text('ชื่อจากผู้ให้บริการ'), findsOneWidget);
       expect(find.text('70-79'), findsOneWidget);
       expect(find.text('ไม่มีข้อมูลจาก ThaID'), findsOneWidget);
       expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsNothing);
+      await tester.ensureVisible(find.text('กรอกข้อมูล'));
       await tester.tap(find.text('กรอกข้อมูล'));
+      await tester.pump();
       await tester.tap(find.text('บันทึกโปรไฟล์'));
       await tester.pumpAndSettle();
       expect(api.profile, containsPair('displayName', 'มาลี'));
       expect(api.profile, containsPair('skills', ['ทำอาหาร', 'กรอกข้อมูล']));
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       await tester.tap(find.text('ThaID'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('ยกเลิกการเชื่อม ThaID'));
       await tester.pumpAndSettle();
       expect(api.deletes, ['/v1/me/gov-link']);
-      await tester.tap(find.text('โปรไฟล์'));
-      await tester.pumpAndSettle();
+      await openAccountProfile(tester);
       final field = tester.widget<TextField>(
         find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'),
       );
@@ -635,11 +649,34 @@ void main() {
     tester,
   ) async {
     await _openProfile(tester, _ProfileApi());
+    await editPersonalProfile(tester);
 
     expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsOneWidget);
     expect(find.text('อายุ'), findsNothing);
     expect(find.text('เลขบัตรประชาชน'), findsNothing);
     expect(find.text('บันทึกโปรไฟล์'), findsOneWidget);
+  });
+
+  testWidgets('keeps an unsaved profile until the user confirms leaving', (
+    tester,
+  ) async {
+    final api = _ProfileApi();
+    await _openProfile(tester, api);
+    await editPersonalProfile(tester);
+    final field = find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป');
+    await tester.enterText(field, 'มาลี');
+    await tester.tap(find.text('ยกเลิก'));
+    await tester.pumpAndSettle();
+    expect(find.text('ยังไม่ได้บันทึก'), findsOneWidget);
+    await tester.tap(find.text('แก้ต่อ'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field).controller!.text, 'มาลี');
+    await tester.tap(find.text('ยกเลิก'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ทิ้งการแก้ไข'));
+    await tester.pumpAndSettle();
+    expect(find.text('กรอกโปรไฟล์'), findsOneWidget);
+    expect(api.profile, isNull);
   });
 
   testWidgets('shows a retry button when the backend is unavailable', (
@@ -652,6 +689,7 @@ void main() {
     api.unavailable = false;
     await tester.tap(find.text('ลองใหม่'));
     await tester.pumpAndSettle();
+    await editPersonalProfile(tester);
     expect(find.widgetWithText(TextField, 'ชื่อที่ใช้ในแอป'), findsOneWidget);
   });
 }

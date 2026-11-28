@@ -450,6 +450,16 @@ const NOTICE = require('./fixtures/reference.json').privacyNotice.version;
   check('automatic profile preview returns four mock sources', preview.data.dataStatus === 'mock'
     && preview.data.sources.map(s => s.label).join(',') === 'ThaID,ทางรัฐ,ประกันสังคม,D-MyTax');
   const previewIdentity = preview.data.identity;
+  const onboardingValues = Object.fromEntries(preview.data.sources.map(source => [source.field, source.preview]));
+  check('onboarding shows the selected synthetic fields as separate values',
+    onboardingValues.identity.name === preview.data.profile.displayName
+    && onboardingValues.identity.district === preview.data.profile.district
+    && Boolean(onboardingValues.identity.age)
+    && onboardingValues.disabilityCard.card === 'มีบัตรที่ใช้ได้'
+    && onboardingValues.ss33.section === 'มาตรา 33'
+    && onboardingValues.ss33.contributions === '8 จาก 15 เดือนก่อนออกงาน'
+    && onboardingValues.taxWithheld.taxYear === '2569'
+    && onboardingValues.taxWithheld.withholding === '1,250 บาท');
   check('profile preview supplies synthetic identity without a raw national ID or hash',
     previewIdentity.dataStatus === 'mock' && previewIdentity.claims.name === preview.data.profile.displayName
     && Boolean(previewIdentity.claims.birthdate) && Boolean(previewIdentity.claims.address.formatted)

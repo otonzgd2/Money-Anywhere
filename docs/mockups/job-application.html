@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
-  <title>ส่งเอกสารสมัครงาน · Money Anywhere Demo</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; form-action 'none'; base-uri 'none'">
+  <title>ส่งเอกสารสมัครงาน · ทางรอด DEMO</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f2f5ee;
-      --ink: #132921;
-      --muted: #4b6156;
-      --line: #d6e0d7;
-      --green: #116449;
-      --wash: #edf6ef;
+      --bg: #f4f7fc;
+      --ink: #0f172a;
+      --muted: #5b6b82;
+      --line: #e1e7f0;
+      --p: #0b4fd6;
+      --wash: #e8f0ff;
       --error: #a32b24;
-      font: 16px/1.6 "Leelawadee UI", "Noto Sans Thai", system-ui, sans-serif;
+      font: 16px/1.6 "IBM Plex Sans Thai", "Leelawadee UI", "Noto Sans Thai", system-ui, sans-serif;
     }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
@@ -28,36 +28,37 @@
     .wrap { width: min(calc(100% - 40px), 1040px); margin-inline: auto; }
     .top { background: #fff; border-bottom: 1px solid var(--line); }
     .top .wrap { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .brand { color: var(--green); font-weight: 750; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; color: var(--p); font-weight: 750; font-size: 1.05rem; }
+    .brand img { width: 32px; height: 32px; border-radius: 9px; }
     .demo { padding: 3px 10px; border-radius: 6px; background: #faedc2; color: #614516; font-size: .78rem; font-weight: 750; }
     main { padding-block: clamp(24px, 5vw, 52px); }
     .intro { margin-bottom: clamp(18px, 3vw, 28px); }
     .intro p { margin-top: 8px; color: var(--muted); }
     .layout { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 24px; align-items: start; }
-    .job { padding: 24px; border-radius: 18px; background: #123d31; color: #fff; }
-    .job p { color: #dcebe0; }
+    .job { padding: 24px; border-radius: 18px; background: linear-gradient(160deg, #0b4fd6, #0a2a6b); color: #fff; }
+    .job p { color: #dbe6fb; }
     .job h2 { margin-block: 6px; overflow-wrap: anywhere; }
-    .job-detail { margin-top: 17px; padding-top: 13px; border-top: 1px solid #5c7f70; }
+    .job-detail { margin-top: 17px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.28); }
     .panel { padding: clamp(16px, 4vw, 36px); border: 1px solid var(--line); border-radius: 18px; background: #fff; }
     .steps { list-style: none; padding: 0 0 16px; margin-bottom: 22px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; border-bottom: 1px solid var(--line); }
     .steps li { color: var(--muted); display: flex; align-items: center; gap: 7px; font-size: .9rem; }
     .steps span { display: grid; place-items: center; flex: 0 0 26px; height: 26px; background: var(--wash); border-radius: 50%; font-weight: 700; }
-    .steps [aria-current="step"] { color: var(--green); font-weight: 750; }
-    .steps [aria-current="step"] span { background: var(--green); color: #fff; }
+    .steps [aria-current="step"] { color: var(--p); font-weight: 750; }
+    .steps [aria-current="step"] span { background: var(--p); color: #fff; }
     .section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin-bottom: 12px; }
     .optional, .hint { color: var(--muted); font-size: .88rem; font-weight: 400; }
     form > section + section { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
     .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
     .wide { grid-column: 1 / -1; }
     .field label { display: block; margin-bottom: 4px; font-weight: 650; }
-    .field input, .field textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #9eb4a5; border-radius: 8px; color: var(--ink); background: #fff; font: inherit; }
+    .field input, .field textarea { width: 100%; min-height: 44px; padding: 8px 10px; border: 1px solid #8794a8; border-radius: 8px; color: var(--ink); background: #fff; font: inherit; }
     .field textarea { display: block; resize: vertical; }
-    button, .picker { min-height: 44px; padding: 7px 14px; border: 1px solid #a6beb0; border-radius: 9px; background: #fff; color: var(--green); font: inherit; font-weight: 700; cursor: pointer; }
+    button, .picker { min-height: 44px; padding: 7px 14px; border: 1px solid #b6c4da; border-radius: 9px; background: #fff; color: var(--p); font: inherit; font-weight: 700; cursor: pointer; }
     button:hover, .picker:hover { background: var(--wash); }
-    .primary { border-color: var(--green); background: var(--green); color: #fff; }
-    .primary:hover { border-color: #0b4f39; background: #0b4f39; }
-    :focus-visible, .picker:focus-within { outline: 3px solid #197858; outline-offset: 3px; }
-    .attachment { margin-top: 12px; padding: 12px; border: 1px dashed #9eb4a5; border-radius: 10px; }
+    .primary { border-color: var(--p); background: var(--p); color: #fff; }
+    .primary:hover { border-color: #0a3a9e; background: #0a3a9e; }
+    :focus-visible, .picker:focus-within { outline: 3px solid #0b4fd6; outline-offset: 3px; }
+    .attachment { margin-top: 12px; padding: 12px; border: 1px dashed #8794a8; border-radius: 10px; }
     .file-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; margin-top: 8px; }
     .picker { position: relative; display: inline-flex; align-items: center; }
     .picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
@@ -90,7 +91,7 @@
 <body>
   <header class="top">
     <div class="wrap">
-      <span class="brand">Money Anywhere</span>
+      <span class="brand"><img src="data:image/webp;base64,UklGRnYHAABXRUJQVlA4WAoAAAAQAAAAXwAAXwAAQUxQSP0BAAABkHvt/2E5n/n9JqpsJ+2qi9Haxt9g22ntip1tV4sqTirbuTtz7sz94RPe3ZP9xsk5ETEByFMDKJiy99qz95m8KzOZykxl5ht9/7h085gmgFKoxkCh1tjTMQV8vK0zoKumgVFXSTrrvK853jvrSO4pgAqqEKLVHtJaTwG98YxnAyqvEH0e0jqKackjjaDzCDEipaGkPserbaC+EmKE947C5ni7JdQXNHrmnKO4hhX1VABAqWZP6ChwjruhAWgcpKHIOY6HhsZQGsrs3IumgQpq3/FOKBqugcY4WkrtXdwauOTlouEClBgK7vzN2gtoBaNn7xOyWa66Ry+Z48UMRfd8GMlGRuIlv/7iH75IuuyPXyxdEv3oZWPxIumS315Z8ZI/P2Lxoj8+YvGi/32lP3zZJ/SSeb4qpZPM8cpWbyWzfvtIOskcJ9Z/Si+X55vm2Egjl+FuoNg5uRy7QuMQrVSWJ6B1UJCzXiZvTVGgobGcRqYcF0MDga5dQSuR4SWlAwAKnV7TyWN5r2Wg8LlG7yytNIbPC6Dx5RB9szSy5PiwGBpfD9HrCY2XwzqWdYRGviHanSGNE8FbS66uC438NTDpBemt8zXLO0vycm9AoaoqQMtFtylhfGwIoANUYwjUG7C+9GmcVHuaJkmaJkmSpmmSpEl1RndPzCwAAo08AQBWUDggUgUAADAaAJ0BKmAAYAA+bS6UR6QiIiEsckowgA2JaAC2/D5N98b+Jf5K9elwV4Ayo/pM/QfcB2m/MA/Sb9Lesx5gP2U9Wj0Nf5j1AP8z1IfoAftH6ZXsYfup+4HtD3PXlSTh3D/tNf3Lensi8RGlKx2ehPnSes/YD/W//kC1TTxbVjfufBNahGzakomyUX0tR55LFE/ywDCpleUUDdkk9mIWg8YLSaSiGDyCzORM8dIWsptU+38n3mM0L5kBoBRN+yT47ixfStiNxucr/3LX4e37ybcFbhOcL0R/9S4gAP7oz/VNkgYQjJSm0kEBF4WZI3UQK4xdn/eHlbUloNu9doGmGa04a50U5Mx/wNj0rmD7EBXbJjPtSJKsVaTwnRcGomXo1NEHomJQgyWDFSt6M5anY22kzb35K71K5bEv6TBvGb+cagvqcvHzDKhi5/GSqROeNi4W0xMG6ek8rSdb1RUcFupcX1URtki6O5htmMLnmO7Fn2aBmedp6UvwZ8KL2LxdJR2HfLob7Hh7vk02+Hb9cy30LweVST42dijJ0fUjc1aTBmmodKLshjPm+2x8yVuj2pTegXO4A+77HbckZGCttTM8yT66ESK8lweNhdZ5qcvMC0LcXZr2/hAfMkYv3uJdpxpstROQdw0N1XK7iHaChUwKkL7UGDYxuZmN3a/alpX1z8Qe9011GlelNehmt71prGZbLvLl/IYDNWgbQOtafxIeKZEy/UXyhoaHluNcphHDY3C5cNTu/+Wndx/kVkjRYTESzng+XVH0/HS4Kqnvxx38pLw8bGEX9Ev8cNgOLOf3pYzKyhvCWq7pE2xg/fgsuRRjx+kHrGtYYWvmSW7fR1BIuSQ54c/JJkH7Yv2C0QhCScXG4+hCiMmabQ01aMZhqvWSMNasiyE/KZvvxN6lUC/ZhTvNJkck9kRktX79L/BaYfViCkF08Y//1gE3Ipj2fKR5T0TTsmZV9x9xhj9BbPeIhnx+JK98R3myKfmgd+/NiL/WmorBgPMpK9yceWr5tKOf2x/OxSVpFYlSOo2HgsF8w2le2/9NvL64KfEE7X9LnMQ9XpEQ/Hu5ifNSIUKO1T/TgAIA79+NitJ1/m2Gdx08olNhJjUPrtg1hHQUFlU5QZVrSUMVRihVEYRU0tQYWnbQNA7TmVimZCHyB6H8UwGZ1H9/edPQ3YaJGj2oD04Fcc//TwYA7t4hRV/prVvyMp/REn/aH/Ao/gkQvOB7wZh/inPy8xEPtK2+bf+v3bCVvojFeZJ3l2yuFWlQb2da4e1fF18j+HlF5UrAZYlQJMXvbKcax76ys3P0+Jq/g2yujWugsdjbnBXsRvo5uLXjfEpctfPw+YJ7apOlQzIEITIKCYmVRTeKCxYosvUqCXwbchnAjhuppJEKDeh+imwuHkqc57uma4T4sNwBf2k8e6yHymsXmwWmWdACEFGaMh16B/i1+4iL9C3cesKXdwj7vKY+65NiFs+QHN6paSFPIyOXOHBdQlUTz7p1f8splnK7yTxcMFHVyW1Rl1ELVDKUXmK+HmiZ3XMqtQQk2YLMouTSIgP9gqelafwjCCcbIKPc4XvJQMCShQ0SegoSdfV8Pqqa2Qw13nt1B6mgURM8sYi7adlRrJ95QbChNjcSPB1QcWSS2h9TTPKB116mg0vu96Ib9EZasiv0yA/pP6oOpQRwTBt88oS5DMspDClmW882EymJryPObnOWzFWQRc6uFRYaQf2ngLeY27hiiol0Yg5SEuJ17p9mX5L/iLsA8Z+Fmm3hVbdfb4g506XLOTvmXpe/rztitTmLef7NE2D15AAAAA==" alt="">ทางรอด</span>
       <span class="demo">DEMO / MOCK</span>
     </div>
   </header>
@@ -104,7 +105,7 @@
         <p id="job-label">ตำแหน่งตัวอย่าง</p>
         <h2 id="job-title">เจ้าหน้าที่ธุรการ</h2>
         <div id="sample-job-details">
-          <p>บริษัทตัวอย่าง มันนี่เวิร์ก</p>
+          <p>บริษัทตัวอย่าง (สมมติ)</p>
           <p class="job-detail">เขตบางรัก กรุงเทพฯ · งานประจำ</p>
         </div>
       </aside>

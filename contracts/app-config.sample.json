@@ -1,14 +1,15 @@
 {
   "schemaVersion": 1,
-  "configVersion": "2026-11-28.4",
+  "configVersion": "2026-11-28.5",
   "minAppVersion": "0.1.0",
   "featureFlags": { "moneyMap": true, "aiChat": true, "aiAssistant": true, "liveSources": true, "govConnected": false, "demo": true },
 
   "tabs": [
-    { "id": "home", "label": "หน้าแรก", "icon": "home", "route": "home", "activeFor": ["money", "money.route", "assistant"] },
+    { "id": "home", "label": "หน้าแรก", "icon": "home", "route": "home", "activeFor": ["money", "money.route"] },
+    { "id": "assistant", "label": "คุยกับ AI", "icon": "chat", "route": "assistant", "flag": "aiAssistant" },
     { "id": "opp", "label": "โอกาส", "icon": "sparkle", "route": "opp.list", "activeFor": ["opp.map", "opp.detail", "plan.income"] },
     { "id": "plans", "label": "แผนของฉัน", "icon": "list", "route": "my.plans", "activeFor": ["task.detail"] },
-    { "id": "me", "label": "ฉัน", "icon": "person", "route": "me", "activeFor": ["me.data", "me.memory", "me.privacy", "help", "help.scam", "sources"] }
+    { "id": "me", "label": "บัญชี", "icon": "person", "route": "me", "activeFor": ["me.profile", "me.data", "me.memory", "me.privacy", "help", "help.scam", "sources"] }
   ],
 
   "routes": {
@@ -58,7 +59,7 @@
       ]
     },
     "assistant": {
-      "title": "ถาม AI", "showTabs": false,
+      "title": "คุยกับ AI",
       "sections": [ { "type": "assistant_chat", "data": "assistant.start",
         "actions": [
           { "label": "ส่ง", "style": "primary", "action": "assistant.send", "params": { "id": "$ctx.conversation.conversationId" } },

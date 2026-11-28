@@ -4,12 +4,15 @@ import 'dart:io';
 import 'package:material_ui/material_ui.dart';
 
 import 'api.dart';
+import 'chat.dart';
 import 'common.dart';
 import 'home_tab.dart';
 import 'me_tab.dart';
+import 'onboarding_screen.dart';
 import 'opp_tab.dart';
 import 'opportunity_assessment.dart';
 import 'plans_tab.dart';
+import 'thang_rot_theme.dart';
 
 void main() {
   final binding = WidgetsFlutterBinding.ensureInitialized();
@@ -45,9 +48,15 @@ class _MoneyAnywhereStartupState extends State<MoneyAnywhereStartup> {
         return MaterialApp(
           title: 'ทางรอด',
           debugShowCheckedModeBanner: false,
+          theme: thangRotTheme(),
           home: ThangRotSplash(
             onRetry: snapshot.hasError
-                ? () => setState(() => startup = widget.initialize())
+                ? () {
+                    final request = widget.initialize();
+                    setState(() {
+                      startup = request;
+                    });
+                  }
                 : null,
           ),
         );
@@ -63,7 +72,7 @@ class ThangRotSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xFFFAFAFA),
+    backgroundColor: Colors.white,
     body: LayoutBuilder(
       builder: (context, constraints) => SingleChildScrollView(
         child: ConstrainedBox(
@@ -74,15 +83,11 @@ class ThangRotSplash extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    'assets/thang-rot/thang-rot-logo.png',
-                    width: 136,
-                    height: 136,
-                    semanticLabel: 'ทางรอด',
-                    fit: BoxFit.contain,
-                  ),
+                  const BrandLogo(size: 136, wordmark: true),
                   if (status case final message?) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 12),
                     Text(message, textAlign: TextAlign.center),
                   ],
                   if (onRetry case final retry?) ...[
@@ -118,10 +123,7 @@ class MoneyAnywhereApp extends StatelessWidget {
       builder: (_, large, _) => MaterialApp(
         title: 'ทางรอด',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0E9F6E)),
-          useMaterial3: true,
-        ),
+        theme: thangRotTheme(),
         // Large-text setting (ฉัน > ตัวอักษรใหญ่) on top of the phone's own font size.
         builder: (context, child) {
           final mq = MediaQuery.of(context);
@@ -170,12 +172,18 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
   bool busy = false;
   bool assessing = false;
   bool storageError = false;
+  bool onboarding = false;
+  bool acknowledged = false;
+  int sourceIndex = 0;
+  String choices = '';
+  String? connectionError;
+  ConnectionStage connectionStage = ConnectionStage.idle;
 
   @override
   void initState() {
     super.initState();
     widget.app.dataCleared.addListener(_clearAssessment);
-    widget.app.goTab(1, group: 'all');
+    widget.app.goTab(AppTab.opportunities, group: 'all');
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _loadTextSetting();
@@ -191,9 +199,10 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
   }
 
   void _clearAssessment() {
-    setState(
-      () => assessment = const OpportunityAssessment(AssessmentStatus.ready),
-    );
+    setState(() {
+      onboarding = false;
+      assessment = const OpportunityAssessment(AssessmentStatus.ready);
+    });
   }
 
   Future<void> _loadTextSetting() async {
@@ -246,26 +255,22 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
     final sources = <DemoSource>[];
     try {
       if (app.startupDemoEnabled) {
-        var choices = app.api.onboardingChoices;
+        choices = app.api.onboardingChoices;
         if (choices.length > DemoSource.values.length ||
             !RegExp(r'^[ynd]*$').hasMatch(choices)) {
           choices = '';
         }
-        while (mounted && choices.length < DemoSource.values.length) {
-          if (!mounted) return;
-          final choice = await showDemoSource(
-            context,
-            DemoSource.values[choices.length],
-          );
+        if (choices.length < DemoSource.values.length ||
+            app.api.onboardingSummaryPending) {
           if (!current()) return;
-          if (choice == null) continue;
-          choices += switch (choice) {
-            DemoChoice.use => 'y',
-            DemoChoice.skip => 'n',
-            DemoChoice.skipRemaining =>
-              'n' * (DemoSource.values.length - choices.length),
-          };
-          app.api.saveOnboardingChoices(choices);
+          app.api.setOnboardingSummaryPending(true);
+          setState(() {
+            onboarding = true;
+            storageError = false;
+            sourceIndex = choices.length;
+            connectionStage = ConnectionStage.idle;
+          });
+          return;
         }
         sources.addAll(
           DemoSource.values.where((source) => source.answer(choices) == 'y'),
@@ -306,6 +311,72 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
     }
   }
 
+  void _record(String answer) {
+    final next = choices.padRight(sourceIndex, 'n');
+    final end = sourceIndex + answer.length;
+    final saved =
+        next.substring(0, sourceIndex) +
+        answer +
+        (end < next.length ? next.substring(end) : '');
+    try {
+      widget.app.api.saveOnboardingChoices(saved);
+    } on FileSystemException {
+      setState(() {
+        connectionStage = ConnectionStage.failed;
+        connectionError = 'บันทึกตัวเลือกไม่ได้ ลองอีกครั้ง';
+      });
+      return;
+    }
+    setState(() {
+      choices = saved;
+      sourceIndex = end;
+      connectionStage = ConnectionStage.idle;
+      connectionError = null;
+    });
+  }
+
+  Future<void> _connect() async {
+    final source = DemoSource.values[sourceIndex];
+    setState(() {
+      connectionError = null;
+      connectionStage = ConnectionStage.connecting;
+    });
+    try {
+      await source.loadPreview(widget.app.api);
+      if (!mounted || !onboarding) return;
+      setState(() => connectionStage = ConnectionStage.connected);
+      await Future<void>.delayed(const Duration(milliseconds: 420));
+      if (mounted && onboarding) _record('y');
+    } on ApiException catch (error) {
+      _connectionFailed(error.message);
+    } on TimeoutException {
+      _connectionFailed('ใช้เวลาเชื่อมต่อนานเกินไป ลองใหม่หรือเลือกไว้ภายหลัง');
+    }
+  }
+
+  void _connectionFailed(String message) {
+    if (!mounted || !onboarding) return;
+    setState(() {
+      connectionStage = ConnectionStage.failed;
+      connectionError = message;
+    });
+  }
+
+  void _startAssessment() {
+    try {
+      widget.app.api.setOnboardingSummaryPending(false);
+    } on FileSystemException {
+      setState(() => connectionError = 'บันทึกการรับทราบไม่ได้ ลองอีกครั้ง');
+      return;
+    }
+    setState(() {
+      onboarding = false;
+      assessment = null;
+      assessing = true;
+    });
+    unawaited(_run());
+  }
+
   void _unavailableConfig() {
     busy = false;
     widget.app.startupDemoEnabled = false;
@@ -320,6 +391,27 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
 
   @override
   Widget build(BuildContext context) {
+    if (onboarding) {
+      return OnboardingScreen(
+        app: widget.app,
+        index: sourceIndex,
+        choices: choices,
+        stage: connectionStage,
+        acknowledged: acknowledged,
+        error: connectionError,
+        onBack: () => setState(() {
+          sourceIndex--;
+          connectionStage = ConnectionStage.idle;
+          connectionError = null;
+        }),
+        onConnect: _connect,
+        onSkip: () => _record('n'),
+        onSkipAll: () =>
+            _record('n' * (DemoSource.values.length - sourceIndex)),
+        onAcknowledge: (value) => setState(() => acknowledged = value),
+        onStart: _startAssessment,
+      );
+    }
     final result = assessment;
     if (result != null && !storageError) {
       return Shell(app: widget.app, assessment: result, retryAssessment: _run);
@@ -331,8 +423,7 @@ class _OpportunityStartupState extends State<_OpportunityStartup> {
   }
 }
 
-/// Four bottom tabs, always visible on the tab roots (ui-states.md §1). Full-screen flows (quick check,
-/// AI chat, route, plan, opportunity detail) are pushed on top and hide the bar; back returns to the tab.
+/// Keep visited tabs mounted so search, scroll and chat drafts survive navigation.
 class Shell extends StatefulWidget {
   const Shell({
     super.key,
@@ -349,69 +440,83 @@ class Shell extends StatefulWidget {
 }
 
 class _ShellState extends State<Shell> {
-  final visitedTabs = <int>{};
+  final visitedTabs = <AppTab>{};
+  final jobMenu = MenuController();
 
   @override
   Widget build(BuildContext context) {
     final app = widget.app;
-    return ValueListenableBuilder<int>(
+    return ValueListenableBuilder<AppTab>(
       valueListenable: app.tab,
       builder: (context, i, _) {
         visitedTabs.add(i);
         return PopScope(
           // Android back on another tab goes to หน้าแรก first, then leaves the app.
-          canPop: i == 0,
+          canPop: i == AppTab.home,
           onPopInvokedWithResult: (didPop, _) {
-            if (!didPop) app.goTab(0);
+            if (didPop) return;
+            if (jobMenu.isOpen) {
+              jobMenu.close();
+            } else {
+              app.goTab(AppTab.home);
+            }
           },
           child: Scaffold(
             body: IndexedStack(
-              index: i,
+              index: i.index,
               children: [
-                if (visitedTabs.contains(0))
-                  HomeTab(app: app)
-                else
-                  const SizedBox.shrink(),
-                if (visitedTabs.contains(1))
-                  OppTab(
-                    app: app,
-                    assessment: widget.assessment,
-                    retryAssessment: widget.retryAssessment,
-                  )
-                else
-                  const SizedBox.shrink(),
-                if (visitedTabs.contains(2))
-                  PlansTab(app: app)
-                else
-                  const SizedBox.shrink(),
-                if (visitedTabs.contains(3))
-                  MeTab(app: app)
-                else
-                  const SizedBox.shrink(),
+                for (final tab in AppTab.values)
+                  if (visitedTabs.contains(tab))
+                    TickerMode(
+                      enabled: i == tab,
+                      child: ExcludeFocus(
+                        excluding: i != tab,
+                        child: _page(tab),
+                      ),
+                    )
+                  else
+                    const SizedBox.shrink(),
               ],
             ),
             bottomNavigationBar: NavigationBar(
-              selectedIndex: i,
+              height:
+                  64 +
+                  (MediaQuery.textScalerOf(context).scale(11) - 11).clamp(
+                        0.0,
+                        22.0,
+                      ) *
+                      2,
+              selectedIndex: i.index,
               onDestinationSelected: (n) {
-                app.goTab(n);
+                FocusManager.instance.primaryFocus?.unfocus();
+                if (jobMenu.isOpen) jobMenu.close();
+                app.goTab(AppTab.values[n]);
                 app.bump(); // a tab shows fresh data every time it is opened
               },
               destinations: const [
                 NavigationDestination(
-                  icon: Text('🏠', style: TextStyle(fontSize: 22)),
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
                   label: 'หน้าแรก',
                 ),
                 NavigationDestination(
-                  icon: Text('✨', style: TextStyle(fontSize: 22)),
+                  icon: Icon(Icons.chat_bubble_outline),
+                  selectedIcon: Icon(Icons.chat_bubble),
+                  label: 'คุยกับ AI',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.auto_awesome_outlined),
                   label: 'โอกาส',
                 ),
                 NavigationDestination(
-                  icon: Text('📋', style: TextStyle(fontSize: 22)),
+                  icon: Icon(Icons.assignment_outlined),
+                  selectedIcon: Icon(Icons.assignment),
                   label: 'แผนของฉัน',
                 ),
                 NavigationDestination(
-                  icon: Text('👤', style: TextStyle(fontSize: 22)),
-                  label: 'ฉัน',
+                  icon: Icon(Icons.account_circle_outlined),
+                  selectedIcon: Icon(Icons.account_circle),
+                  label: 'บัญชี',
                 ),
               ],
             ),
@@ -419,5 +524,29 @@ class _ShellState extends State<Shell> {
         );
       },
     );
+  }
+
+  Widget _page(AppTab tab) {
+    final app = widget.app;
+    return switch (tab) {
+      AppTab.home => HomeTab(app: app, assessment: widget.assessment),
+      AppTab.chat => ValueListenableBuilder<AppState?>(
+        valueListenable: app.demoChat,
+        builder: (context, demo, _) => ChatScreen(
+          key: ObjectKey(demo ?? app),
+          app: demo ?? app,
+          session: (demo ?? app).chat,
+          title: demo == null ? null : 'คุยกับ AI · DEMO',
+        ),
+      ),
+      AppTab.opportunities => OppTab(
+        app: app,
+        assessment: widget.assessment,
+        retryAssessment: widget.retryAssessment,
+        jobMenu: jobMenu,
+      ),
+      AppTab.plans => PlansTab(app: app),
+      AppTab.account => MeTab(app: app),
+    };
   }
 }

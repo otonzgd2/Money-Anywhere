@@ -4,6 +4,7 @@ import 'common.dart';
 import 'job_application.dart';
 import 'plan_info.dart';
 import 'route_screen.dart';
+import 'thang_rot_theme.dart';
 
 class PlanContactScreen extends StatefulWidget {
   const PlanContactScreen({
@@ -11,10 +12,12 @@ class PlanContactScreen extends StatefulWidget {
     required this.app,
     required this.info,
     required this.reload,
+    this.sheet = false,
   });
   final AppState app;
   final PlanInfo info;
   final Future<PlanInfo> Function() reload;
+  final bool sheet;
 
   @override
   State<PlanContactScreen> createState() => _PlanContactScreenState();
@@ -52,7 +55,13 @@ class _PlanContactScreenState extends State<PlanContactScreen> {
     final guide = info.contactGuide;
     final moneyId = info.moneyId;
     return Scaffold(
-      appBar: AppBar(title: const Text('ข้อมูลติดต่อ')),
+      backgroundColor: widget.sheet ? Colors.white : pageBackground,
+      appBar: AppBar(
+        backgroundColor: widget.sheet ? Colors.white : pageBackground,
+        title: const Text('ข้อมูลติดต่อ'),
+        automaticallyImplyLeading: !widget.sheet,
+        actions: [if (widget.sheet) const CloseButton()],
+      ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),

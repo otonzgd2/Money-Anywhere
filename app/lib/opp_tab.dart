@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:latlong2/latlong.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,6 +11,7 @@ import 'opp_screen.dart';
 import 'opportunity_assessment.dart';
 import 'opportunity_catalog.dart';
 import 'profile_screen.dart';
+import 'thang_rot_theme.dart';
 
 export 'opp_screen.dart' show OppScreen;
 export 'opportunity_catalog.dart' show oppMoney;
@@ -26,7 +29,7 @@ enum OpportunityLane {
     OpportunityCategory.freelance,
   ]),
   sales('sell', 'ขายสินค้า', [OpportunityCategory.sell]),
-  other('other', 'อื่นๆ', [
+  other('other', 'อื่น ๆ', [
     OpportunityCategory.assets,
     OpportunityCategory.grant,
     OpportunityCategory.skill,
@@ -39,6 +42,14 @@ enum OpportunityLane {
   static OpportunityLane forGroup(String group) => group == 'skill'
       ? other
       : values.firstWhere((lane) => lane.group == group, orElse: () => all);
+
+  IconData get icon => switch (this) {
+    all => Icons.grid_view_outlined,
+    benefits => Icons.volunteer_activism_outlined,
+    jobs => Icons.work_outline,
+    sales => Icons.storefront_outlined,
+    other => Icons.more_horiz,
+  };
 }
 
 class OppTab extends StatefulWidget {
@@ -47,10 +58,12 @@ class OppTab extends StatefulWidget {
     required this.app,
     this.assessment,
     this.retryAssessment,
+    this.jobMenu,
   });
   final AppState app;
   final OpportunityAssessment? assessment;
   final VoidCallback? retryAssessment;
+  final MenuController? jobMenu;
 
   @override
   State<OppTab> createState() => _OppTabState();
@@ -58,16 +71,14 @@ class OppTab extends StatefulWidget {
 
 class _OppTabState extends State<OppTab> {
   final search = TextEditingController();
+  Timer? searchDelay;
   final listScroll = ScrollController();
-  final lanesScroll = ScrollController();
+  late final jobMenu = widget.jobMenu ?? MenuController();
   final jobTypes = <OpportunityCategory>{};
   final items = <String, Map<String, dynamic>>{};
   final cursors = <OpportunityCategory?, String?>{};
   final completeMapCategories = <OpportunityCategory?>{};
   List<DistrictPin>? districtPins;
-  final laneKeys = {
-    for (final lane in OpportunityLane.values) lane: GlobalKey(),
-  };
   String submitted = '';
   String? district;
   ApiException? error;
@@ -92,25 +103,13 @@ class _OppTabState extends State<OppTab> {
   @override
   void dispose() {
     widget.app.oppGroup.removeListener(_changeLane);
+    searchDelay?.cancel();
     search.dispose();
     listScroll.dispose();
-    lanesScroll.dispose();
     super.dispose();
   }
 
-  void _changeLane() {
-    _reload();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final laneContext = laneKeys[lane]?.currentContext;
-      if (laneContext == null) return;
-      Scrollable.ensureVisible(
-        laneContext,
-        duration: const Duration(milliseconds: 180),
-        alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
-      );
-    });
-  }
+  void _changeLane() => _reload();
 
   Iterable<OpportunityCategory?> get _categories => switch (lane) {
     OpportunityLane.all => [null],
@@ -380,7 +379,10 @@ class _OppTabState extends State<OppTab> {
   }
 
   void _submit(String value) {
-    submitted = value.trim();
+    searchDelay?.cancel();
+    final query = value.trim();
+    if (query == submitted) return;
+    submitted = query;
     _reload();
   }
 
@@ -425,46 +427,28 @@ class _OppTabState extends State<OppTab> {
     final pins = mapView ? _pins() : <OpportunityPin>[];
     final demoPins = districtPins ?? const <DistrictPin>[];
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('โอกาส'),
-        actions: [
-          TextButton.icon(
-            onPressed: loading && !mapView ? null : _toggleMap,
-            icon: Icon(mapView ? Icons.view_list_outlined : Icons.map_outlined),
-            label: Text(mapView ? 'ดูรายการ' : 'ดูแผนที่'),
-          ),
-        ],
-      ),
       body: Column(
         children: [
-          SingleChildScrollView(
-            controller: lanesScroll,
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: [
-                for (final choice in OpportunityLane.values)
-                  Padding(
-                    key: laneKeys[choice],
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(choice.label),
-                      selected: lane == choice,
-                      onSelected: (_) =>
-                          widget.app.oppGroup.value = choice.group,
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          _header(),
           Expanded(
             child: mapView
                 ? Column(
                     children: [
-                      _filters(),
-                      if (error != null) const Text('โหลดพิกัดได้บางส่วน'),
-                      if (demoPins.isNotEmpty)
-                        Text('DEMO · พิกัดรายเขต ${demoPins.length} เขต'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        child: Text(
+                          [
+                            '${pins.length} พิกัดที่ยืนยันได้',
+                            if (demoPins.isNotEmpty)
+                              'DEMO · ${demoPins.length} เขต',
+                            if (error != null) 'โหลดได้บางส่วน',
+                          ].join(' · '),
+                          style: const TextStyle(color: mutedInk),
+                        ),
+                      ),
                       Expanded(
                         child: loading
                             ? const Center(
@@ -492,45 +476,122 @@ class _OppTabState extends State<OppTab> {
     );
   }
 
-  Widget _filters() => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 6, 12, 4),
+  Widget _header() => BrandHeader(
+    padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
     child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
-          controller: search,
-          textInputAction: TextInputAction.search,
-          onSubmitted: _submit,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.search),
-            labelText: 'ค้นหาโอกาส',
-            isDense: true,
-            border: const OutlineInputBorder(),
-            suffixIcon: IconButton(
-              tooltip: 'ล้างคำค้น',
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                search.clear();
-                _submit('');
-              },
-            ),
-          ),
-        ),
-        Wrap(
-          spacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: _chooseDistrict,
-              icon: const Icon(Icons.place_outlined),
-              label: Text(
-                district == null
-                    ? 'ทุกเขตในกรุงเทพฯ'
-                    : 'เขต${bangkokDistricts[district]}',
+            const Expanded(
+              child: Text(
+                'โอกาส',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
             ),
-            if (lane == OpportunityLane.jobs) ...[
+            TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              onPressed: loading && !mapView ? null : _toggleMap,
+              icon: Icon(
+                mapView ? Icons.view_list_outlined : Icons.map_outlined,
+              ),
+              label: Text(mapView ? 'ดูรายการ' : 'ดูแผนที่'),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: search,
+                style: const TextStyle(color: brandInk),
+                textInputAction: TextInputAction.search,
+                onSubmitted: _submit,
+                onChanged: (value) {
+                  searchDelay?.cancel();
+                  searchDelay = Timer(
+                    const Duration(milliseconds: 300),
+                    () => _submit(value),
+                  );
+                },
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'ค้นหา',
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  suffixIconConstraints: const BoxConstraints(),
+                  suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: search,
+                    builder: (_, value, _) => value.text.isEmpty
+                        ? const SizedBox.shrink()
+                        : IconButton(
+                            tooltip: 'ล้างคำค้น',
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              search.clear();
+                              _submit('');
+                            },
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              flex: 0,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 145),
+                child: TextButton(
+                  style: TextButton.styleFrom(backgroundColor: Colors.white),
+                  onPressed: _chooseDistrict,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.place_outlined, size: 17),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          district == null
+                              ? 'ทุกเขตในกรุงเทพฯ'
+                              : 'เขต${bangkokDistricts[district]}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        LayoutBuilder(
+          builder: (_, constraints) => Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final choice in OpportunityLane.values)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: _laneButton(
+                      choice,
+                      compact: constraints.maxWidth < 410,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (lane == OpportunityLane.jobs)
+          Wrap(
+            spacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
               MenuAnchor(
+                controller: jobMenu,
                 menuChildren: [
                   for (final category in OpportunityLane.jobs.categories)
                     CheckboxMenuButton(
@@ -545,7 +606,8 @@ class _OppTabState extends State<OppTab> {
                       child: Text(category.label),
                     ),
                 ],
-                builder: (context, controller, _) => OutlinedButton.icon(
+                builder: (context, controller, _) => TextButton.icon(
+                  style: TextButton.styleFrom(backgroundColor: Colors.white),
                   onPressed: () => controller.isOpen
                       ? controller.close()
                       : controller.open(),
@@ -559,15 +621,88 @@ class _OppTabState extends State<OppTab> {
               ),
               FilterChip(
                 label: const Text('ตรงทักษะของฉัน'),
+                backgroundColor: Colors.white,
                 selected: bySkill,
                 onSelected: ranking ? null : (_) => _rankBySkill(),
               ),
             ],
-          ],
-        ),
+          ),
       ],
     ),
   );
+
+  Widget _laneButton(OpportunityLane choice, {required bool compact}) {
+    final selected = lane == choice;
+    final count = lane == OpportunityLane.all || selected
+        ? items.values
+                  .where(
+                    (item) =>
+                        choice == OpportunityLane.all ||
+                        choice.categories.contains(
+                          OpportunityCategory.of(item),
+                        ),
+                  )
+                  .length +
+              (choice == OpportunityLane.all ||
+                      choice == OpportunityLane.benefits
+                  ? _visibleBenefits.length
+                  : 0)
+        : null;
+    return Semantics(
+      selected: selected,
+      label: [
+        choice.label,
+        if (count != null) '$count รายการที่แสดง',
+      ].join(', '),
+      button: true,
+      child: TextButton(
+        onPressed: () => widget.app.oppGroup.value = choice.group,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 6),
+          tapTargetSize: MaterialTapTargetSize.padded,
+          foregroundColor: selected ? brandButton : Colors.white,
+          backgroundColor: selected ? Colors.white : const Color(0x264AABFF),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: ExcludeSemantics(
+          child: Column(
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(choice.icon, size: 20),
+                  if (count != null) ...[
+                    const SizedBox(width: 4),
+                    Text('$count', style: const TextStyle(fontSize: 11)),
+                  ],
+                ],
+              ),
+              Text(
+                compact && choice == OpportunityLane.benefits
+                    ? 'สิทธิ์'
+                    : choice.label,
+                style: const TextStyle(fontSize: 11),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> get _visibleBenefits => [
+    for (final item
+        in widget.assessment?.benefits ?? const <Map<String, dynamic>>[])
+      if (OpportunityCategory.forMoney('${item['id']}') != null &&
+          (submitted.isEmpty ||
+              '${item['title']} ${item['payer']}'.contains(submitted)))
+        item,
+  ];
 
   Widget _list(BuildContext context) {
     final shown = [
@@ -580,11 +715,14 @@ class _OppTabState extends State<OppTab> {
         controller: listScroll,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          SliverToBoxAdapter(child: _filters()),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
             sliver: SliverList.list(
               children: [
+                Text(
+                  '${shown.length + (lane == OpportunityLane.all || lane == OpportunityLane.benefits ? _visibleBenefits.length : 0)} รายการที่แสดง',
+                  style: const TextStyle(color: mutedInk),
+                ),
                 if (noPins)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
@@ -604,7 +742,12 @@ class _OppTabState extends State<OppTab> {
                         child: const Text('ลองใหม่'),
                       ),
                     ),
-                if (shown.isEmpty && !loading && error == null)
+                if (shown.isEmpty &&
+                    !loading &&
+                    error == null &&
+                    (lane != OpportunityLane.all &&
+                            lane != OpportunityLane.benefits ||
+                        _visibleBenefits.isEmpty))
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Text('ไม่พบรายการตรงตัวกรอง'),
@@ -614,9 +757,35 @@ class _OppTabState extends State<OppTab> {
           ),
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            sliver: SliverList.builder(
-              itemCount: shown.length,
-              itemBuilder: (context, index) => _card(context, shown[index]),
+            sliver: SliverList.list(
+              children: [
+                if (lane == OpportunityLane.all)
+                  for (final group in OpportunityLane.values.skip(1)) ...[
+                    if (shown.any(
+                      (item) => group.categories.contains(
+                        OpportunityCategory.of(item),
+                      ),
+                    )) ...[
+                      _sectionHeader(
+                        group.label,
+                        onTap: () => widget.app.oppGroup.value = group.group,
+                      ),
+                      for (final item in shown.where(
+                        (item) => group.categories.contains(
+                          OpportunityCategory.of(item),
+                        ),
+                      ))
+                        _card(context, item),
+                    ],
+                  ]
+                else
+                  for (final item in shown) _card(context, item),
+                if (lane == OpportunityLane.all)
+                  for (final item in shown.where(
+                    (item) => OpportunityCategory.of(item) == null,
+                  ))
+                    _card(context, item),
+              ],
             ),
           ),
           SliverToBoxAdapter(
@@ -641,6 +810,22 @@ class _OppTabState extends State<OppTab> {
     );
   }
 
+  Widget _sectionHeader(String title, {VoidCallback? onTap}) => Row(
+    children: [
+      Expanded(
+        child: Semantics(
+          header: true,
+          child: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ),
+      if (onTap != null)
+        TextButton(onPressed: onTap, child: const Text('ดูทั้งหมด ›')),
+    ],
+  );
+
   Widget _card(BuildContext context, Map<String, dynamic> item) {
     final id = item['id'] as String;
     final category = OpportunityCategory.of(item);
@@ -654,6 +839,8 @@ class _OppTabState extends State<OppTab> {
     final fit = rank[id];
     return Card(
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        leading: OpportunityArtwork(category: category),
         title: Text(
           '${item['title']}',
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -670,7 +857,13 @@ class _OppTabState extends State<OppTab> {
                 ),
               ),
             if (item['organization'] case final String name) Text(name),
-            Text(oppMoney(item)),
+            Text(
+              oppMoney(item),
+              style: const TextStyle(
+                color: brandDark,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             if (province != null)
               Text(province.startsWith('เขต') ? province : 'เขต$province'),
             if (source is String)
@@ -721,11 +914,7 @@ class _OppTabState extends State<OppTab> {
     final benefits = assessment.benefits
         .where((item) => OpportunityCategory.forMoney('${item['id']}') != null)
         .toList();
-    final shown = benefits.where(
-      (item) =>
-          submitted.isEmpty ||
-          '${item['title']} ${item['payer']}'.contains(submitted),
-    );
+    final shown = _visibleBenefits;
     final counted = benefits.where(
       (item) =>
           {'likely', 'verified'}.contains(item['status']) &&
@@ -760,23 +949,53 @@ class _OppTabState extends State<OppTab> {
             children: [
               if (assessment.mock) const DemoPill(),
               if (missing) const Text('ข้อมูลยังไม่พอประเมิน'),
-              Text('รายเดือน ${total('monthly')}'),
-              Text('ครั้งเดียว ${total('once')}'),
+              Text(
+                'รายเดือน ${total('monthly')}',
+                style: const TextStyle(
+                  color: brandDark,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
+              ),
+              Text(
+                'ครั้งเดียว ${total('once')}',
+                style: const TextStyle(
+                  color: brandDark,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               if (pending > 0) Text('ต้องตรวจต่อ $pending รายการ'),
               if (counted.isNotEmpty)
                 const Text('ยอดประเมินตามเกณฑ์และข้อมูลที่มี'),
             ],
           ),
           children: [
-            for (final item in shown)
-              ListTile(
-                title: Text('${item['title']}'),
-                subtitle: Text(
-                  '${OpportunityCategory.forMoney('${item['id']}')!.label} · ${benefitStatusLabel[item['status']] ?? ''}\n${benefitAmount(item)}',
+            for (final category in OpportunityLane.benefits.categories)
+              if (shown.any(
+                (item) =>
+                    OpportunityCategory.forMoney('${item['id']}') == category,
+              )) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _sectionHeader(category.label),
                 ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _openBenefit(item),
-              ),
+                for (final item in shown.where(
+                  (item) =>
+                      OpportunityCategory.forMoney('${item['id']}') == category,
+                ))
+                  ListTile(
+                    leading: OpportunityArtwork(
+                      category: category,
+                      moneyId: item['id'] as String?,
+                    ),
+                    title: Text('${item['title']}'),
+                    subtitle: Text(
+                      '${OpportunityCategory.forMoney('${item['id']}')!.label} · ${benefitStatusLabel[item['status']] ?? ''}\n${benefitAmount(item)}',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => _openBenefit(item),
+                  ),
+              ],
           ],
         ),
       ),

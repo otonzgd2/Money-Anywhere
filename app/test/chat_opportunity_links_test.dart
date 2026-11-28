@@ -24,6 +24,9 @@ class _ChatApi extends Api {
   };
 
   @override
+  Future<Map<String, bool>?> currentPurposes() async => {'ai': true};
+
+  @override
   Future<void> consent({required bool ai}) async => expect(ai, isTrue);
 
   @override
@@ -73,7 +76,8 @@ Future<void> _open(WidgetTester tester, _ChatApi api) async {
   );
   await tester.pumpAndSettle();
   await tester.enterText(find.byType(TextField), 'หางานบางนา');
-  await tester.tap(find.byIcon(Icons.send));
+  await tester.pump();
+  await tester.tap(find.byTooltip('ส่งข้อความ'));
   await tester.pumpAndSettle();
 }
 
@@ -172,7 +176,7 @@ void main() {
       'aiStatus': 'fallback_rules',
     })..failures.add(ApiException(0, 'NETWORK', 'socket closed'));
     await _open(tester, api);
-    expect(find.textContaining('AI ไม่พร้อม ตอบด้วยกฎ'), findsOneWidget);
+    expect(find.textContaining('ตอบตามเกณฑ์เมื่อ AI ไม่พร้อม'), findsOneWidget);
     expect(find.text('[ซ่อน] หางานบางนา'), findsOneWidget);
     await tester.tap(find.text('บันทึกเข้าแผน'));
     await tester.pumpAndSettle();

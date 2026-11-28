@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:money_anywhere/api.dart';
@@ -9,6 +10,9 @@ import 'package:money_anywhere/common.dart';
 class _GuardApi extends Api {
   final messages = <Map<String, dynamic>>[];
   final response = Completer<Map<String, dynamic>>();
+
+  @override
+  Future<Map<String, bool>?> currentPurposes() async => {'ai': true};
 
   @override
   Future<void> consent({required bool ai}) async => expect(ai, isTrue);
@@ -29,6 +33,13 @@ class _GuardApi extends Api {
     }
     expect(path, '/v1/ai/conversations/guard-demo/messages');
     messages.add(Map<String, dynamic>.from(body! as Map));
+    if ((body as Map)['text'] == 'ต้องการ 5,000 บาท') {
+      return {
+        'reply': 'ต้องการเป็นเงินก้อนหรือรายเดือน',
+        'step': {'id': 'period-a'},
+        'quickReplies': ['เงินก้อน', 'รายเดือน'],
+      };
+    }
     return response.future;
   }
 }
@@ -46,18 +57,59 @@ Future<_GuardApi> _open(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('speech fills an editable draft and waits for Send', (
+    tester,
+  ) async {
+    final api = await _open(tester);
+    const channel = MethodChannel('money_anywhere/speech');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'recognize');
+      return 'อยากหางานเสริม';
+    });
+    addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+
+    await tester.tap(find.byTooltip('พิมพ์ด้วยเสียง'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('เริ่มพูด'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'อยากหางานเสริม',
+    );
+    expect(api.messages, isEmpty);
+
+    await tester.enterText(
+      find.byType(TextField),
+      'มีงานประจำแล้ว ต้องการงานเสริม',
+    );
+    await tester.pump();
+    await tester.tap(find.byTooltip('ส่งข้อความ'));
+    api.response.complete({
+      'reply': 'ลองดูงานพาร์ตไทม์',
+      'aiStatus': 'guarded',
+    });
+    await tester.pumpAndSettle();
+    expect(api.messages.single['text'], 'มีงานประจำแล้ว ต้องการงานเสริม');
+  });
+
   testWidgets('UI-01 quick reply identifies the question shown to the person', (
     tester,
   ) async {
     final api = await _open(tester);
+    await tester.enterText(find.byType(TextField), 'ต้องการ 5,000 บาท');
+    await tester.pump();
+    await tester.tap(find.byTooltip('ส่งข้อความ'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ActionChip, 'รายเดือน'));
     api.response.complete({
       'reply': 'รับเป้ารายเดือนแล้ว',
       'aiStatus': 'guarded',
     });
     await tester.pumpAndSettle();
-    expect(api.messages.single['text'], 'รายเดือน');
-    expect(api.messages.single['stepId'], 'period-a');
+    expect(api.messages.last['text'], 'รายเดือน');
+    expect(api.messages.last['stepId'], 'period-a');
     expect(find.text('รับเป้ารายเดือนแล้ว'), findsOneWidget);
   });
 
@@ -66,7 +118,8 @@ void main() {
     (tester) async {
       final api = await _open(tester);
       await tester.enterText(find.byType(TextField), 'ไม่รู้จะเริ่มยังไง');
-      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.tap(find.byTooltip('ส่งข้อความ'));
       api.response.complete({
         'reply': 'อยากเริ่มจากเช็กสิทธิหรือหาเงินเพิ่ม?',
         'guard': {'kind': 'unclear'},
@@ -87,7 +140,8 @@ void main() {
       final screen = tester.widget<ChatScreen>(find.byType(ChatScreen));
       const secret = 'OTP 000123';
       await tester.enterText(find.byType(TextField), secret);
-      await tester.tap(find.byIcon(Icons.send));
+      await tester.pump();
+      await tester.tap(find.byTooltip('ส่งข้อความ'));
       await tester.pump();
       final visibleWhilePending = find
           .textContaining('000123')

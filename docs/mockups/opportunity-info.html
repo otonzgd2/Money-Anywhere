@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ข้อมูลโอกาสกรุงเทพฯ | Money Anywhere</title>
+  <title>ข้อมูลโอกาสกรุงเทพฯ | ทางรอด</title>
   <style>
-    :root { --accent: #315c4a; --tint: #e9f2ec; --ink: #172825; --muted: #50615c; --line: #d7e2dc; }
+    :root { --accent: #0a3a9e; --tint: #eaf1ff; --ink: #0f172a; --muted: #516078; --line: #e6ebf2; }
     *, *::before, *::after { box-sizing: border-box; }
-    body { margin: 0; background: #f5f7f2; color: var(--ink); font: 16px/1.65 "Leelawadee UI", Tahoma, system-ui, sans-serif; }
+    body { margin: 0; background: #f4f7fc; color: var(--ink); font: 16px/1.65 "Leelawadee UI", Tahoma, system-ui, sans-serif; }
     .wrap { width: min(980px, calc(100% - 36px)); margin-inline: auto; }
     h1, h2, p, ul, dl { margin: 0; }
     h1 { font-size: clamp(1.7rem, 5vw, 3rem); line-height: 1.25; }
@@ -16,7 +16,7 @@
     :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
     .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 20px; padding-block: 17px; }
     .brand { color: var(--ink); text-decoration: none; font-weight: 750; }
-    .hero { border-radius: 21px; background: var(--accent); color: #fff; padding: clamp(19px, 5vw, 43px); }
+    .hero { border-radius: 21px; background: linear-gradient(135deg, #0a3a9e, #0b4fd6); color: #fff; padding: clamp(19px, 5vw, 43px); }
     .hero h1 { margin: 7px 0; }
     .badge { display: inline-block; border: 1px solid #dce6df; border-radius: 999px; padding: 2px 8px; font-size: .8rem; font-weight: 750; }
     .category { font-weight: 700; margin-left: 7px; }
@@ -32,8 +32,8 @@
     .muted { color: var(--muted); }
     form { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 14px 0; }
     form label { display: grid; gap: 4px; flex: 1 1 180px; font-weight: 650; }
-    input, select, button { min-width: 0; min-height: 44px; border-radius: 8px; border: 1px solid #9bad9f; padding: 6px 10px; font: inherit; }
-    button { background: var(--accent); color: white; border-color: var(--accent); cursor: pointer; }
+    input, select, button { min-width: 0; min-height: 44px; border-radius: 14px; border: 1px solid #8490a3; padding: 6px 10px; font: inherit; }
+    button { background: #0a2a6b; color: white; border-color: #0a2a6b; border-radius: 24px; cursor: pointer; }
     .results { list-style: none; padding: 0; margin-top: 10px; }
     .results li { padding: 9px 0; border-top: 1px solid var(--line); }
     footer { margin-top: 24px; padding: 13px 0; border-top: 1px solid var(--line); color: var(--muted); }
@@ -44,7 +44,7 @@
 </head>
 <body>
   <header class="wrap top">
-    <a class="brand" href="opportunity-info.html">Money Anywhere</a>
+    <a class="brand" href="opportunity-info.html">ทางรอด</a>
     <a href="opportunity-map.html">แผนที่กรุงเทพฯ</a>
     <a id="back" href="opportunity-info.html" hidden>กลับไปรายการจำลอง</a>
   </header>
@@ -90,7 +90,7 @@
     <p id="status" role="status" class="muted"></p>
     <noscript><p>เปิด JavaScript เพื่อดูรายละเอียดจากฐานข้อมูลเดโม</p></noscript>
   </main>
-  <footer class="wrap">Money Anywhere · ข้อมูลสมมติสำหรับเดโม</footer>
+  <footer class="wrap">ทางรอด · ข้อมูลสมมติสำหรับเดโม</footer>
   <script>
     const categories = {
       welfare: ['สวัสดิการและสิทธิจากรัฐ', '#315c4a', '#e9f2ec'],
@@ -160,7 +160,7 @@
         const [label, accent, tint] = categories[record.category];
         document.documentElement.style.setProperty('--accent', accent);
         document.documentElement.style.setProperty('--tint', tint);
-        document.title = record.title + ' | Money Anywhere';
+        document.title = record.title + ' | ทางรอด';
         byId('back').href = '?' + new URLSearchParams({ district: record.location.district, category: record.category });
         byId('record-category').textContent = label;
         byId('record-title').textContent = record.title;

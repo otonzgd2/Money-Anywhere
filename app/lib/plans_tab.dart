@@ -4,21 +4,20 @@ import 'api.dart';
 import 'common.dart';
 import 'opportunity_catalog.dart';
 import 'task_screen.dart';
+import 'thang_rot_theme.dart';
 
 typedef _SavedPlan = ({DemoChatProfile? demo, Map<String, dynamic> task});
 typedef _PlanList = ({List<_SavedPlan> plans, ApiException? error});
 
-const _background = Color(0xFFF3F7F4);
-const _accent = Color(0xFF086348);
-const _text = Color(0xFF172C25);
-const _secondaryText = Color(0xFF466055);
+const _accent = brandBlue;
+const _secondaryText = mutedInk;
 const _cardShape = RoundedRectangleBorder(
-  side: BorderSide(color: Color(0xFFDCE7DF)),
-  borderRadius: BorderRadius.all(Radius.circular(15)),
+  side: BorderSide(color: cardBorder),
+  borderRadius: BorderRadius.all(Radius.circular(18)),
 );
 
 enum _PlanStatus {
-  active('active', Color(0xFF155744), Color(0xFFE6F4EC)),
+  active('active', brandDark, blueTint),
   blocked('blocked', Color(0xFF852F1B), Color(0xFFFBECE5)),
   snoozed('snoozed', Color(0xFF624F1C), Color(0xFFF8F0DC)),
   finished('finished', Color(0xFF3B554A), Color(0xFFEDF2EE)),
@@ -130,65 +129,58 @@ class _PlansTabState extends State<PlansTab> {
     ].where((group) => group.plans.isNotEmpty).toList();
 
     return Scaffold(
-      backgroundColor: _background,
-      body: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: _load,
-          child: CustomScrollView(
-            key: const PageStorageKey('saved-plans'),
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(child: _header(list.length)),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(13, 14, 13, 20),
-                sliver: SliverList.list(
-                  children: [
-                    if (failure != null) ...[
-                      _loadError(failure),
-                      if (list.isNotEmpty) const SizedBox(height: 14),
-                    ] else if (plans == null)
-                      const Center(child: CircularProgressIndicator())
-                    else if (list.isEmpty)
-                      _emptyCard(),
-                    for (final (index, group) in groups.indexed) ...[
-                      if (index > 0) const SizedBox(height: 18),
-                      if (groups.length > 1)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                          child: Semantics(
-                            header: true,
-                            child: Text(
-                              group.label,
-                              style: const TextStyle(
-                                color: Color(0xFF37564B),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: CustomScrollView(
+          key: const PageStorageKey('saved-plans'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _header(list.length)),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(13, 14, 13, 20),
+              sliver: SliverList.list(
+                children: [
+                  if (failure != null) ...[
+                    _loadError(failure),
+                    if (list.isNotEmpty) const SizedBox(height: 14),
+                  ] else if (plans == null)
+                    const Center(child: CircularProgressIndicator())
+                  else if (list.isEmpty)
+                    _emptyCard(),
+                  for (final (index, group) in groups.indexed) ...[
+                    if (index > 0) const SizedBox(height: 18),
+                    if (groups.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+                        child: Semantics(
+                          header: true,
+                          child: Text(
+                            group.label,
+                            style: const TextStyle(
+                              color: brandInk,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                      for (final (position, plan) in group.plans.indexed) ...[
-                        if (position > 0) const SizedBox(height: 9),
-                        _planCard(plan),
-                      ],
-                    ],
-                    if (list.isNotEmpty)
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(4, 11, 4, 0),
-                        child: Text(
-                          'สถานะและความคืบหน้าอิงจากที่คุณแจ้ง',
-                          style: TextStyle(
-                            color: Color(0xFF506960),
-                            fontSize: 12,
-                          ),
-                        ),
                       ),
+                    for (final (position, plan) in group.plans.indexed) ...[
+                      if (position > 0) const SizedBox(height: 9),
+                      _planCard(plan),
+                    ],
                   ],
-                ),
+                  if (list.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(4, 11, 4, 0),
+                      child: Text(
+                        'สถานะและความคืบหน้าอิงจากที่คุณแจ้ง',
+                        style: TextStyle(color: mutedInk, fontSize: 12),
+                      ),
+                    ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -211,17 +203,8 @@ class _PlansTabState extends State<PlansTab> {
     );
   }
 
-  Widget _header(int count) => Container(
+  Widget _header(int count) => BrandHeader(
     padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-    decoration: const BoxDecoration(
-      color: Color(0xFF163E35),
-      gradient: RadialGradient(
-        center: Alignment.topRight,
-        radius: 1.1,
-        colors: [Color(0xFF2D6658), Color(0xFF163E35)],
-      ),
-      borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-    ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -241,7 +224,7 @@ class _PlansTabState extends State<PlansTab> {
           const SizedBox(height: 4),
           Text(
             '$count แผนที่บันทึก',
-            style: const TextStyle(color: Color(0xFFD3E6DC), fontSize: 14),
+            style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
         ],
       ],
@@ -261,7 +244,7 @@ class _PlansTabState extends State<PlansTab> {
             child: const Text(
               'ยังไม่มีแผน',
               style: TextStyle(
-                color: _text,
+                color: brandInk,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
@@ -279,7 +262,7 @@ class _PlansTabState extends State<PlansTab> {
               foregroundColor: Colors.white,
               minimumSize: const Size(48, 48),
             ),
-            onPressed: () => widget.app.goTab(0),
+            onPressed: () => widget.app.goTab(AppTab.home),
             child: const Text(
               'ไปเช็คเงินที่หน้าแรก',
               textAlign: TextAlign.center,
@@ -312,7 +295,7 @@ class _PlansTabState extends State<PlansTab> {
         child: Material(
           color: Colors.white,
           elevation: 1,
-          shadowColor: const Color(0x1A163E35),
+          shadowColor: cardBorder,
           shape: _cardShape,
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -325,6 +308,14 @@ class _PlansTabState extends State<PlansTab> {
                 children: [
                   Row(
                     children: [
+                      if (category != null) ...[
+                        OpportunityArtwork(
+                          category: category,
+                          moneyId: task['moneyId'] as String?,
+                          size: 36,
+                        ),
+                        const SizedBox(width: 7),
+                      ],
                       Expanded(
                         child: category == null
                             ? const SizedBox.shrink()
@@ -372,7 +363,7 @@ class _PlansTabState extends State<PlansTab> {
                         child: Text(
                           '${task['title']}',
                           style: const TextStyle(
-                            color: _text,
+                            color: brandInk,
                             fontSize: 16,
                             height: 1.35,
                             fontWeight: FontWeight.w800,
@@ -383,7 +374,7 @@ class _PlansTabState extends State<PlansTab> {
                       const Icon(
                         Icons.chevron_right,
                         size: 18,
-                        color: Color(0xFF50786A),
+                        color: brandDark,
                       ),
                     ],
                   ),
@@ -402,7 +393,7 @@ class _PlansTabState extends State<PlansTab> {
                           const TextSpan(
                             text: 'ขั้นถัดไป ',
                             style: TextStyle(
-                              color: Color(0xFF304E43),
+                              color: brandDark,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -424,7 +415,7 @@ class _PlansTabState extends State<PlansTab> {
                               value: done / steps.length,
                               minHeight: 5,
                               color: _accent,
-                              backgroundColor: const Color(0xFFE3EDE6),
+                              backgroundColor: blueTint,
                               borderRadius: const BorderRadius.all(
                                 Radius.circular(3),
                               ),
