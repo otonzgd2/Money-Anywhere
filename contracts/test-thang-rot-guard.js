@@ -1082,3 +1082,16 @@ test('JOB shift filtering retains overlapping and unspecified shifts', async () 
   await (await chat(api)).send('หางานบางนาตอนกลางคืน');
   assert.ok(searched[2].includes(ids[1]));
 });
+
+test('FMT-01 model Markdown becomes plain text for the chat bubble', async () => {
+  const agent = createAgent({
+    baseUrl: 'https://model.invalid/v1', apiKey: 'test-key', apiStyle: 'chat-completions',
+    async fetch() {
+      return Response.json({ choices: [{ message: { content: '## งานในเขตบางนา\n1. **เจ้าหน้าที่ธุรการ** · __เช้า__\n   - ใช้ทักษะ `งานเอกสาร`\n* ดูประกาศจริงก่อนสมัคร' } }] });
+    }
+  });
+  const { aiStatus, reply } = await agent.respond({ text: 'หางาน', tools: {} });
+  assert.equal(aiStatus, 'ok');
+  assert.doesNotMatch(reply, /\*\*|__|`|^#/m);
+  assert.equal(reply, 'งานในเขตบางนา\n1. เจ้าหน้าที่ธุรการ · เช้า\n   • ใช้ทักษะ งานเอกสาร\n• ดูประกาศจริงก่อนสมัคร');
+});
