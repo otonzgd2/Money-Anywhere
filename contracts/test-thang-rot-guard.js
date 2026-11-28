@@ -621,3 +621,63 @@ test('TURN-09 ยอดของโครงการที่ถามสิท
   assert.match(turn.reply, /ชื่อโครงการ|โครงการไหน|โครงการอะไร|โครงการใด|ประกาศไหน|ประกาศที่/);
   assert.deepEqual(await api('GET', '/v1/me/facts'), {});
 });
+
+async function openCatalogueChat() {
+  const { copyFileSync, mkdtempSync } = require('node:fs');
+  const { join } = require('node:path');
+  const { tmpdir } = require('node:os');
+  const jobDbFile = join(mkdtempSync(join(tmpdir(), 'thang-rot-district-')), 'catalogue.db');
+  copyFileSync(join(__dirname, '..', 'docs', 'entities', 'database-script', 'demo', 'catalogue.db'), jobDbFile);
+  const searched = [];
+  const server = createServer({
+    appMode: 'demo', demo: true, jobs: false, jobDbFile, aiDailyLimit: 0, aiLogFile: '', retentionDays: 0,
+    ai: localAi,
+    agent: {
+      provider: 'test',
+      async respond({ tools }) {
+        const { items } = await tools.search_opportunities.run({ group: 'job', limit: 3 });
+        searched.push(items.map(item => item.id));
+        return { aiStatus: 'ok', reply: items.map(item => item.title).join('\n') || 'ยังไม่พบงาน', toolCalls: [{ tool: 'search_opportunities' }] };
+      }
+    },
+    fetch: async () => { throw new Error('External calls are disabled in this suite'); }
+  });
+  servers.push(server);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const api = client('http://127.0.0.1:' + server.address().port);
+  const districtsOf = async ids => Promise.all(ids.map(async id => (await api('GET', '/v1/opportunities/' + id)).location.district));
+  return { api, searched, districtsOf };
+}
+
+test('D3-01 หางานใกล้บ้านใช้เขตในโปรไฟล์ ไม่ได้งานเขตอื่น', async () => {
+  const { api, searched, districtsOf } = await openCatalogueChat();
+  await person(api, { profile: { district: 'บางนา' } });
+  const turn = await (await chat(api)).send('หางานใกล้บ้าน');
+  assert.equal(usedTool(turn, 'search_opportunities'), true, turn.reply);
+  assert.ok(searched[0].length > 0, 'found jobs in Bang Na');
+  assert.deepEqual(new Set(await districtsOf(searched[0])), new Set(['บางนา']));
+});
+
+test('D3-02 เขตในข้อความมาก่อนเขตในโปรไฟล์ และ "ดูงานอื่น" ยังอยู่เขตเดิม', async () => {
+  const { api, searched, districtsOf } = await openCatalogueChat();
+  await person(api, { profile: { district: 'บางนา' } });
+  const convo = await chat(api);
+  await convo.send('หางานแถวประเวศ');
+  const more = await convo.send('มีงานอื่นไหม');
+  assert.equal(usedTool(more, 'search_opportunities'), true, more.reply);
+  assert.deepEqual(new Set(await districtsOf([...searched[0], ...searched[1]])), new Set(['ประเวศ']));
+  assert.equal(searched[0].some(id => searched[1].includes(id)), false, 'follow-up shows new listings');
+});
+
+test('D3-03 ไม่รู้เขตให้ถามเขตก่อนค้น แล้วค้นตามเขตที่ตอบ', async () => {
+  const { api, searched, districtsOf } = await openCatalogueChat();
+  await person(api);
+  const convo = await chat(api);
+  const asked = await convo.send('หางานใกล้บ้าน');
+  assert.equal(asked.step?.fact, 'jobDistrict', asked.reply);
+  assert.equal(searched.length, 0);
+  const answered = await convo.send('บางนา');
+  assert.equal(usedTool(answered, 'search_opportunities'), true, answered.reply);
+  assert.deepEqual(new Set(await districtsOf(searched[0])), new Set(['บางนา']));
+});
