@@ -77,12 +77,12 @@ const _guardLabel = {
 };
 
 String _who(_Msg m) {
+  if (m.status == 'fallback_rules') return '🤖 ผู้ช่วย (AI ไม่พร้อม ตอบด้วยกฎ)';
   if (m.guard != null && _guardLabel.containsKey(m.guard)) return '🛡️ กฎของแอป: ${_guardLabel[m.guard]}';
   return switch (m.status) {
     'saved' => '🤖 ผู้ช่วย',
     'ok' => '🤖 AI',
     'guarded' => '🤖 ผู้ช่วย (ตามเช็คลิสต์)',
-    'fallback_rules' => '🤖 ผู้ช่วย (AI ไม่พร้อม ตอบด้วยกฎ)',
     _ => '🤖 ผู้ช่วย',
   };
 }
@@ -91,6 +91,8 @@ String _who(_Msg m) {
 class ChatSession extends ChangeNotifier {
   final List<_Msg> _msgs = [];
   final Set<String> decided = {};
+  final Set<String> deciding = {};
+  final Map<String, ({String message, bool retry})> actionErrors = {};
   final Set<Uri> unavailableSources = {};
   List<String> quick = [];
   String? stepId;
@@ -103,6 +105,8 @@ class ChatSession extends ChangeNotifier {
   void reset() {
     _msgs.clear();
     decided.clear();
+    deciding.clear();
+    actionErrors.clear();
     unavailableSources.clear();
     quick = [];
     stepId = null;
@@ -120,7 +124,7 @@ class ChatSession extends ChangeNotifier {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController input = TextEditingController();
   final ScrollController scroll = ScrollController();
-  final Set<String> deciding = {};
+  Set<String> get deciding => s.deciding;
   Api get api => widget.app.api;
   ChatSession get s => widget.session;
   List<_Msg> get msgs => s._msgs;
@@ -248,14 +252,23 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _decide(Map<String, dynamic> a, bool yes) async {
     final actionId = a['id'] as String;
-    if (deciding.contains(actionId)) return;
-    setState(() => deciding.add(actionId));
+    final session = s;
+    final conversation = conversationId;
+    final app = widget.app;
+    if (conversation == null || deciding.contains(actionId) ||
+        decided.contains(actionId) || session.actionErrors[actionId]?.retry == false) {
+      return;
+    }
+    session._updateMessages(() {
+      deciding.add(actionId);
+      session.actionErrors.remove(actionId);
+    });
     try {
-      final response = await api.post('/v1/ai/conversations/$conversationId/actions/$actionId', {'decision': yes ? 'confirm' : 'reject'});
-      if (!mounted) return;
-      setState(() => decided.add(actionId));
+      final response = await api.post('/v1/ai/conversations/$conversation/actions/$actionId', {'decision': yes ? 'confirm' : 'reject'});
+      if (session.conversationId != conversation) return;
+      session._updateMessages(() => session.decided.add(actionId));
       final task = response['result'];
-      if (response['status'] == 'done') widget.app.bump();
+      if (response['status'] == 'done') app.bump();
       if (response['status'] == 'done' && a['tool'] == 'create_task' && task is Map && task['id'] is String) {
         final steps = task['steps'] as List? ?? const [];
         final next = task['doneCount'] as int? ?? 0;
@@ -264,16 +277,35 @@ class _ChatScreenState extends State<ChatScreen> {
           '${task['title']}',
           if (next >= 0 && next < steps.length) 'ขั้นต่อไป: ${steps[next]}',
         ].join('\n');
-        setState(() => msgs.add(_Msg(false, summary, status: 'saved', planLinks: [(taskId: task['id'] as String, label: 'ดูแผนของฉัน ›')])));
-        _scrollDown();
-      } else {
+        session._updateMessages(() => session._msgs.add(_Msg(false, summary, status: 'saved',
+          planLinks: [(taskId: task['id'] as String, label: 'ดูแผนของฉัน ›')],
+        )));
+      } else if (mounted) {
         toast(context, yes ? 'ทำแล้ว: ${a['label']}' : 'ยกเลิกแล้ว ไม่ได้เปลี่ยนอะไร');
       }
     } on ApiException catch (e) {
-      if (!mounted) return;
-      toast(context, e.message);
+      if (session.conversationId != conversation) return;
+      final jobLinked = session._msgs.any(
+        (message) => message.opportunities.any((link) => link.actionId == actionId),
+      );
+      if (jobLinked && (e.status == 409 || e.status == 404)) {
+        session._updateMessages(() {
+          session.actionErrors[actionId] = (message: e.message, retry: false);
+        });
+      } else if (jobLinked && (e.isNetwork || e.status >= 500)) {
+        session._updateMessages(() {
+          session.actionErrors[actionId] = (
+            message: 'ยังไม่ทราบผล ลองยืนยันอีกครั้งได้ ระบบจะไม่บันทึกซ้ำ',
+            retry: true,
+          );
+        });
+      } else if (mounted) {
+        toast(context, e.message);
+      }
     } finally {
-      if (mounted) setState(() => deciding.remove(actionId));
+      if (session.conversationId == conversation) {
+        session._updateMessages(() => session.deciding.remove(actionId));
+      }
     }
   }
 
@@ -303,6 +335,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _opportunityRow(_OpportunityLink link, Map<String, dynamic>? action) {
     final source = link.source;
     final saveId = action?['id'];
+    final actionError = s.actionErrors[saveId];
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
@@ -317,6 +350,7 @@ class _ChatScreenState extends State<ChatScreen> {
             link.sourceLabel,
           ].join(' · ')),
           if (link.data['money'] is Map) Text(oppMoney(link.data)),
+          if (actionError != null) Text(actionError.message),
           Wrap(
             spacing: 4,
             children: [
@@ -344,8 +378,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 )
               else if (action != null && saveId is String && !decided.contains(saveId))
                 FilledButton(
-                  onPressed: deciding.contains(saveId) ? null : () => _decide(action, true),
-                  child: const Text('บันทึกเข้าแผน'),
+                  onPressed: deciding.contains(saveId) || actionError?.retry == false
+                      ? null
+                      : () => _decide(action, true),
+                  child: Text(actionError?.retry == true ? 'ลองยืนยันอีกครั้ง' : 'บันทึกเข้าแผน'),
                 ),
             ],
           ),

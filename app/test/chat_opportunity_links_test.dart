@@ -159,4 +159,52 @@ void main() {
     expect(find.text('ยืนยัน'), findsOneWidget);
     expect(find.text('บันทึกเข้าแผน'), findsNothing);
   });
+
+  testWidgets('fallback row retries the same action after a lost response', (
+    tester,
+  ) async {
+    final api = _ChatApi({
+      'reply': 'พบรายการ',
+      'opportunityLinks': [_job],
+      'pendingActions': [_action],
+      'guard': {'kind': 'sensitive'},
+      'maskedText': '[ซ่อน] หางานบางนา',
+      'aiStatus': 'fallback_rules',
+    })..failures.add(ApiException(0, 'NETWORK', 'socket closed'));
+    await _open(tester, api);
+    expect(find.textContaining('AI ไม่พร้อม ตอบด้วยกฎ'), findsOneWidget);
+    expect(find.text('[ซ่อน] หางานบางนา'), findsOneWidget);
+    await tester.tap(find.text('บันทึกเข้าแผน'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('ยังไม่ทราบผล'), findsOneWidget);
+    await tester.tap(find.text('ลองยืนยันอีกครั้ง'));
+    await tester.pumpAndSettle();
+    expect(
+      api.decisions,
+      List.filled(2, '/v1/ai/conversations/chat-1/actions/a-1'),
+    );
+    expect(find.textContaining('บันทึกในแผนของฉันแล้ว'), findsOneWidget);
+  });
+
+  testWidgets('a closed listing disables just its save action', (tester) async {
+    final api = _ChatApi({
+      'reply': 'พบรายการ',
+      'opportunityLinks': [_job],
+      'pendingActions': [_action],
+    })..failures.add(ApiException(409, 'CONFLICT', 'ประกาศนี้ปิดรับแล้ว'));
+    await _open(tester, api);
+    await tester.tap(find.text('บันทึกเข้าแผน'));
+    await tester.pumpAndSettle();
+    expect(find.text('ประกาศนี้ปิดรับแล้ว'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'บันทึกเข้าแผน'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(find.text('ดูรายละเอียด'), findsOneWidget);
+    expect(api.decisions, hasLength(1));
+  });
 }
