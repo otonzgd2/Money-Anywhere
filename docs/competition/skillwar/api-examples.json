@@ -41,13 +41,22 @@
             "field": "identity",
             "label": "ThaID",
             "value": "อายุ 65 ปี",
-            "checkedAt": "2026-11-27"
+            "checkedAt": "2026-11-27",
+            "preview": {
+              "name": "นายสมศักดิ์ สมมติ",
+              "age": "65 ปี",
+              "district": "ปทุมวัน"
+            }
           },
           {
             "field": "ss33",
             "label": "ประกันสังคม",
             "value": "ม. 33 · ส่งสมทบ 8 จาก 15 เดือนก่อนออกงาน",
-            "checkedAt": "2026-11-27"
+            "checkedAt": "2026-11-27",
+            "preview": {
+              "section": "มาตรา 33",
+              "contributions": "8 จาก 15 เดือนก่อนออกงาน"
+            }
           }
         ]
       }
