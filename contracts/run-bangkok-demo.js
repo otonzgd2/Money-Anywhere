@@ -1,5 +1,5 @@
 const { join } = require('node:path');
-const { copyFileSync, mkdirSync, mkdtempSync, rmdirSync, statSync, unlinkSync } = require('node:fs');
+const { copyFileSync, mkdirSync, rmSync, statSync } = require('node:fs');
 const { createServer } = require('./mock-server');
 
 // Port 8082 is forwarded as port 8080 on the Android demo emulator.
@@ -14,9 +14,10 @@ if (!statSync(input, { throwIfNoEntry: false })?.isFile()) {
 let jobDbFile = input;
 let workingDirectory;
 if (!process.env.JOB_DB_FILE) {
-  const dataDirectory = join(__dirname, '.data');
-  mkdirSync(dataDirectory, { recursive: true });
-  workingDirectory = mkdtempSync(join(dataDirectory, 'bangkok-'));
+  // One copy per port, replaced on every start, so a killed run cannot leave copies piling up.
+  workingDirectory = join(__dirname, '.data', 'bangkok-' + port);
+  rmSync(workingDirectory, { recursive: true, force: true });
+  mkdirSync(workingDirectory, { recursive: true });
   jobDbFile = join(workingDirectory, 'catalogue.db');
   copyFileSync(fixture, jobDbFile);
 }
@@ -30,10 +31,7 @@ const server = createServer({
 });
 
 if (workingDirectory) {
-  server.once('close', () => {
-    unlinkSync(jobDbFile);
-    rmdirSync(workingDirectory);
-  });
+  server.once('close', () => rmSync(workingDirectory, { recursive: true, force: true }));
 }
 process.once('SIGINT', () => server.close());
 process.once('SIGTERM', () => server.close());
